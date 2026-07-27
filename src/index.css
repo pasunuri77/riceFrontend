@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { scroll-behavior: smooth; }
+
+body {
+  @apply font-body text-ink bg-cream antialiased;
+}
+
+h1, h2, h3, h4, h5, .font-display {
+  font-family: '"Poppins"', system-ui, sans-serif;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-primary-300 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-primary-400; }
+
+@layer components {
+  .container-app {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed select-none;
+  }
+  .btn-primary {
+    @apply btn bg-primary-500 text-white px-5 py-2.5 shadow-card hover:bg-primary-600 hover:shadow-cardHover active:scale-[0.98];
+  }
+  .btn-secondary {
+    @apply btn bg-leaf-600 text-white px-5 py-2.5 shadow-card hover:bg-leaf-700 hover:shadow-cardHover active:scale-[0.98];
+  }
+  .btn-outline {
+    @apply btn border-2 border-primary-500 text-primary-600 px-5 py-2.5 hover:bg-primary-50 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply btn text-ink/70 hover:bg-black/5 px-4 py-2;
+  }
+
+  .input-field {
+    @apply w-full rounded-lg border border-black/10 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 placeholder:text-ink/35;
+  }
+
+  .label-field {
+    @apply block text-sm font-semibold text-ink/80 mb-1.5;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-black/5;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-black/5 rounded-lg;
+    background-image: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 37%, rgba(0,0,0,0.04) 63%);
+    background-size: 700px 100%;
+    animation: shimmer 1.6s infinite linear;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide;
+  }
+
+  .section-title {
+    @apply text-2xl sm:text-3xl font-extrabold text-ink font-display;
+  }
+
+  .section-sub {
+    @apply text-ink/60 mt-1;
+  }
+}
