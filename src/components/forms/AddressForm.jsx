@@ -4,6 +4,7 @@ import { INDIAN_STATES } from '../../data/states'
 const TYPES = ['Home', 'Office', 'Shop', 'Warehouse', 'Other']
 
 const EMPTY = {
+  addressFor: 'Personal', storeName: '', ownerName: '',
   fullName: '', mobile: '', altMobile: '',
   flat: '', building: '', street: '', area: '', landmark: '', village: '',
   city: '', district: '', state: '', country: 'India', pincode: '',
@@ -25,7 +26,48 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div>
+        <p className="label-field mb-2">Is this address for personal use or a business?</p>
+        <div className="flex gap-6">
+          <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+            <input
+              type="radio"
+              name="addressFor"
+              value="Business"
+              checked={form.addressFor === 'Business'}
+              onChange={update('addressFor')}
+              className="accent-primary-500 w-4 h-4"
+            />
+            Business
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+            <input
+              type="radio"
+              name="addressFor"
+              value="Personal"
+              checked={form.addressFor === 'Personal'}
+              onChange={update('addressFor')}
+              className="accent-primary-500 w-4 h-4"
+            />
+            Personal
+          </label>
+        </div>
+      </div>
+
+      {form.addressFor === 'Business' && (
+        <div className="grid sm:grid-cols-2 gap-4 border-t border-black/5 pt-5">
+          <div>
+            <label className="label-field">Store Name</label>
+            <input required className="input-field" value={form.storeName} onChange={update('storeName')} />
+          </div>
+          <div>
+            <label className="label-field">Owner Name</label>
+            <input required className="input-field" value={form.ownerName} onChange={update('ownerName')} />
+          </div>
+        </div>
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-4 border-t border-black/5 pt-5">
         <div>
           <label className="label-field">Full Name</label>
           <input required className="input-field" value={form.fullName} onChange={update('fullName')} />
