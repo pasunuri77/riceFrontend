@@ -11,5 +11,5 @@ const navItems = [
 ]
 
 export default function AdminLayout() {
-  return <DashboardShell navItems={navItems} brandLabel="Admin Panel" requireRole="admin" />
+  return <DashboardShell navItems={navItems} brandLabel="Admin Panel" requireRole="admin" profileTo="/admin/settings" />
 }

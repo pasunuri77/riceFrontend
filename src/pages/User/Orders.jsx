@@ -50,7 +50,7 @@ export default function Orders() {
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <StatusPill status={o.deliveryStatus} />
-                  <StatusPill status={o.paymentStatus} />
+                  <span className="text-xs text-ink/40">{o.paymentStatus === 'Paid' ? 'Paid' : 'Payment pending'}</span>
                 </div>
               </div>
               <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 sm:text-right sm:min-w-[140px]">

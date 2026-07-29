@@ -2,10 +2,26 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Eye } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
-import StatusPill from '../../components/ui/StatusPill'
+import { STATUS_STYLES } from '../../components/ui/StatusPill'
 import Modal from '../../components/ui/Modal'
 import { formatINR, formatDate } from '../../utils/format'
 import orderApi from '../../api/orderApi'
+
+const PAYMENT_STATUSES = ['Pending', 'Paid']
+const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+
+function StatusSelect({ value, options, onChange }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className={`badge border-0 cursor-pointer pr-6 ${STATUS_STYLES[value] || 'bg-black/10 text-ink/60'}`}
+    >
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
+  )
+}
 
 export default function AdminOrders() {
   const [ordersData, setOrdersData] = useState([])
@@ -15,6 +31,16 @@ export default function AdminOrders() {
   useEffect(() => { orderApi.listAll().then(setOrdersData) }, [])
 
   const list = ordersData.filter((o) => `${o.id} ${o.customerName} ${o.riceName}`.toLowerCase().includes(search.toLowerCase()))
+
+  const updatePaymentStatus = (id, status) => {
+    setOrdersData((prev) => prev.map((o) => (o.id === id ? { ...o, paymentStatus: status } : o)))
+    setViewing((v) => (v?.id === id ? { ...v, paymentStatus: status } : v))
+  }
+
+  const updateDeliveryStatus = (id, status) => {
+    setOrdersData((prev) => prev.map((o) => (o.id === id ? { ...o, deliveryStatus: status } : o)))
+    setViewing((v) => (v?.id === id ? { ...v, deliveryStatus: status } : v))
+  }
 
   return (
     <div>
@@ -26,11 +52,12 @@ export default function AdminOrders() {
       </div>
 
       <div className="card overflow-x-auto">
-        <table className="w-full text-sm min-w-[900px]">
+        <table className="w-full text-sm min-w-[980px]">
           <thead>
             <tr className="text-left text-ink/40 text-xs uppercase border-b border-black/5">
               <th className="p-3.5">Order ID</th><th className="p-3.5">Customer</th>
               <th className="p-3.5">Rice</th><th className="p-3.5">Qty</th><th className="p-3.5">Amount</th>
+              <th className="p-3.5">Date</th>
               <th className="p-3.5">Payment</th><th className="p-3.5">Delivery</th><th className="p-3.5"></th>
             </tr>
           </thead>
@@ -41,11 +68,12 @@ export default function AdminOrders() {
                 <td className="p-3">
                   <Link to={`/admin/customers?id=${o.customerId}`} className="font-semibold text-primary-700 hover:underline">{o.customerName}</Link>
                 </td>
-                <td className="p-3 max-w-[180px] truncate">{o.riceName}</td>
+                <td className="p-3 max-w-[220px] break-words">{o.riceName}</td>
                 <td className="p-3 text-ink/60">{o.quantity}</td>
                 <td className="p-3 font-semibold">{formatINR(o.amount)}</td>
-                <td className="p-3"><StatusPill status={o.paymentStatus} /></td>
-                <td className="p-3"><StatusPill status={o.deliveryStatus} /></td>
+                <td className="p-3 text-ink/50">{formatDate(o.date)}</td>
+                <td className="p-3"><StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} onChange={(status) => updatePaymentStatus(o.id, status)} /></td>
+                <td className="p-3"><StatusSelect value={o.deliveryStatus} options={DELIVERY_STATUSES} onChange={(status) => updateDeliveryStatus(o.id, status)} /></td>
                 <td className="p-3"><button onClick={() => setViewing(o)} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" /></button></td>
               </tr>
             ))}
@@ -63,8 +91,8 @@ export default function AdminOrders() {
             <div className="flex justify-between"><span className="text-ink/50">Quantity</span><span className="font-semibold">{viewing.quantity}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Amount</span><span className="font-semibold">{formatINR(viewing.amount)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Order Date</span><span className="font-semibold">{formatDate(viewing.date)}</span></div>
-            <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusPill status={viewing.paymentStatus} /></div>
-            <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><StatusPill status={viewing.deliveryStatus} /></div>
+            <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
+            <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><StatusSelect value={viewing.deliveryStatus} options={DELIVERY_STATUSES} onChange={(status) => updateDeliveryStatus(viewing.id, status)} /></div>
           </div>
         )}
       </Modal>
