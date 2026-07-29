@@ -15,6 +15,7 @@ import Terms from './pages/Public/Terms'
 import Login from './pages/Public/Login'
 import Register from './pages/Public/Register'
 import ForgotPassword from './pages/Public/ForgotPassword'
+import VerifyOtp from './pages/Public/VerifyOtp'
 import Products from './pages/Public/Products'
 import ProductDetails from './pages/Public/ProductDetails'
 
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-otp" element={<VerifyOtp />} />
           <Route path="/products" element={<Products />} />
           <Route path="/products/:id" element={<ProductDetails />} />
           <Route path="/cart" element={<Cart />} />
