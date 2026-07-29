@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink, Outlet, Link, Navigate } from 'react-router-dom'
-import { Menu, X, Bell, LogOut, ChevronDown } from 'lucide-react'
+import { Menu, X, Bell, LogOut, ChevronDown, User as UserIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../context/AuthContext'
 
-export default function DashboardShell({ navItems, brandLabel, requireRole }) {
+export default function DashboardShell({ navItems, brandLabel, requireRole, profileTo = '/dashboard/profile' }) {
   const [open, setOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const { user, logout } = useAuth()
 
   if (!user) return <Navigate to="/login" replace />
@@ -45,11 +46,6 @@ export default function DashboardShell({ navItems, brandLabel, requireRole }) {
           </NavLink>
         ))}
       </nav>
-      <div className="p-3 border-t border-black/5">
-        <button onClick={logout} className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 w-full">
-          <LogOut className="w-[18px] h-[18px]" /> Logout
-        </button>
-      </div>
     </div>
   )
 
@@ -99,15 +95,33 @@ export default function DashboardShell({ navItems, brandLabel, requireRole }) {
                 )}
               </AnimatePresence>
             </div>
-            <div className="flex items-center gap-2 pl-2 border-l border-black/10">
-              <div className="w-8 h-8 rounded-full bg-primary-500 text-white flex items-center justify-center text-xs font-bold uppercase">
-                {user.name?.[0]}
-              </div>
-              <div className="hidden sm:block leading-tight">
-                <p className="text-sm font-semibold capitalize">{user.name}</p>
-                <p className="text-[11px] text-ink/40">{user.role === 'admin' ? 'Administrator' : 'User'}</p>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-ink/40 hidden sm:block" />
+            <div className="relative">
+              <button onClick={() => setProfileOpen((v) => !v)} className="flex items-center gap-2 pl-2 border-l border-black/10">
+                <div className="w-8 h-8 rounded-full bg-primary-500 text-white flex items-center justify-center text-xs font-bold uppercase">
+                  {user.name?.[0]}
+                </div>
+                <div className="hidden sm:block leading-tight text-left">
+                  <p className="text-sm font-semibold capitalize">{user.name}</p>
+                  <p className="text-[11px] text-ink/40">{user.role === 'admin' ? 'Administrator' : 'User'}</p>
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-ink/40 hidden sm:block transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <AnimatePresence>
+                {profileOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setProfileOpen(false)} />
+                    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} className="absolute right-0 top-full mt-2 card w-52 p-2 z-40">
+                      <Link to={profileTo} onClick={() => setProfileOpen(false)} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-primary-50 text-sm font-medium text-ink/70">
+                        <UserIcon className="w-4 h-4" /> View Profile
+                      </Link>
+                      <div className="my-1 border-t border-black/5" />
+                      <button onClick={logout} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-red-50 text-sm font-medium text-red-500 w-full">
+                        <LogOut className="w-4 h-4" /> Sign Out
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </header>

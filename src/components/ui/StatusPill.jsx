@@ -1,4 +1,4 @@
-const STYLES = {
+export const STATUS_STYLES = {
   Delivered: 'bg-leaf-100 text-leaf-700',
   Shipped: 'bg-blue-100 text-blue-700',
   Processing: 'bg-amber-100 text-amber-700',
@@ -10,5 +10,5 @@ const STYLES = {
 }
 
 export default function StatusPill({ status }) {
-  return <span className={`badge ${STYLES[status] || 'bg-black/10 text-ink/60'}`}>{status}</span>
+  return <span className={`badge ${STATUS_STYLES[status] || 'bg-black/10 text-ink/60'}`}>{status}</span>
 }

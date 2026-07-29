@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
+import otpApi from '../../api/otp/otpApi'
 
 const EMPTY = {
   fullName: '', mobile: '', email: '', password: '', confirmPassword: '',
@@ -11,13 +11,13 @@ const EMPTY = {
 
 export default function Register() {
   const [form, setForm] = useState(EMPTY)
-  const { register } = useAuth()
+  const [sending, setSending] = useState(false)
   const { showToast } = useToast()
   const navigate = useNavigate()
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
-  const submit = async (e) => {
+  const sendOtp = async (e) => {
     e.preventDefault()
     if (!/^[6-9]\d{9}$/.test(form.mobile)) {
       showToast('Enter a valid 10-digit Indian mobile number', 'error')
@@ -27,12 +27,15 @@ export default function Register() {
       showToast('Passwords do not match', 'error')
       return
     }
+    setSending(true)
     try {
-      await register(form)
-      showToast('Account created successfully!', 'success')
-      navigate('/dashboard')
+      await otpApi.sendRegistrationOtp(form.email)
+      showToast('OTP sent to your email', 'success')
+      navigate('/verify-otp', { state: { email: form.email, purpose: 'register', formData: form } })
     } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Registration failed', 'error')
+      showToast(err instanceof ApiError ? err.message : 'Failed to send OTP', 'error')
+    } finally {
+      setSending(false)
     }
   }
 
@@ -45,7 +48,7 @@ export default function Register() {
           <p className="text-ink/50 text-sm mt-1">Join RiceBazaar and start ordering</p>
         </div>
 
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={sendOtp} className="space-y-4">
           <div><label className="label-field">Full Name</label><input required className="input-field" value={form.fullName} onChange={update('fullName')} /></div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
@@ -58,7 +61,7 @@ export default function Register() {
             <div><label className="label-field">Password</label><input required type="password" className="input-field" value={form.password} onChange={update('password')} /></div>
             <div><label className="label-field">Confirm Password</label><input required type="password" className="input-field" value={form.confirmPassword} onChange={update('confirmPassword')} /></div>
           </div>
-          <button className="btn-primary w-full">Create Account</button>
+          <button className="btn-primary w-full" disabled={sending}>{sending ? 'Sending OTP...' : 'Send OTP'}</button>
         </form>
 
         <p className="text-sm text-center text-ink/60 mt-6">
