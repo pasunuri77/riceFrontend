@@ -8,19 +8,21 @@ import { formatINR, formatDate } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
+import { useToast } from '../../context/ToastContext'
 
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg x${i.qty})`).join(', ') : o.riceName)
 
 const PAYMENT_STATUSES = ['Pending', 'Paid']
 const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
 
-function StatusSelect({ value, options, onChange }) {
+function StatusSelect({ value, options, onChange, disabled = false }) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onClick={(e) => e.stopPropagation()}
-      className={`badge border-0 cursor-pointer pr-6 ${STATUS_STYLES[value] || 'bg-black/10 text-ink/60'}`}
+      disabled={disabled}
+      className={`badge border-0 cursor-pointer pr-6 disabled:opacity-60 disabled:cursor-not-allowed ${STATUS_STYLES[value] || 'bg-black/10 text-ink/60'}`}
     >
       {options.map((o) => <option key={o} value={o}>{o}</option>)}
     </select>
@@ -28,10 +30,11 @@ function StatusSelect({ value, options, onChange }) {
 }
 
 export default function AdminOrders() {
+  const { showToast } = useToast()
   const [ordersData, setOrdersData] = useState([])
   const [search, setSearch] = useState('')
   const [viewing, setViewing] = useState(null)
-  const { showToast } = useToast()
+  const [updating, setUpdating] = useState({})
 
   useEffect(() => { orderApi.listAll().then(setOrdersData).catch(() => setOrdersData([])) }, [])
 
@@ -49,6 +52,39 @@ export default function AdminOrders() {
       setOrdersData((prev) => prev.map((o) => (o.id === id ? updated : o)))
       setViewing((v) => (v?.id === id ? updated : v))
     }).catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to update delivery status', 'error'))
+  }
+  const replaceOrder = (updatedOrder) => {
+    setOrdersData((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)))
+    setViewing((v) => (v?.id === updatedOrder.id ? updatedOrder : v))
+  }
+
+  const updatePaymentStatus = async (id, status) => {
+    const key = `${id}:payment`
+    setUpdating((prev) => ({ ...prev, [key]: true }))
+    try {
+      const updatedOrder = await orderApi.updatePaymentStatus(id, status)
+      replaceOrder(updatedOrder)
+      showToast('Payment status updated', 'success')
+    } catch (err) {
+      showToast(err.message || 'Unable to update payment status', 'error')
+    } finally {
+      setUpdating((prev) => ({ ...prev, [key]: false }))
+    }
+  }
+
+  const updateDeliveryStatus = async (id, status) => {
+    const key = `${id}:delivery`
+    setUpdating((prev) => ({ ...prev, [key]: true }))
+    try {
+      const updatedOrder = await orderApi.updateDeliveryStatus(id, status)
+      replaceOrder(updatedOrder)
+      showToast('Delivery status updated', 'success')
+    } catch (err) {
+      showToast(err.message || 'Unable to update delivery status', 'error')
+    } finally {
+      setUpdating((prev) => ({ ...prev, [key]: false }))
+    }
+
   }
 
   return (
@@ -81,8 +117,8 @@ export default function AdminOrders() {
                 <td className="p-3 text-ink/60">{o.quantity}</td>
                 <td className="p-3 font-semibold">{formatINR(o.amount)}</td>
                 <td className="p-3 text-ink/50">{formatDate(o.date)}</td>
-                <td className="p-3"><StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} onChange={(status) => updatePaymentStatus(o.id, status)} /></td>
-                <td className="p-3"><StatusSelect value={o.deliveryStatus} options={DELIVERY_STATUSES} onChange={(status) => updateDeliveryStatus(o.id, status)} /></td>
+                <td className="p-3"><StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${o.id}:payment`]} onChange={(status) => updatePaymentStatus(o.id, status)} /></td>
+                <td className="p-3"><StatusSelect value={o.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${o.id}:delivery`]} onChange={(status) => updateDeliveryStatus(o.id, status)} /></td>
                 <td className="p-3"><button onClick={() => setViewing(o)} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" /></button></td>
               </tr>
             ))}
@@ -99,8 +135,8 @@ export default function AdminOrders() {
             <div className="flex justify-between"><span className="text-ink/50">Address</span><span className="font-semibold text-right max-w-[60%]">{viewing.address}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Amount</span><span className="font-semibold">{formatINR(viewing.amount)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Order Date</span><span className="font-semibold">{formatDate(viewing.date)}</span></div>
-            <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
-            <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><StatusSelect value={viewing.deliveryStatus} options={DELIVERY_STATUSES} onChange={(status) => updateDeliveryStatus(viewing.id, status)} /></div>
+            <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
+            <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><StatusSelect value={viewing.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${viewing.id}:delivery`]} onChange={(status) => updateDeliveryStatus(viewing.id, status)} /></div>
           </div>
         )}
       </Modal>
