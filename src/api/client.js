@@ -35,6 +35,13 @@ async function request(path, { method = 'GET', body } = {}) {
   const data = isJson ? await res.json() : null
 
   if (!res.ok) {
+    // A 401/403 while holding a token means that token is stale/invalid (e.g. the
+    // account behind it no longer exists) - drop it so it stops poisoning every
+    // subsequent request, including ones that don't even require auth.
+    if (token && (res.status === 401 || res.status === 403)) {
+      setToken(null)
+      window.dispatchEvent(new Event('auth:invalid'))
+    }
     throw new ApiError(data?.message || res.statusText || 'Request failed', res.status, data)
   }
 

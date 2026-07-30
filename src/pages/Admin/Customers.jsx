@@ -10,6 +10,8 @@ import { useToast } from '../../context/ToastContext'
 import customerApi from '../../api/customerApi'
 import orderApi from '../../api/orderApi'
 
+const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg x${i.qty})`).join(', ') : o.riceName)
+
 const PAGE_SIZE = 8
 const STATUS_TABS = ['All', 'Active', 'Blocked']
 const SORTS = [
@@ -172,7 +174,7 @@ export default function AdminCustomers() {
                   {customerOrders(viewing.id).map((o) => (
                     <div key={o.id} className="flex items-center justify-between text-sm bg-black/[0.02] rounded-lg px-3 py-2">
                       <div className="min-w-0">
-                        <p className="font-semibold truncate">{o.riceName}</p>
+                        <p className="font-semibold truncate">{itemsSummary(o)}</p>
                         <p className="text-xs text-ink/40">{o.id} • {formatDate(o.date)}</p>
                       </div>
                       <div className="text-right shrink-0 ml-3">

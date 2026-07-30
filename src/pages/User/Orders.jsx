@@ -9,12 +9,15 @@ import orderApi from '../../api/orderApi'
 
 const FILTERS = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered']
 
+const itemNames = (o) => (o.items?.length ? o.items.map((i) => i.name).join(', ') : o.riceName)
+const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${i.weight}kg x${i.qty}`).join(', ') : o.quantity)
+
 export default function Orders() {
   const [ordersData, setOrdersData] = useState([])
   const [filter, setFilter] = useState('All')
   const { showToast } = useToast()
 
-  useEffect(() => { orderApi.listMine().then(setOrdersData) }, [])
+  useEffect(() => { orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])) }, [])
 
   const orders = filter === 'All' ? ordersData : ordersData.filter((o) => o.deliveryStatus === filter)
 
@@ -39,12 +42,12 @@ export default function Orders() {
               <img src={o.image} alt="" className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 justify-between">
-                  <p className="font-bold text-sm">{o.riceName}</p>
+                  <p className="font-bold text-sm">{itemNames(o)}</p>
                   <span className="text-xs text-ink/40">{o.id}</span>
                 </div>
                 <p className="text-xs text-ink/50 mt-1">{o.address}</p>
                 <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-ink/50">
-                  <span>Qty: {o.quantity}</span>
+                  <span>Qty: {itemQtys(o)}</span>
                   <span>•</span>
                   <span>Ordered: {formatDate(o.date)}</span>
                 </div>
