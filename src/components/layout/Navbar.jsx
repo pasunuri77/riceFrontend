@@ -28,7 +28,7 @@ export default function Navbar() {
   const navigate = useNavigate()
 
   useEffect(() => setOpen(false), [])
-  useEffect(() => { productApi.list().then(setProducts) }, [])
+  useEffect(() => { productApi.list().then(setProducts).catch(() => setProducts([])) }, [])
 
   const results = query.length > 1
     ? products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()) || p.brand.toLowerCase().includes(query.toLowerCase())).slice(0, 6)

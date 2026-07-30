@@ -1,6 +1,13 @@
 import { http } from './client'
 
-/** Maps to Spring Boot order endpoints for user and admin workflows. */
+/** Maps to Spring Boot:
+ * GET /api/orders (mine)
+ * GET /api/admin/orders (admin)
+ * GET /api/orders/:id
+ * POST /api/orders
+ * PATCH /api/admin/orders/:id/payment-status
+ * PATCH /api/admin/orders/:id/delivery-status
+ */
 const orderApi = {
   listMine: () => http.get('/api/orders'),
 

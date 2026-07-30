@@ -23,9 +23,9 @@ export default function AdminDashboard() {
   const [customers, setCustomers] = useState([])
 
   useEffect(() => {
-    productApi.list().then(setProducts)
-    orderApi.listAll().then(setOrders)
-    customerApi.list().then(setCustomers)
+    productApi.list().then(setProducts).catch(() => setProducts([]))
+    orderApi.listAll().then(setOrders).catch(() => setOrders([]))
+    customerApi.list().then(setCustomers).catch(() => setCustomers([]))
   }, [])
 
   const totalRevenue = orders.reduce((s, o) => s + o.amount, 0)

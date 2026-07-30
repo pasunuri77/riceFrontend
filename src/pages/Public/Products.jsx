@@ -34,12 +34,18 @@ export default function Products() {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([productApi.list(), brandApi.list(), categoryApi.list()]).then(([products, brands, categories]) => {
-      setProductsData(products)
-      setBrandsData(brands)
-      setCategoriesData(categories)
-      setLoading(false)
-    })
+    Promise.all([productApi.list(), brandApi.list(), categoryApi.list()])
+      .then(([products, brands, categories]) => {
+        setProductsData(products)
+        setBrandsData(brands)
+        setCategoriesData(categories)
+      })
+      .catch(() => {
+        setProductsData([])
+        setBrandsData([])
+        setCategoriesData([])
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   useEffect(() => setPage(1), [search, brand, category, type, origin, maxPrice, minRating, inStockOnly, sort])

@@ -18,9 +18,9 @@ export default function AdminReports() {
   const [brands, setBrands] = useState([])
 
   useEffect(() => {
-    orderApi.listAll().then(setOrders)
-    productApi.list().then(setProducts)
-    brandApi.list().then(setBrands)
+    orderApi.listAll().then(setOrders).catch(() => setOrders([]))
+    productApi.list().then(setProducts).catch(() => setProducts([]))
+    brandApi.list().then(setBrands).catch(() => setBrands([]))
   }, [])
 
   const totalRevenue = orders.reduce((s, o) => s + o.amount, 0)

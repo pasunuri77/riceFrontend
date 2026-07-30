@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import PageHeader from '../../components/ui/PageHeader'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
+import { ApiError } from '../../api/client'
 
 export default function Profile() {
-  const { user } = useAuth()
+  const { user, updateProfile } = useAuth()
   const { showToast } = useToast()
 
   const save = (e) => { e.preventDefault(); showToast('Profile updated', 'success') }
@@ -15,9 +17,9 @@ export default function Profile() {
       <div className="card p-6 max-w-lg">
         <form onSubmit={save} className="space-y-4">
           <div className="flex items-center gap-4 mb-2">
-            <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{user?.name?.[0]}</div>
+            <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{form.name?.[0]}</div>
             <div>
-              <p className="font-bold">{user?.name}</p>
+              <p className="font-bold">{form.name}</p>
               <p className="text-xs text-ink/40">User Account</p>
             </div>
           </div>

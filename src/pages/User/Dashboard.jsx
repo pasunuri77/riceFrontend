@@ -27,8 +27,8 @@ export default function Dashboard() {
   const [productsData, setProductsData] = useState([])
 
   useEffect(() => {
-    orderApi.listMine().then(setOrdersData)
-    productApi.list().then(setProductsData)
+    orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([]))
+    productApi.list().then(setProductsData).catch(() => setProductsData([]))
   }, [])
 
   const myOrders = ordersData.slice(0, 6)
