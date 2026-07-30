@@ -29,12 +29,12 @@ export default function AdminProducts() {
   const [form, setForm] = useState(emptyForm([], []))
   const { showToast } = useToast()
 
-  const loadProducts = () => productApi.list().then((list) => setProducts(list.map((p) => ({ ...p, status: p.status || (p.stock > 0 ? 'Active' : 'Inactive') }))))
+  const loadProducts = () => productApi.list().then((list) => setProducts(list.map((p) => ({ ...p, status: p.status || (p.stock > 0 ? 'Active' : 'Inactive') })))).catch(() => setProducts([]))
 
   useEffect(() => {
     loadProducts()
-    categoryApi.list().then(setCategoriesData)
-    brandApi.list().then(setBrandsData)
+    categoryApi.list().then(setCategoriesData).catch(() => setCategoriesData([]))
+    brandApi.list().then(setBrandsData).catch(() => setBrandsData([]))
   }, [])
 
   const filtered = products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.brand.toLowerCase().includes(search.toLowerCase()))
@@ -52,7 +52,7 @@ export default function AdminProducts() {
     productApi.remove(id).then(() => {
       loadProducts()
       showToast('Product deleted', 'success')
-    })
+    }).catch(() => showToast('Failed to delete product', 'error'))
   }
 
   const handleSubmit = (e) => {
@@ -66,7 +66,7 @@ export default function AdminProducts() {
       maxOrder: Number(form.maxOrder),
       weightOptions: form.weightOptions.split(',').map((w) => Number(w.trim())).filter(Boolean),
       image: form.image || `https://picsum.photos/seed/${Date.now()}/600/600`,
-      rating: editing?.rating || 4.0,
+      rating: editing?.rating || 0,
       reviews: editing?.reviews || 0,
       badges: editing?.badges || [],
     }
@@ -75,7 +75,7 @@ export default function AdminProducts() {
       loadProducts()
       showToast(editing ? 'Product updated' : 'Product added', 'success')
       setModalOpen(false)
-    })
+    }).catch(() => showToast(editing ? 'Failed to update product' : 'Failed to add product', 'error'))
   }
 
   return (

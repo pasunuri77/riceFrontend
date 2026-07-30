@@ -1,23 +1,16 @@
 import { useState } from 'react'
 import { NavLink, Outlet, Link, Navigate } from 'react-router-dom'
-import { Menu, X, Bell, LogOut, ChevronDown, User as UserIcon } from 'lucide-react'
+import { Menu, X, LogOut, ChevronDown, User as UserIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../context/AuthContext'
 
 export default function DashboardShell({ navItems, brandLabel, requireRole, profileTo = '/dashboard/profile' }) {
   const [open, setOpen] = useState(false)
-  const [notifOpen, setNotifOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const { user, logout } = useAuth()
 
   if (!user) return <Navigate to="/login" replace />
   if (requireRole && user.role !== requireRole) return <Navigate to="/dashboard" replace />
-
-  const notifications = [
-    { id: 1, text: 'Your order ORD10236 has been shipped.', time: '2h ago' },
-    { id: 2, text: 'Weekend offer: Flat 10% off on Basmati rice.', time: '1d ago' },
-    { id: 3, text: 'New arrival: Gobindobhog Fragrant Rice.', time: '3d ago' },
-  ]
 
   const SidebarContent = (
     <div className="flex flex-col h-full">
@@ -76,25 +69,6 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
           </button>
           <Link to="/" className="text-sm text-ink/50 hover:text-primary-600 hidden sm:block">← Back to Store</Link>
           <div className="ml-auto flex items-center gap-3">
-            <div className="relative">
-              <button onClick={() => setNotifOpen((v) => !v)} className="relative p-2 rounded-lg hover:bg-primary-50">
-                <Bell className="w-5 h-5 text-ink/70" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
-              <AnimatePresence>
-                {notifOpen && (
-                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} className="absolute right-0 top-full mt-2 card w-72 p-2 z-40">
-                    <p className="text-xs font-bold text-ink/40 uppercase px-2 py-1">Notifications</p>
-                    {notifications.map((n) => (
-                      <div key={n.id} className="px-2.5 py-2 rounded-lg hover:bg-primary-50 text-sm">
-                        <p className="text-ink/80">{n.text}</p>
-                        <p className="text-[11px] text-ink/35 mt-0.5">{n.time}</p>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
             <div className="relative">
               <button onClick={() => setProfileOpen((v) => !v)} className="flex items-center gap-2 pl-2 border-l border-black/10">
                 <div className="w-8 h-8 rounded-full bg-primary-500 text-white flex items-center justify-center text-xs font-bold uppercase">

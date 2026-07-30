@@ -33,8 +33,8 @@ export default function AdminCustomers() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
-    customerApi.list().then(setCustomers)
-    orderApi.listAll().then(setOrdersData)
+    customerApi.list().then(setCustomers).catch(() => setCustomers([]))
+    orderApi.listAll().then(setOrdersData).catch(() => setOrdersData([]))
   }, [])
 
   useEffect(() => {

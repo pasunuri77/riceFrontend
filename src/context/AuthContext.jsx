@@ -33,7 +33,6 @@ export function AuthProvider({ children }) {
   const login = (credentials) => authApi.login(credentials).then((u) => { setUser(u); return u })
   const register = (data) => authApi.register(data).then((u) => { setUser(u); return u })
   const logout = () => authApi.logout().then(() => setUser(null))
-  const updateProfile = (data) => userApi.updateProfile(data).then((u) => { setUser(u); return u })
 
   const addAddress = (addr) => addressApi.create(addr).then(() => addressApi.list()).then(setAddresses)
   const updateAddress = (id, addr) => addressApi.update(id, addr).then(() => addressApi.list()).then(setAddresses)
