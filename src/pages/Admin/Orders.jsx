@@ -6,9 +6,7 @@ import { STATUS_STYLES } from '../../components/ui/StatusPill'
 import Modal from '../../components/ui/Modal'
 import { formatINR, formatDate } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
-import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
-import { useToast } from '../../context/ToastContext'
 
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg x${i.qty})`).join(', ') : o.riceName)
 
@@ -40,19 +38,6 @@ export default function AdminOrders() {
 
   const list = ordersData.filter((o) => `${o.id} ${o.customerName} ${o.riceName}`.toLowerCase().includes(search.toLowerCase()))
 
-  const updatePaymentStatus = (id, status) => {
-    orderApi.updatePaymentStatus(id, status).then((updated) => {
-      setOrdersData((prev) => prev.map((o) => (o.id === id ? updated : o)))
-      setViewing((v) => (v?.id === id ? updated : v))
-    }).catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to update payment status', 'error'))
-  }
-
-  const updateDeliveryStatus = (id, status) => {
-    orderApi.updateDeliveryStatus(id, status).then((updated) => {
-      setOrdersData((prev) => prev.map((o) => (o.id === id ? updated : o)))
-      setViewing((v) => (v?.id === id ? updated : v))
-    }).catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to update delivery status', 'error'))
-  }
   const replaceOrder = (updatedOrder) => {
     setOrdersData((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)))
     setViewing((v) => (v?.id === updatedOrder.id ? updatedOrder : v))
