@@ -3,15 +3,25 @@ import { motion } from 'framer-motion'
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import { useToast } from '../../context/ToastContext'
+import contactApi from '../../api/contactApi'
 
 export default function Contact() {
   const { showToast } = useToast()
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' })
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    showToast('Message sent! Our team will get back to you soon.', 'success')
-    setForm({ name: '', email: '', subject: '', message: '' })
+    setSubmitting(true)
+    try {
+      await contactApi.sendMessage(form)
+      showToast('Message sent! Our team will get back to you soon.', 'success')
+      setForm({ name: '', email: '', subject: '', message: '' })
+    } catch (err) {
+      showToast(err.message || 'Unable to send message. Please try again.', 'error')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -43,7 +53,9 @@ export default function Contact() {
               <label className="label-field">Message</label>
               <textarea required rows={5} className="input-field" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
             </div>
-            <button className="btn-primary w-full sm:w-auto"><Send className="w-4 h-4" /> Send Message</button>
+            <button disabled={submitting} className="btn-primary w-full sm:w-auto disabled:opacity-60 disabled:cursor-not-allowed">
+              <Send className="w-4 h-4" /> {submitting ? 'Sending...' : 'Send Message'}
+            </button>
           </form>
         </div>
 
