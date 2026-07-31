@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import useLocalStorage from '../hooks/useLocalStorage'
 import authApi from '../api/authApi'
 import addressApi from '../api/addressApi'
-import userApi from '../api/userApi'
 import { getToken } from '../api/client'
 
 const AuthContext = createContext(null)
@@ -32,6 +31,8 @@ export function AuthProvider({ children }) {
 
   const login = (credentials) => authApi.login(credentials).then((u) => { setUser(u); return u })
   const register = (data) => authApi.register(data).then((u) => { setUser(u); return u })
+  const updateProfile = (data) => authApi.updateProfile(data).then((u) => { setUser(u); return u })
+  const updateAdminProfile = (data) => authApi.updateAdminProfile(data).then((u) => { setUser(u); return u })
   const logout = () => authApi.logout().then(() => setUser(null))
 
   const addAddress = (addr) => addressApi.create(addr).then(() => addressApi.list()).then(setAddresses)
@@ -41,7 +42,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, register, logout, updateProfile, addresses, addAddress, updateAddress, deleteAddress, setDefaultAddress }}
+      value={{ user, login, register, updateProfile, updateAdminProfile, logout, addresses, addAddress, updateAddress, deleteAddress, setDefaultAddress }}
     >
       {children}
     </AuthContext.Provider>

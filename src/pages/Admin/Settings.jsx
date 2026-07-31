@@ -1,14 +1,57 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import PageHeader from '../../components/ui/PageHeader'
+import { ApiError } from '../../api/client'
+import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 
-const TABS = ['Store Information', 'Delivery & Tax', 'Business Hours']
+const TABS = ['Admin Profile', 'Store Information', 'Delivery & Tax', 'Business Hours']
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const emptyProfile = {
+  fullName: '',
+  email: '',
+  mobile: '',
+}
 
 export default function AdminSettings() {
-  const [tab, setTab] = useState('Store Information')
+  const [tab, setTab] = useState('Admin Profile')
+  const [profile, setProfile] = useState(emptyProfile)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const { user, updateAdminProfile } = useAuth()
   const { showToast } = useToast()
   const save = (e) => { e.preventDefault(); showToast('Settings saved', 'success') }
+
+  useEffect(() => {
+    setProfile({
+      fullName: user?.name || '',
+      email: user?.email || '',
+      mobile: user?.phone || '',
+    })
+  }, [user])
+
+  const updateProfileField = (key) => (e) => {
+    const value = key === 'mobile'
+      ? e.target.value.replace(/\D/g, '').slice(0, 10)
+      : e.target.value
+    setProfile((current) => ({ ...current, [key]: value }))
+  }
+
+  const saveProfile = async (e) => {
+    e.preventDefault()
+    if (!/^[6-9]\d{9}$/.test(profile.mobile)) {
+      showToast('Enter a valid 10-digit Indian mobile number', 'error')
+      return
+    }
+
+    setSavingProfile(true)
+    try {
+      await updateAdminProfile(profile)
+      showToast('Admin profile updated', 'success')
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to update admin profile', 'error')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
 
   return (
     <div>
@@ -23,6 +66,22 @@ export default function AdminSettings() {
       </div>
 
       <div className="card p-6 max-w-2xl">
+        {tab === 'Admin Profile' && (
+          <form onSubmit={saveProfile} className="space-y-4">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{user?.name?.[0]}</div>
+              <div>
+                <p className="font-bold">{user?.name}</p>
+                <p className="text-xs text-ink/40">Admin Account</p>
+              </div>
+            </div>
+            <div><label className="label-field">Full Name</label><input required value={profile.fullName} onChange={updateProfileField('fullName')} className="input-field" /></div>
+            <div><label className="label-field">Email</label><input required value={profile.email} onChange={updateProfileField('email')} type="email" className="input-field" /></div>
+            <div><label className="label-field">Mobile Number</label><input required pattern="[6-9][0-9]{9}" maxLength={10} title="Enter a valid 10-digit Indian mobile number" value={profile.mobile} onChange={updateProfileField('mobile')} className="input-field" /></div>
+            <button className="btn-primary" disabled={savingProfile}>{savingProfile ? 'Saving...' : 'Save Profile'}</button>
+          </form>
+        )}
+
         {tab === 'Store Information' && (
           <form onSubmit={save} className="space-y-4">
             <div className="flex items-center gap-4">
