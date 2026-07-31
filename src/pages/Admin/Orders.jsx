@@ -69,7 +69,6 @@ export default function AdminOrders() {
     } finally {
       setUpdating((prev) => ({ ...prev, [key]: false }))
     }
-
   }
 
   return (
