@@ -5,8 +5,12 @@ import PageHeader from '../../components/ui/PageHeader'
 import { STATUS_STYLES } from '../../components/ui/StatusPill'
 import Modal from '../../components/ui/Modal'
 import { formatINR, formatDate } from '../../utils/format'
+import { useToast } from '../../context/ToastContext'
+import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
 import { useToast } from '../../context/ToastContext'
+
+const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg x${i.qty})`).join(', ') : o.riceName)
 
 const PAYMENT_STATUSES = ['Pending', 'Paid']
 const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
@@ -32,10 +36,23 @@ export default function AdminOrders() {
   const [viewing, setViewing] = useState(null)
   const [updating, setUpdating] = useState({})
 
-  useEffect(() => { orderApi.listAll().then(setOrdersData) }, [])
+  useEffect(() => { orderApi.listAll().then(setOrdersData).catch(() => setOrdersData([])) }, [])
 
   const list = ordersData.filter((o) => `${o.id} ${o.customerName} ${o.riceName}`.toLowerCase().includes(search.toLowerCase()))
 
+  const updatePaymentStatus = (id, status) => {
+    orderApi.updatePaymentStatus(id, status).then((updated) => {
+      setOrdersData((prev) => prev.map((o) => (o.id === id ? updated : o)))
+      setViewing((v) => (v?.id === id ? updated : v))
+    }).catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to update payment status', 'error'))
+  }
+
+  const updateDeliveryStatus = (id, status) => {
+    orderApi.updateDeliveryStatus(id, status).then((updated) => {
+      setOrdersData((prev) => prev.map((o) => (o.id === id ? updated : o)))
+      setViewing((v) => (v?.id === id ? updated : v))
+    }).catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to update delivery status', 'error'))
+  }
   const replaceOrder = (updatedOrder) => {
     setOrdersData((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)))
     setViewing((v) => (v?.id === updatedOrder.id ? updatedOrder : v))
@@ -67,6 +84,7 @@ export default function AdminOrders() {
     } finally {
       setUpdating((prev) => ({ ...prev, [key]: false }))
     }
+
   }
 
   return (
@@ -95,7 +113,7 @@ export default function AdminOrders() {
                 <td className="p-3">
                   <Link to={`/admin/customers?id=${o.customerId}`} className="font-semibold text-primary-700 hover:underline">{o.customerName}</Link>
                 </td>
-                <td className="p-3 max-w-[220px] break-words">{o.riceName}</td>
+                <td className="p-3 max-w-[220px] break-words">{itemsSummary(o)}</td>
                 <td className="p-3 text-ink/60">{o.quantity}</td>
                 <td className="p-3 font-semibold">{formatINR(o.amount)}</td>
                 <td className="p-3 text-ink/50">{formatDate(o.date)}</td>
@@ -113,9 +131,8 @@ export default function AdminOrders() {
           <div className="space-y-3 text-sm">
             <img src={viewing.image} alt="" className="w-full h-40 object-cover rounded-xl mb-2" />
             <div className="flex justify-between"><span className="text-ink/50">Customer</span><Link to={`/admin/customers?id=${viewing.customerId}`} className="font-semibold text-primary-700 hover:underline">{viewing.customerName}</Link></div>
-            <div className="flex justify-between"><span className="text-ink/50">Rice</span><span className="font-semibold text-right">{viewing.riceName}</span></div>
+            <div className="flex justify-between"><span className="text-ink/50">Rice</span><span className="font-semibold text-right max-w-[60%]">{itemsSummary(viewing)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Address</span><span className="font-semibold text-right max-w-[60%]">{viewing.address}</span></div>
-            <div className="flex justify-between"><span className="text-ink/50">Quantity</span><span className="font-semibold">{viewing.quantity}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Amount</span><span className="font-semibold">{formatINR(viewing.amount)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Order Date</span><span className="font-semibold">{formatDate(viewing.date)}</span></div>
             <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>

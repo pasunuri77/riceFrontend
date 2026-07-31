@@ -29,7 +29,6 @@ export default function ProductDetails() {
 
   const [weight, setWeight] = useState(null)
   const [qty, setQty] = useState(1)
-  const [activeImg, setActiveImg] = useState(0)
   const [tab, setTab] = useState('specs')
 
   useEffect(() => {
@@ -37,13 +36,15 @@ export default function ProductDetails() {
     productApi.getById(id).then((p) => {
       setProduct(p)
       setWeight(p?.weightOptions[0])
-      setActiveImg(0)
       setQty(1)
       setLoading(false)
       if (p) {
-        reviewApi.listByProduct(p.id).then(setProductReviews)
-        productApi.listRelated(p.category, p.id).then(setRelated)
+        reviewApi.listByProduct(p.id).then(setProductReviews).catch(() => setProductReviews([]))
+        productApi.listRelated(p.category, p.id).then(setRelated).catch(() => setRelated([]))
       }
+    }).catch(() => {
+      setProduct(null)
+      setLoading(false)
     })
   }, [id])
 
@@ -53,7 +54,6 @@ export default function ProductDetails() {
     return <EmptyState icon={PackageSearch} title="Product not found" subtitle="This rice product may have been removed." actionLabel="Back to Shop" actionTo="/products" />
   }
 
-  const gallery = [product.image, `https://picsum.photos/seed/${product.id}b/600/600`, `https://picsum.photos/seed/${product.id}c/600/600`, `https://picsum.photos/seed/${product.id}d/600/600`]
   const total = product.pricePerKg * weight * qty
 
   const buyNow = () => {
@@ -68,14 +68,7 @@ export default function ProductDetails() {
       <div className="grid lg:grid-cols-2 gap-10">
         <div>
           <div className="aspect-square rounded-2xl2 overflow-hidden bg-primary-50 mb-3">
-            <img src={gallery[activeImg]} alt={product.name} className="w-full h-full object-cover" />
-          </div>
-          <div className="grid grid-cols-4 gap-3">
-            {gallery.map((g, i) => (
-              <button key={i} onClick={() => setActiveImg(i)} className={`aspect-square rounded-xl overflow-hidden border-2 ${activeImg === i ? 'border-primary-500' : 'border-transparent'}`}>
-                <img src={g} alt="" className="w-full h-full object-cover" />
-              </button>
-            ))}
+            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
           </div>
         </div>
 

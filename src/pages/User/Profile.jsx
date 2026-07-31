@@ -1,14 +1,21 @@
+<<<<<<< HEAD
 import { useEffect, useState } from 'react'
+=======
+import { useState } from 'react'
+>>>>>>> ef190f18930daf1ed55fa36ea4d07da1f090beb1
 import PageHeader from '../../components/ui/PageHeader'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
+<<<<<<< HEAD
 
 const emptyProfile = {
   fullName: '',
   email: '',
   mobile: '',
 }
+=======
+>>>>>>> ef190f18930daf1ed55fa36ea4d07da1f090beb1
 
 export default function Profile() {
   const { user, updateProfile } = useAuth()
@@ -56,9 +63,9 @@ export default function Profile() {
       <div className="card p-6 max-w-lg">
         <form onSubmit={save} className="space-y-4">
           <div className="flex items-center gap-4 mb-2">
-            <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{user?.name?.[0]}</div>
+            <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{form.name?.[0]}</div>
             <div>
-              <p className="font-bold">{user?.name}</p>
+              <p className="font-bold">{form.name}</p>
               <p className="text-xs text-ink/40">User Account</p>
             </div>
           </div>

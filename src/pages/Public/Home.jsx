@@ -1,25 +1,18 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
-import { Search, ShieldCheck, Truck, BadgePercent, Headphones, ArrowRight, Building2, Quote } from 'lucide-react'
+import { Search, ShieldCheck, Truck, BadgePercent, Headphones, ArrowRight, Building2 } from 'lucide-react'
 import productApi from '../../api/productApi'
 import categoryApi from '../../api/categoryApi'
 import brandApi from '../../api/brandApi'
 import ProductCard from '../../components/product/ProductCard'
 import CategoryCard from '../../components/product/CategoryCard'
-import RatingStars from '../../components/product/RatingStars'
 
 const WHY_US = [
   { icon: ShieldCheck, title: 'Quality Assured', desc: 'Every batch lab-tested for purity and grain quality.' },
   { icon: Truck, title: 'Fast Delivery', desc: 'Pan-India delivery, from 1kg retail packs to bulk orders.' },
   { icon: BadgePercent, title: 'Best Prices', desc: 'Direct-from-mill sourcing means better prices for you.' },
   { icon: Headphones, title: '24/7 Support', desc: 'Dedicated support for individual and business buyers.' },
-]
-
-const TESTIMONIALS = [
-  { name: 'Ananya Sharma', role: 'Home Chef, Delhi', text: 'The India Gate Basmati I ordered was exactly like restaurant quality. Fast delivery too!', rating: 5 },
-  { name: 'Suresh Kumar', role: 'Owner, Sri Venkateswara Traders', text: 'We source all our bulk rice from RiceBazaar now — reliable quality and great business pricing.', rating: 5 },
-  { name: 'Priya Nair', role: 'Home Cook, Kochi', text: 'Loved the Royal Basmati, grains stayed separate and the aroma was amazing.', rating: 4 },
 ]
 
 export default function Home() {
@@ -30,9 +23,9 @@ export default function Home() {
   const [brands, setBrands] = useState([])
 
   useEffect(() => {
-    productApi.list().then(setProducts)
-    categoryApi.list().then(setCategories)
-    brandApi.list().then(setBrands)
+    productApi.list().then(setProducts).catch(() => setProducts([]))
+    categoryApi.list().then(setCategories).catch(() => setCategories([]))
+    brandApi.list().then(setBrands).catch(() => setBrands([]))
   }, [])
 
   const featured = products.filter((p) => p.badges.includes('Best Seller')).slice(0, 8)
@@ -72,9 +65,8 @@ export default function Home() {
             </form>
 
             <div className="flex gap-8 mt-8">
-              <div><p className="text-2xl font-extrabold font-display text-primary-700">15+</p><p className="text-xs text-ink/50">Trusted Brands</p></div>
-              <div><p className="text-2xl font-extrabold font-display text-primary-700">50k+</p><p className="text-xs text-ink/50">Happy Customers</p></div>
-              <div><p className="text-2xl font-extrabold font-display text-primary-700">24</p><p className="text-xs text-ink/50">Rice Varieties</p></div>
+              <div><p className="text-2xl font-extrabold font-display text-primary-700">{brands.length}</p><p className="text-xs text-ink/50">Trusted Brands</p></div>
+              <div><p className="text-2xl font-extrabold font-display text-primary-700">{products.length}</p><p className="text-xs text-ink/50">Rice Varieties</p></div>
             </div>
           </motion.div>
 
@@ -176,31 +168,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Customer Reviews */}
-      <section className="bg-leaf-50 py-16">
-        <div className="container-app">
-          <div className="text-center mb-10">
-            <h2 className="section-title">What Our Customers Say</h2>
-            <p className="section-sub">Real feedback from real rice lovers</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-5">
-            {TESTIMONIALS.map((t, i) => (
-              <motion.div key={t.name} initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} className="card p-6">
-                <Quote className="w-7 h-7 text-primary-200 mb-2" />
-                <p className="text-sm text-ink/70 leading-relaxed">{t.text}</p>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-black/5">
-                  <div>
-                    <p className="font-bold text-sm">{t.name}</p>
-                    <p className="text-xs text-ink/40">{t.role}</p>
-                  </div>
-                  <RatingStars rating={t.rating} showValue={false} />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Latest Arrivals */}
       <section className="container-app py-14">
         <div className="flex items-end justify-between mb-6">
@@ -224,9 +191,7 @@ export default function Home() {
               <p className="text-white/70 mt-3 max-w-md">Get wholesale pricing, GST invoicing and dedicated support for bulk orders.</p>
               <Link to="/contact" className="btn-primary mt-6 inline-flex">Contact Sales <ArrowRight className="w-4 h-4" /></Link>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div className="bg-white/10 rounded-xl p-4"><p className="text-2xl font-extrabold font-display">500+</p><p className="text-xs text-white/60 mt-1">Business Partners</p></div>
-              <div className="bg-white/10 rounded-xl p-4"><p className="text-2xl font-extrabold font-display">10T+</p><p className="text-xs text-white/60 mt-1">Monthly Bulk Supply</p></div>
+            <div className="grid grid-cols-1 gap-4 text-center">
               <div className="bg-white/10 rounded-xl p-4"><p className="text-2xl font-extrabold font-display">GST</p><p className="text-xs text-white/60 mt-1">Invoicing Supported</p></div>
             </div>
           </div>

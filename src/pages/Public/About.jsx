@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Target, Eye, Leaf, Users } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
+import brandApi from '../../api/brandApi'
 
 const VALUES = [
   { icon: Leaf, title: 'Farm-Fresh Sourcing', desc: 'We work directly with mills and farmers across India to bring you the freshest rice.' },
@@ -10,6 +12,12 @@ const VALUES = [
 ]
 
 export default function About() {
+  const [brands, setBrands] = useState([])
+
+  useEffect(() => {
+    brandApi.list().then(setBrands).catch(() => setBrands([]))
+  }, [])
+
   return (
     <div className="container-app py-10">
       <Breadcrumb items={[{ label: 'About Us' }]} />
@@ -18,7 +26,7 @@ export default function About() {
           <span className="badge bg-primary-100 text-primary-700 mb-4">Our Story</span>
           <h1 className="section-title !text-4xl">Bringing India's Finest Rice to Every Home</h1>
           <p className="text-ink/60 mt-4 leading-relaxed">
-            RiceBazaar started with a simple idea — make premium, authentic Indian rice accessible to everyone, whether you're cooking for a family of four or running a restaurant that serves hundreds. Today we partner with 15+ trusted brands and serve both individual households and business customers across the country.
+            RiceBazaar started with a simple idea — make premium, authentic Indian rice accessible to everyone, whether you're cooking for a family of four or running a restaurant that serves hundreds. Today we partner with {brands.length} trusted brands and serve both individual households and business customers across the country.
           </p>
           <p className="text-ink/60 mt-3 leading-relaxed">
             We believe great meals start with great rice — and we're committed to quality, fair pricing, and reliable delivery, every single time.
@@ -42,11 +50,9 @@ export default function About() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 text-center">
+      <div className="grid grid-cols-2 gap-5 text-center">
         <div className="card p-6"><p className="text-3xl font-extrabold font-display text-primary-700">2026</p><p className="text-xs text-ink/50 mt-1">Founded</p></div>
-        <div className="card p-6"><p className="text-3xl font-extrabold font-display text-primary-700">50k+</p><p className="text-xs text-ink/50 mt-1">Customers</p></div>
-        <div className="card p-6"><p className="text-3xl font-extrabold font-display text-primary-700">15+</p><p className="text-xs text-ink/50 mt-1">Brands</p></div>
-        <div className="card p-6"><p className="text-3xl font-extrabold font-display text-primary-700">28</p><p className="text-xs text-ink/50 mt-1">States Served</p></div>
+        <div className="card p-6"><p className="text-3xl font-extrabold font-display text-primary-700">{brands.length}</p><p className="text-xs text-ink/50 mt-1">Brands</p></div>
       </div>
     </div>
   )
