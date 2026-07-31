@@ -6,7 +6,6 @@ import { STATUS_STYLES } from '../../components/ui/StatusPill'
 import Modal from '../../components/ui/Modal'
 import { formatINR, formatDate } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
-import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
 
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg x${i.qty})`).join(', ') : o.riceName)
