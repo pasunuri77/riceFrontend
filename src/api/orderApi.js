@@ -5,6 +5,7 @@ import { http } from './client'
  * GET /api/admin/orders (admin)
  * GET /api/orders/:id
  * POST /api/orders
+ * PATCH /api/orders/:id/cancel
  * PATCH /api/admin/orders/:id/payment-status
  * PATCH /api/admin/orders/:id/delivery-status
  */
@@ -17,6 +18,8 @@ const orderApi = {
 
   create: ({ address, paymentMethod, items }) =>
     http.post('/api/orders', { address, paymentMethod, items }),
+
+  cancel: (id) => http.patch(`/api/orders/${id}/cancel`),
 
   updatePaymentStatus: (id, status) =>
     http.patch(`/api/admin/orders/${id}/payment-status`, { status }),
