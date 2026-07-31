@@ -28,7 +28,11 @@ export default function AdminDashboard() {
     customerApi.list().then(setCustomers).catch(() => setCustomers([]))
   }, [])
 
-  const totalRevenue = orders.reduce((s, o) => s + o.amount, 0)
+  // Only count revenue once payment is confirmed AND the order has shipped -
+  // a paid-but-unshipped order can still be cancelled/refunded.
+  const totalRevenue = orders
+    .filter((o) => o.paymentStatus === 'Paid' && ['Shipped', 'Delivered'].includes(o.deliveryStatus))
+    .reduce((s, o) => s + o.amount, 0)
   const pendingOrders = orders.filter((o) => ['Pending', 'Processing'].includes(o.deliveryStatus)).length
   const deliveredOrders = orders.filter((o) => o.deliveryStatus === 'Delivered').length
   const lowStock = products.filter((p) => p.stock < 100).length

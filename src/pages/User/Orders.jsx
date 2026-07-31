@@ -5,6 +5,7 @@ import StatusPill from '../../components/ui/StatusPill'
 import EmptyState from '../../components/ui/EmptyState'
 import { formatINR, formatDate } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
+import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
 
 const FILTERS = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered']
@@ -15,11 +16,23 @@ const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${i.weight}kg x${
 export default function Orders() {
   const [ordersData, setOrdersData] = useState([])
   const [filter, setFilter] = useState('All')
+  const [cancelingId, setCancelingId] = useState(null)
   const { showToast } = useToast()
 
   useEffect(() => { orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])) }, [])
 
   const orders = filter === 'All' ? ordersData : ordersData.filter((o) => o.deliveryStatus === filter)
+
+  const cancelOrder = (id) => {
+    setCancelingId(id)
+    orderApi.cancel(id)
+      .then((updated) => {
+        setOrdersData((prev) => prev.map((o) => (o.id === id ? updated : o)))
+        showToast('Order cancelled', 'success')
+      })
+      .catch((err) => showToast(err instanceof ApiError ? err.message : 'Unable to cancel order right now', 'error'))
+      .finally(() => setCancelingId(null))
+  }
 
   return (
     <div>
@@ -62,7 +75,9 @@ export default function Orders() {
                   <button onClick={() => showToast('Tracking order ' + o.id, 'info')} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Truck className="w-3.5 h-3.5" /> Track</button>
                   <button onClick={() => showToast('Invoice downloaded (demo)', 'info')} className="btn text-xs px-3 py-1.5 bg-black/5 text-ink/70 w-full justify-center"><FileText className="w-3.5 h-3.5" /> Invoice</button>
                   {['Pending', 'Processing'].includes(o.deliveryStatus) && (
-                    <button onClick={() => showToast('Order cancelled (demo)', 'error')} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center"><XCircle className="w-3.5 h-3.5" /> Cancel</button>
+                    <button onClick={() => cancelOrder(o.id)} disabled={cancelingId === o.id} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
+                      <XCircle className="w-3.5 h-3.5" /> {cancelingId === o.id ? 'Cancelling...' : 'Cancel'}
+                    </button>
                   )}
                 </div>
               </div>

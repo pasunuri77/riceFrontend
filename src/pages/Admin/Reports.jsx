@@ -23,8 +23,11 @@ export default function AdminReports() {
     brandApi.list().then(setBrands).catch(() => setBrands([]))
   }, [])
 
-  const totalRevenue = orders.reduce((s, o) => s + o.amount, 0)
-  const avgOrderValue = orders.length ? Math.round(totalRevenue / orders.length) : 0
+  // Only count revenue once payment is confirmed AND the order has shipped -
+  // a paid-but-unshipped order can still be cancelled/refunded.
+  const paidShippedOrders = orders.filter((o) => o.paymentStatus === 'Paid' && ['Shipped', 'Delivered'].includes(o.deliveryStatus))
+  const totalRevenue = paidShippedOrders.reduce((s, o) => s + o.amount, 0)
+  const avgOrderValue = paidShippedOrders.length ? Math.round(totalRevenue / paidShippedOrders.length) : 0
 
   const orderStatusSplit = useMemo(() => {
     const counts = {}
