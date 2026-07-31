@@ -1,6 +1,6 @@
 import { http, setToken } from './client'
 
-/** Maps to Spring Boot: POST /api/auth/login, POST /api/auth/register, POST /api/auth/logout */
+/** Maps to Spring Boot: POST /api/auth/login, POST /api/auth/register, POST /api/auth/logout, PATCH /api/users/me, PATCH /api/admin/profile */
 const authApi = {
   login: async (credentials) => {
     const { token, user } = await http.post('/api/auth/login', credentials)
@@ -28,6 +28,18 @@ const authApi = {
       setToken(null)
     }
   },
+
+  updateProfile: (data) => http.patch('/api/users/me', {
+    fullName: data.fullName,
+    email: data.email,
+    mobile: data.mobile,
+  }),
+
+  updateAdminProfile: (data) => http.patch('/api/admin/profile', {
+    fullName: data.fullName,
+    email: data.email,
+    mobile: data.mobile,
+  }),
 }
 
 export default authApi
