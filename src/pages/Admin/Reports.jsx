@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Download } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
+import Breadcrumb from '../../components/ui/Breadcrumb'
 import ChartCard from '../../components/dashboard/ChartCard'
 import { formatINR } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
@@ -52,6 +53,7 @@ export default function AdminReports() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Admin' }, { label: 'Reports' }]} />
       <PageHeader
         title="Reports & Analytics"
         subtitle="Revenue, sales and customer insights"

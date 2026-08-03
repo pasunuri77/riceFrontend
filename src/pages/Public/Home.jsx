@@ -7,6 +7,7 @@ import categoryApi from '../../api/categoryApi'
 import brandApi from '../../api/brandApi'
 import ProductCard from '../../components/product/ProductCard'
 import CategoryCard from '../../components/product/CategoryCard'
+import { ProductCardSkeleton, TextSkeleton } from '../../components/ui/Skeleton'
 
 const WHY_US = [
   { icon: ShieldCheck, title: 'Quality Assured', desc: 'Every batch lab-tested for purity and grain quality.' },
@@ -21,11 +22,14 @@ export default function Home() {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [brands, setBrands] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    productApi.list().then(setProducts).catch(() => setProducts([]))
-    categoryApi.list().then(setCategories).catch(() => setCategories([]))
-    brandApi.list().then(setBrands).catch(() => setBrands([]))
+    Promise.all([
+      productApi.list().then(setProducts).catch(() => setProducts([])),
+      categoryApi.list().then(setCategories).catch(() => setCategories([])),
+      brandApi.list().then(setBrands).catch(() => setBrands([])),
+    ]).finally(() => setLoading(false))
   }, [])
 
   const featured = products.filter((p) => p.badges.includes('Best Seller')).slice(0, 8)
@@ -65,8 +69,8 @@ export default function Home() {
             </form>
 
             <div className="flex gap-8 mt-8">
-              <div><p className="text-2xl font-extrabold font-display text-primary-700">{brands.length}</p><p className="text-xs text-ink/50">Trusted Brands</p></div>
-              <div><p className="text-2xl font-extrabold font-display text-primary-700">{products.length}</p><p className="text-xs text-ink/50">Rice Varieties</p></div>
+              <div>{loading ? <TextSkeleton className="h-7 w-10 mb-1" /> : <p className="text-2xl font-extrabold font-display text-primary-700">{brands.length}</p>}<p className="text-xs text-ink/50">Trusted Brands</p></div>
+              <div>{loading ? <TextSkeleton className="h-7 w-10 mb-1" /> : <p className="text-2xl font-extrabold font-display text-primary-700">{products.length}</p>}<p className="text-xs text-ink/50">Rice Varieties</p></div>
             </div>
           </motion.div>
 
@@ -94,7 +98,9 @@ export default function Home() {
           </Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {categories.map((c, i) => <CategoryCard key={c.id} category={c} index={i} />)}
+          {loading
+            ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton aspect-square rounded-2xl" />)
+            : categories.map((c, i) => <CategoryCard key={c.id} category={c} index={i} />)}
         </div>
       </section>
 
@@ -111,7 +117,9 @@ export default function Home() {
             </Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-            {featured.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+            {loading
+              ? Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
+              : featured.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
           </div>
         </div>
       </section>
@@ -121,7 +129,8 @@ export default function Home() {
         <h2 className="section-title">Popular Brands</h2>
         <p className="section-sub mb-6">Shop from India's most trusted rice brands</p>
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
-          {brands.slice(0, 12).map((b) => (
+          {loading && Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-24 rounded-2xl" />)}
+          {!loading && brands.slice(0, 12).map((b) => (
             <Link
               key={b.id}
               to={`/products?brand=${encodeURIComponent(b.name)}`}
@@ -144,7 +153,9 @@ export default function Home() {
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
-            {offers.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+            {loading
+              ? Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
+              : offers.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
           </div>
         </div>
       </section>
@@ -177,7 +188,9 @@ export default function Home() {
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-          {latest.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+          {loading
+            ? Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
+            : latest.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
         </div>
       </section>
 

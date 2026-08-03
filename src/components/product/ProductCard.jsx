@@ -4,6 +4,7 @@ import { Heart, ShoppingCart, Scale } from 'lucide-react'
 import RatingStars from './RatingStars'
 import StockBadge, { OfferBadge } from './StockBadge'
 import { formatINR } from '../../utils/format'
+import { safeImageUrl } from '../../utils/sanitize'
 import { useCart } from '../../context/CartContext'
 import { useWishlist } from '../../context/WishlistContext'
 import { useCompare } from '../../context/CompareContext'
@@ -26,7 +27,7 @@ export default function ProductCard({ product, index = 0 }) {
       <div className="relative aspect-square overflow-hidden bg-primary-50">
         <Link to={`/products/${product.id}`}>
           <img
-            src={product.image}
+            src={safeImageUrl(product.image)}
             alt={product.name}
             loading="lazy"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -37,16 +38,20 @@ export default function ProductCard({ product, index = 0 }) {
         </div>
         <button
           onClick={() => toggleWishlist(product)}
+          aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
+          aria-pressed={wished}
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur bg-white/80 hover:bg-white transition ${wished ? 'text-red-500' : 'text-ink/50'}`}
         >
-          <Heart className={`w-4 h-4 ${wished ? 'fill-red-500' : ''}`} />
+          <Heart className={`w-4 h-4 ${wished ? 'fill-red-500' : ''}`} aria-hidden="true" />
         </button>
         <button
           onClick={() => toggleCompare(product)}
+          aria-label={comparing ? `Remove ${product.name} from comparison` : `Add ${product.name} to comparison`}
+          aria-pressed={comparing}
           title="Add to compare"
-          className={`absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur bg-white/80 hover:bg-white transition opacity-0 group-hover:opacity-100 ${comparing ? 'text-primary-600 ring-2 ring-primary-400' : 'text-ink/50'}`}
+          className={`absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur bg-white/80 hover:bg-white transition opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 ${comparing ? 'text-primary-600 ring-2 ring-primary-400' : 'text-ink/50'}`}
         >
-          <Scale className="w-4 h-4" />
+          <Scale className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
 
@@ -69,9 +74,10 @@ export default function ProductCard({ product, index = 0 }) {
         <button
           onClick={() => addToCart(product)}
           disabled={product.stock <= 0}
+          aria-label={`Add ${product.name} to cart`}
           className="btn-primary w-full mt-3 text-sm py-2"
         >
-          <ShoppingCart className="w-4 h-4" /> Add to Cart
+          <ShoppingCart className="w-4 h-4" aria-hidden="true" /> Add to Cart
         </button>
       </div>
     </motion.div>

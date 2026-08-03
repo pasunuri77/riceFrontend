@@ -170,8 +170,8 @@ export default function Products() {
 
         {filtersOpen && (
           <div className="fixed inset-0 z-50 lg:hidden">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setFiltersOpen(false)} />
-            <div className="absolute left-0 top-0 h-full w-80 bg-white p-5 overflow-y-auto">
+            <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setFiltersOpen(false)} />
+            <div className="absolute left-0 top-0 h-full w-80 bg-white shadow-cardHover p-5 overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold">Filters</h3>
                 <button onClick={() => setFiltersOpen(false)}><X className="w-5 h-5" /></button>

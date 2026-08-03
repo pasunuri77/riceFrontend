@@ -19,7 +19,7 @@ export default function Cart() {
         <div className="grid lg:grid-cols-[1fr_340px] gap-8">
           <div className="space-y-3">
             {items.map((i) => (
-              <div key={i.id + i.weight} className="card p-4 flex items-center gap-4">
+              <div key={i.id + i.weight} className="card card-hover p-4 flex items-center gap-4">
                 <img src={i.image} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{i.name}</p>
@@ -27,12 +27,12 @@ export default function Cart() {
                   <p className="text-sm font-bold text-primary-700 mt-1">{formatINR(i.pricePerKg * i.weight)} <span className="text-xs text-ink/40 font-normal">/ unit</span></p>
                 </div>
                 <div className="flex items-center border border-black/10 rounded-lg">
-                  <button onClick={() => updateQty(i.id, i.weight, i.qty - 1)} className="p-2 hover:bg-primary-50"><Minus className="w-3.5 h-3.5" /></button>
-                  <span className="w-8 text-center text-sm font-semibold">{i.qty}</span>
-                  <button onClick={() => updateQty(i.id, i.weight, i.qty + 1)} className="p-2 hover:bg-primary-50"><Plus className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => updateQty(i.id, i.weight, i.qty - 1)} aria-label={`Decrease quantity of ${i.name}`} className="p-2 hover:bg-primary-50 transition-colors duration-150 rounded-l-lg"><Minus className="w-3.5 h-3.5" aria-hidden="true" /></button>
+                  <span className="w-8 text-center text-sm font-semibold" aria-live="polite">{i.qty}</span>
+                  <button onClick={() => updateQty(i.id, i.weight, i.qty + 1)} aria-label={`Increase quantity of ${i.name}`} className="p-2 hover:bg-primary-50 transition-colors duration-150 rounded-r-lg"><Plus className="w-3.5 h-3.5" aria-hidden="true" /></button>
                 </div>
                 <p className="font-bold w-20 text-right hidden sm:block">{formatINR(i.pricePerKg * i.weight * i.qty)}</p>
-                <button onClick={() => removeFromCart(i.id, i.weight)} className="text-ink/30 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => removeFromCart(i.id, i.weight)} aria-label={`Remove ${i.name} from cart`} className="text-ink/30 hover:text-red-500 hover:scale-110 transition-all duration-150"><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
               </div>
             ))}
             <Link to="/products" className="text-sm font-semibold text-primary-600 inline-block mt-2">← Continue Shopping</Link>

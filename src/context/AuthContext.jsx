@@ -1,14 +1,19 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import useLocalStorage from '../hooks/useLocalStorage'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import useAuthStorage from '../hooks/useAuthStorage'
+import useIdleLogout from '../hooks/useIdleLogout'
 import authApi from '../api/authApi'
 import addressApi from '../api/addressApi'
 import { getToken } from '../api/client'
+import { useToast } from './ToastContext'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useLocalStorage('rb_user', null)
+  const [user, setUser] = useAuthStorage()
   const [addresses, setAddresses] = useState([])
+  const navigate = useNavigate()
+  const { showToast } = useToast()
 
   // Self-heal stale sessions: a user object with no matching token isn't a real
   // logged-in session (e.g. leftover data from before the backend existed) - clear it.
@@ -19,10 +24,23 @@ export function AuthProvider({ children }) {
   // client.js drops the token and fires this when a request 401/403s while a
   // token was attached (e.g. the account behind it was deleted server-side).
   useEffect(() => {
-    const onAuthInvalid = () => setUser(null)
+    const onAuthInvalid = () => {
+      setUser(null)
+      showToast('Your session has expired. Please log in again.', 'error')
+      navigate('/login')
+    }
     window.addEventListener('auth:invalid', onAuthInvalid)
     return () => window.removeEventListener('auth:invalid', onAuthInvalid)
-  }, [])
+  }, [navigate, showToast])
+
+  const handleIdle = useCallback(() => {
+    if (!user) return
+    setUser(null)
+    showToast("You've been signed out due to inactivity.", 'info')
+    navigate('/login')
+  }, [user, navigate, showToast])
+
+  useIdleLogout(!!user, handleIdle)
 
   useEffect(() => {
     if (!user) { setAddresses([]); return }

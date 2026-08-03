@@ -1,71 +1,88 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import PageHeader from '../../components/ui/PageHeader'
+import FormField from '../../components/ui/FormField'
+import Breadcrumb from '../../components/ui/Breadcrumb'
+import SubmitButton from '../../components/ui/SubmitButton'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
 
-const emptyProfile = {
-  fullName: '',
-  email: '',
-  mobile: '',
-}
+const schema = z.object({
+  fullName: z.string().min(1, 'Full name is required'),
+  email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
+  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
+})
 
 export default function Profile() {
   const { user, updateProfile } = useAuth()
   const { showToast } = useToast()
-  const [form, setForm] = useState(emptyProfile)
-  const [saving, setSaving] = useState(false)
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(schema),
+    mode: 'onTouched',
+    defaultValues: { fullName: '', email: '', mobile: '' },
+  })
 
   useEffect(() => {
-    setForm({
+    reset({
       fullName: user?.name || '',
       email: user?.email || '',
       mobile: user?.phone || '',
     })
-  }, [user])
+  }, [user, reset])
 
-  const update = (key) => (e) => {
-    const value = key === 'mobile'
-      ? e.target.value.replace(/\D/g, '').slice(0, 10)
-      : e.target.value
-    setForm((current) => ({ ...current, [key]: value }))
-  }
+  const { onChange: onMobileChange, ...mobileField } = register('mobile')
+  const fullName = watch('fullName')
 
-  const save = async (e) => {
-    e.preventDefault()
-    if (!/^[6-9]\d{9}$/.test(form.mobile)) {
-      showToast('Enter a valid 10-digit Indian mobile number', 'error')
-      return
-    }
-
-    setSaving(true)
+  const save = async (data) => {
     try {
-      await updateProfile(form)
+      await updateProfile(data)
       showToast('Profile updated', 'success')
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to update profile', 'error')
-    } finally {
-      setSaving(false)
     }
   }
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Profile' }]} />
       <PageHeader title="My Profile" subtitle="Manage your personal information" />
 
       <div className="card p-6 max-w-lg">
-        <form onSubmit={save} className="space-y-4">
+        <form onSubmit={handleSubmit(save)} className="space-y-4" noValidate>
           <div className="flex items-center gap-4 mb-2">
-            <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{form.fullName?.[0] || 'U'}</div>
+            <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{fullName?.[0] || 'U'}</div>
             <div>
-              <p className="font-bold">{form.fullName}</p>
+              <p className="font-bold">{fullName}</p>
               <p className="text-xs text-ink/40">User Account</p>
             </div>
           </div>
-          <div><label className="label-field">Full Name</label><input required value={form.fullName} onChange={update('fullName')} className="input-field" /></div>
-          <div><label className="label-field">Email</label><input required value={form.email} onChange={update('email')} type="email" className="input-field" /></div>
-          <div><label className="label-field">Mobile Number</label><input required pattern="[6-9][0-9]{9}" maxLength={10} title="Enter a valid 10-digit Indian mobile number" value={form.mobile} onChange={update('mobile')} className="input-field" /></div>
-          <button className="btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
+          <FormField label="Full Name" error={errors.fullName?.message}>
+            <input {...register('fullName')} autoFocus className="input-field" aria-invalid={!!errors.fullName} />
+          </FormField>
+          <FormField label="Email" error={errors.email?.message}>
+            <input {...register('email')} type="email" className="input-field" aria-invalid={!!errors.email} />
+          </FormField>
+          <FormField label="Mobile Number" error={errors.mobile?.message}>
+            <input
+              {...mobileField}
+              onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); onMobileChange(e) }}
+              inputMode="numeric"
+              maxLength={10}
+              className="input-field"
+              aria-invalid={!!errors.mobile}
+            />
+          </FormField>
+          <SubmitButton loading={isSubmitting} className="btn-primary">Save Changes</SubmitButton>
         </form>
       </div>
     </div>

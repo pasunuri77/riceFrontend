@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Package, FileText, Truck, XCircle } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
+import Breadcrumb from '../../components/ui/Breadcrumb'
 import StatusPill from '../../components/ui/StatusPill'
 import EmptyState from '../../components/ui/EmptyState'
+import { TextSkeleton } from '../../components/ui/Skeleton'
 import { formatINR, formatDate } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
@@ -17,9 +19,12 @@ export default function Orders() {
   const [ordersData, setOrdersData] = useState([])
   const [filter, setFilter] = useState('All')
   const [cancellingId, setCancellingId] = useState(null)
+  const [loading, setLoading] = useState(true)
   const { showToast } = useToast()
 
-  useEffect(() => { orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])) }, [])
+  useEffect(() => {
+    orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])).finally(() => setLoading(false))
+  }, [])
 
   const orders = filter === 'All' ? ordersData : ordersData.filter((o) => o.deliveryStatus === filter)
 
@@ -38,6 +43,7 @@ export default function Orders() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'My Orders' }]} />
       <PageHeader title="My Orders" subtitle="Track and manage all your orders" />
 
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
@@ -48,7 +54,20 @@ export default function Orders() {
         ))}
       </div>
 
-      {orders.length === 0 ? (
+      {loading ? (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card p-4 sm:p-5 flex flex-col sm:flex-row gap-4">
+              <div className="skeleton w-full sm:w-20 h-32 sm:h-20 rounded-lg shrink-0" />
+              <div className="flex-1 space-y-2">
+                <TextSkeleton className="h-4 w-2/3" />
+                <TextSkeleton className="h-3 w-1/2" />
+                <TextSkeleton className="h-3 w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : orders.length === 0 ? (
         <EmptyState icon={Package} title="No orders found" subtitle="You have no orders in this category yet." actionLabel="Start Shopping" actionTo="/products" />
       ) : (
         <div className="space-y-4">

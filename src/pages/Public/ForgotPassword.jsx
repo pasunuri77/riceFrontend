@@ -1,28 +1,36 @@
-import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Mail } from 'lucide-react'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
 import otpApi from '../../api/otp/otpApi'
+import FormField from '../../components/ui/FormField'
+import SubmitButton from '../../components/ui/SubmitButton'
+
+const schema = z.object({
+  email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
+})
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState('')
-  const [sending, setSending] = useState(false)
   const { showToast } = useToast()
   const navigate = useNavigate()
 
-  const sendOtp = async (e) => {
-    e.preventDefault()
-    setSending(true)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({ resolver: zodResolver(schema), mode: 'onTouched', defaultValues: { email: '' } })
+
+  const onSubmit = async ({ email }) => {
     try {
       await otpApi.sendPasswordResetOtp(email)
       showToast('If the email exists, an OTP has been sent', 'success')
       navigate('/verify-otp', { state: { email, purpose: 'reset' } })
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to send OTP', 'error')
-    } finally {
-      setSending(false)
     }
   }
 
@@ -34,15 +42,14 @@ export default function ForgotPassword() {
           <h1 className="font-display font-extrabold text-2xl mt-2">Forgot Password</h1>
           <p className="text-ink/50 text-sm mt-1">Enter your email to receive a reset OTP</p>
         </div>
-        <form onSubmit={sendOtp} className="space-y-4">
-          <div>
-            <label className="label-field">Email Address</label>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <FormField label="Email Address" error={errors.email?.message}>
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/30" />
-              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field pl-10" placeholder="you@example.com" />
+              <input {...register('email')} autoFocus type="email" className="input-field pl-10" placeholder="you@example.com" aria-invalid={!!errors.email} />
             </div>
-          </div>
-          <button className="btn-primary w-full" disabled={sending}>{sending ? 'Sending OTP...' : 'Send OTP'}</button>
+          </FormField>
+          <SubmitButton loading={isSubmitting} loadingLabel="Sending OTP...">Send OTP</SubmitButton>
         </form>
         <p className="text-sm text-center text-ink/60 mt-6">
           Remembered your password? <Link to="/login" className="text-primary-600 font-semibold">Back to Login</Link>
