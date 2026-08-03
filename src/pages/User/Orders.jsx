@@ -16,22 +16,24 @@ const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${i.weight}kg x${
 export default function Orders() {
   const [ordersData, setOrdersData] = useState([])
   const [filter, setFilter] = useState('All')
-  const [cancelingId, setCancelingId] = useState(null)
+  const [cancellingId, setCancellingId] = useState(null)
   const { showToast } = useToast()
 
   useEffect(() => { orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])) }, [])
 
   const orders = filter === 'All' ? ordersData : ordersData.filter((o) => o.deliveryStatus === filter)
 
-  const cancelOrder = (id) => {
-    setCancelingId(id)
-    orderApi.cancel(id)
-      .then((updated) => {
-        setOrdersData((prev) => prev.map((o) => (o.id === id ? updated : o)))
-        showToast('Order cancelled', 'success')
-      })
-      .catch((err) => showToast(err instanceof ApiError ? err.message : 'Unable to cancel order right now', 'error'))
-      .finally(() => setCancelingId(null))
+  const handleCancel = async (orderId) => {
+    setCancellingId(orderId)
+    try {
+      const updatedOrder = await orderApi.cancel(orderId)
+      setOrdersData((current) => current.map((order) => order.id === orderId ? updatedOrder : order))
+      showToast('Order cancelled', 'success')
+    } catch (error) {
+      showToast(error instanceof ApiError ? error.message : 'Order can no longer be cancelled', 'error')
+    } finally {
+      setCancellingId(null)
+    }
   }
 
   return (
@@ -75,8 +77,8 @@ export default function Orders() {
                   <button onClick={() => showToast('Tracking order ' + o.id, 'info')} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Truck className="w-3.5 h-3.5" /> Track</button>
                   <button onClick={() => showToast('Invoice downloaded (demo)', 'info')} className="btn text-xs px-3 py-1.5 bg-black/5 text-ink/70 w-full justify-center"><FileText className="w-3.5 h-3.5" /> Invoice</button>
                   {['Pending', 'Processing'].includes(o.deliveryStatus) && (
-                    <button onClick={() => cancelOrder(o.id)} disabled={cancelingId === o.id} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
-                      <XCircle className="w-3.5 h-3.5" /> {cancelingId === o.id ? 'Cancelling...' : 'Cancel'}
+                    <button onClick={() => handleCancel(o.id)} disabled={cancellingId === o.id} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
+                      <XCircle className="w-3.5 h-3.5" /> {cancellingId === o.id ? 'Cancelling...' : 'Cancel'}
                     </button>
                   )}
                 </div>
