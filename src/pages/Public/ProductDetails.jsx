@@ -10,10 +10,12 @@ import StockBadge, { OfferBadge } from '../../components/product/StockBadge'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
 import { formatINR, estimatedDelivery } from '../../utils/format'
+import { safeImageUrl } from '../../utils/sanitize'
 import { useCart } from '../../context/CartContext'
 import { useWishlist } from '../../context/WishlistContext'
 import { useCompare } from '../../context/CompareContext'
 import { PackageSearch } from 'lucide-react'
+import { TextSkeleton } from '../../components/ui/Skeleton'
 
 export default function ProductDetails() {
   const { id } = useParams()
@@ -48,7 +50,23 @@ export default function ProductDetails() {
     })
   }, [id])
 
-  if (loading) return null
+  if (loading) {
+    return (
+      <div className="container-app py-8">
+        <TextSkeleton className="h-4 w-64 mb-4" />
+        <div className="grid lg:grid-cols-2 gap-10">
+          <div className="skeleton aspect-square rounded-2xl2" />
+          <div className="space-y-4">
+            <TextSkeleton className="h-4 w-24" />
+            <TextSkeleton className="h-8 w-3/4" />
+            <TextSkeleton className="h-5 w-1/3" />
+            <TextSkeleton className="h-10 w-1/2" />
+            <TextSkeleton className="h-24 w-full" />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!product) {
     return <EmptyState icon={PackageSearch} title="Product not found" subtitle="This rice product may have been removed." actionLabel="Back to Shop" actionTo="/products" />
@@ -68,7 +86,7 @@ export default function ProductDetails() {
       <div className="grid lg:grid-cols-2 gap-10">
         <div>
           <div className="aspect-square rounded-2xl2 overflow-hidden bg-primary-50 mb-3">
-            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+            <img src={safeImageUrl(product.image)} alt={product.name} className="w-full h-full object-cover" />
           </div>
         </div>
 
@@ -110,9 +128,9 @@ export default function ProductDetails() {
             <p className="label-field">Quantity</p>
             <div className="flex items-center gap-3 mb-5">
               <div className="flex items-center border border-black/10 rounded-lg">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="p-2.5 hover:bg-primary-50"><Minus className="w-4 h-4" /></button>
-                <span className="w-10 text-center font-semibold">{qty}</span>
-                <button onClick={() => setQty((q) => q + 1)} className="p-2.5 hover:bg-primary-50"><Plus className="w-4 h-4" /></button>
+                <button onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" className="p-2.5 hover:bg-primary-50"><Minus className="w-4 h-4" aria-hidden="true" /></button>
+                <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
+                <button onClick={() => setQty((q) => q + 1)} aria-label="Increase quantity" className="p-2.5 hover:bg-primary-50"><Plus className="w-4 h-4" aria-hidden="true" /></button>
               </div>
               <div className="card px-4 py-2.5 bg-primary-50 border-0">
                 <p className="text-[11px] text-ink/50">Total Price</p>
@@ -123,11 +141,21 @@ export default function ProductDetails() {
             <div className="flex flex-wrap gap-3">
               <button onClick={() => addToCart(product, weight, qty)} disabled={product.stock <= 0} className="btn-primary flex-1"><ShoppingCart className="w-4 h-4" /> Add to Cart</button>
               <button onClick={buyNow} disabled={product.stock <= 0} className="btn-secondary flex-1">Buy Now</button>
-              <button onClick={() => toggleWishlist(product)} className={`btn-outline px-3.5 ${isWishlisted(product.id) ? '!border-red-400 !text-red-500' : ''}`}>
-                <Heart className={`w-4 h-4 ${isWishlisted(product.id) ? 'fill-red-500' : ''}`} />
+              <button
+                onClick={() => toggleWishlist(product)}
+                aria-label={isWishlisted(product.id) ? 'Remove from wishlist' : 'Add to wishlist'}
+                aria-pressed={isWishlisted(product.id)}
+                className={`btn-outline px-3.5 ${isWishlisted(product.id) ? '!border-red-400 !text-red-500' : ''}`}
+              >
+                <Heart className={`w-4 h-4 ${isWishlisted(product.id) ? 'fill-red-500' : ''}`} aria-hidden="true" />
               </button>
-              <button onClick={() => toggleCompare(product)} className={`btn-outline px-3.5 ${isComparing(product.id) ? '!border-primary-500' : ''}`}>
-                <Scale className="w-4 h-4" />
+              <button
+                onClick={() => toggleCompare(product)}
+                aria-label={isComparing(product.id) ? 'Remove from comparison' : 'Add to comparison'}
+                aria-pressed={isComparing(product.id)}
+                className={`btn-outline px-3.5 ${isComparing(product.id) ? '!border-primary-500' : ''}`}
+              >
+                <Scale className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           </div>

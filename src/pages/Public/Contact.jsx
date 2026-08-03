@@ -1,26 +1,49 @@
-import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { motion } from 'framer-motion'
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
+import FormField from '../../components/ui/FormField'
+import SubmitButton from '../../components/ui/SubmitButton'
 import { useToast } from '../../context/ToastContext'
 import contactApi from '../../api/contactApi'
 
+const MESSAGE_MAX = 2000
+const SUBJECT_MAX = 150
+
+const schema = z.object({
+  name: z.string().min(1, 'Your name is required').max(100, 'Name is too long'),
+  email: z.string().min(1, 'Email is required').email('Enter a valid email address').max(150),
+  subject: z.string().min(1, 'Subject is required').max(SUBJECT_MAX, `Subject must be under ${SUBJECT_MAX} characters`),
+  message: z.string().min(1, 'Message is required').max(MESSAGE_MAX, `Message must be under ${MESSAGE_MAX} characters`),
+})
+
 export default function Contact() {
   const { showToast } = useToast()
-  const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' })
-  const [submitting, setSubmitting] = useState(false)
 
-  const submit = async (e) => {
-    e.preventDefault()
-    setSubmitting(true)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(schema),
+    mode: 'onTouched',
+    defaultValues: { name: '', email: '', subject: '', message: '' },
+  })
+
+  const subject = watch('subject')
+  const message = watch('message')
+
+  const onSubmit = async (data) => {
     try {
-      await contactApi.sendMessage(form)
+      await contactApi.sendMessage(data)
       showToast('Message sent! Our team will get back to you soon.', 'success')
-      setForm({ name: '', email: '', subject: '', message: '' })
+      reset()
     } catch (err) {
       showToast(err.message || 'Unable to send message. Please try again.', 'error')
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -34,28 +57,24 @@ export default function Contact() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 card p-6 sm:p-8">
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="label-field">Your Name</label>
-                <input required className="input-field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              </div>
-              <div>
-                <label className="label-field">Email Address</label>
-                <input required type="email" className="input-field" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              </div>
+              <FormField label="Your Name" error={errors.name?.message}>
+                <input {...register('name')} autoFocus className="input-field" aria-invalid={!!errors.name} />
+              </FormField>
+              <FormField label="Email Address" error={errors.email?.message}>
+                <input {...register('email')} type="email" className="input-field" aria-invalid={!!errors.email} />
+              </FormField>
             </div>
-            <div>
-              <label className="label-field">Subject</label>
-              <input required className="input-field" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} />
-            </div>
-            <div>
-              <label className="label-field">Message</label>
-              <textarea required rows={5} className="input-field" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
-            </div>
-            <button disabled={submitting} className="btn-primary w-full sm:w-auto disabled:opacity-60 disabled:cursor-not-allowed">
-              <Send className="w-4 h-4" /> {submitting ? 'Sending...' : 'Send Message'}
-            </button>
+            <FormField label="Subject" error={errors.subject?.message} maxLength={SUBJECT_MAX} currentLength={subject?.length}>
+              <input {...register('subject')} className="input-field" aria-invalid={!!errors.subject} />
+            </FormField>
+            <FormField label="Message" error={errors.message?.message} maxLength={MESSAGE_MAX} currentLength={message?.length}>
+              <textarea {...register('message')} rows={5} className="input-field" aria-invalid={!!errors.message} />
+            </FormField>
+            <SubmitButton loading={isSubmitting} loadingLabel="Sending..." className="btn-primary w-full sm:w-auto">
+              <Send className="w-4 h-4" /> Send Message
+            </SubmitButton>
           </form>
         </div>
 

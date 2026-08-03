@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import PageHeader from '../../components/ui/PageHeader'
+import Breadcrumb from '../../components/ui/Breadcrumb'
+import FormField from '../../components/ui/FormField'
+import SubmitButton from '../../components/ui/SubmitButton'
 import { ApiError } from '../../api/client'
 import settingsApi from '../../api/settingsApi'
 import { useAuth } from '../../context/AuthContext'
@@ -8,11 +14,11 @@ import { useToast } from '../../context/ToastContext'
 const TABS = ['Admin Profile', 'Store Information', 'Delivery & Tax', 'Business Hours']
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-const emptyProfile = {
-  fullName: '',
-  email: '',
-  mobile: '',
-}
+const profileSchema = z.object({
+  fullName: z.string().min(1, 'Full name is required'),
+  email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
+  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
+})
 
 const defaultSettings = {
   storeName: 'RiceBazaar',
@@ -45,21 +51,30 @@ function normalizeSettings(data) {
 
 export default function AdminSettings() {
   const [tab, setTab] = useState('Admin Profile')
-  const [profile, setProfile] = useState(emptyProfile)
   const [settings, setSettings] = useState(defaultSettings)
   const [loadingSettings, setLoadingSettings] = useState(true)
-  const [savingProfile, setSavingProfile] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const { user, updateAdminProfile } = useAuth()
   const { showToast } = useToast()
 
+  const {
+    register: registerProfile,
+    handleSubmit: handleProfileSubmit,
+    reset: resetProfile,
+    formState: { errors: profileErrors, isSubmitting: savingProfile },
+  } = useForm({
+    resolver: zodResolver(profileSchema),
+    mode: 'onTouched',
+    defaultValues: { fullName: '', email: '', mobile: '' },
+  })
+
   useEffect(() => {
-    setProfile({
+    resetProfile({
       fullName: user?.name || '',
       email: user?.email || '',
       mobile: user?.phone || '',
     })
-  }, [user])
+  }, [user, resetProfile])
 
   useEffect(() => {
     settingsApi.getAdmin()
@@ -67,13 +82,6 @@ export default function AdminSettings() {
       .catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to load store settings', 'error'))
       .finally(() => setLoadingSettings(false))
   }, [showToast])
-
-  const updateProfileField = (key) => (e) => {
-    const value = key === 'mobile'
-      ? e.target.value.replace(/\D/g, '').slice(0, 10)
-      : e.target.value
-    setProfile((current) => ({ ...current, [key]: value }))
-  }
 
   const updateSettingsField = (key) => (e) => {
     const numericFields = ['deliveryCharge', 'freeDeliveryThreshold', 'taxPercentage']
@@ -95,21 +103,12 @@ export default function AdminSettings() {
     }))
   }
 
-  const saveProfile = async (e) => {
-    e.preventDefault()
-    if (!/^[6-9]\d{9}$/.test(profile.mobile)) {
-      showToast('Enter a valid 10-digit Indian mobile number', 'error')
-      return
-    }
-
-    setSavingProfile(true)
+  const saveProfile = async (data) => {
     try {
-      await updateAdminProfile(profile)
+      await updateAdminProfile(data)
       showToast('Admin profile updated', 'success')
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to update admin profile', 'error')
-    } finally {
-      setSavingProfile(false)
     }
   }
 
@@ -130,6 +129,7 @@ export default function AdminSettings() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Admin' }, { label: 'Settings' }]} />
       <PageHeader title="Store Settings" subtitle="Configure your store preferences" />
 
       <div className="flex gap-2 mb-6 overflow-x-auto">
@@ -142,7 +142,7 @@ export default function AdminSettings() {
 
       <div className="card p-6 max-w-2xl">
         {tab === 'Admin Profile' && (
-          <form onSubmit={saveProfile} className="space-y-4">
+          <form onSubmit={handleProfileSubmit(saveProfile)} className="space-y-4" noValidate>
             <div className="flex items-center gap-4 mb-2">
               <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{user?.name?.[0]}</div>
               <div>
@@ -150,10 +150,16 @@ export default function AdminSettings() {
                 <p className="text-xs text-ink/40">Admin Account</p>
               </div>
             </div>
-            <div><label className="label-field">Full Name</label><input required value={profile.fullName} onChange={updateProfileField('fullName')} className="input-field" /></div>
-            <div><label className="label-field">Email</label><input required value={profile.email} onChange={updateProfileField('email')} type="email" className="input-field" /></div>
-            <div><label className="label-field">Mobile Number</label><input required pattern="[6-9][0-9]{9}" maxLength={10} title="Enter a valid 10-digit Indian mobile number" value={profile.mobile} onChange={updateProfileField('mobile')} className="input-field" /></div>
-            <button className="btn-primary" disabled={savingProfile}>{savingProfile ? 'Saving...' : 'Save Profile'}</button>
+            <FormField label="Full Name" error={profileErrors.fullName?.message}>
+              <input {...registerProfile('fullName')} autoFocus className="input-field" aria-invalid={!!profileErrors.fullName} />
+            </FormField>
+            <FormField label="Email" error={profileErrors.email?.message}>
+              <input {...registerProfile('email')} type="email" className="input-field" aria-invalid={!!profileErrors.email} />
+            </FormField>
+            <FormField label="Mobile Number" error={profileErrors.mobile?.message}>
+              <input {...registerProfile('mobile')} inputMode="numeric" maxLength={10} className="input-field" aria-invalid={!!profileErrors.mobile} />
+            </FormField>
+            <SubmitButton loading={savingProfile} className="btn-primary">Save Profile</SubmitButton>
           </form>
         )}
 

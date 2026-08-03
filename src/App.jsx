@@ -1,6 +1,11 @@
 import { Routes, Route } from 'react-router-dom'
-import { useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { useLocation, useNavigationType } from 'react-router-dom'
+import OfflineBanner from './components/system/OfflineBanner'
+import GlobalLoadingBar from './components/ui/GlobalLoadingBar'
+import NotFound from './pages/System/NotFound'
+import Forbidden from './pages/System/Forbidden'
+import ServerError from './pages/System/ServerError'
 
 import PublicLayout from './components/layout/PublicLayout'
 import UserLayout from './components/layout/UserLayout'
@@ -35,18 +40,37 @@ import AdminOrders from './pages/Admin/Orders'
 import AdminReports from './pages/Admin/Reports'
 import AdminSettings from './pages/Admin/Settings'
 
-function ScrollToTop() {
-  const { pathname } = useLocation()
+const scrollPositions = new Map()
+
+// Restores the scroll position a route was at when the user navigated away from it
+// (back/forward), while fresh forward navigations still start at the top.
+function ScrollRestoration() {
+  const location = useLocation()
+  const navType = useNavigationType()
+  const prevKey = useRef(null)
+
   useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [pathname])
+    if (prevKey.current) {
+      scrollPositions.set(prevKey.current, window.scrollY)
+    }
+    prevKey.current = location.key
+
+    if (navType === 'POP' && scrollPositions.has(location.key)) {
+      window.scrollTo(0, scrollPositions.get(location.key))
+    } else {
+      window.scrollTo(0, 0)
+    }
+  }, [location.key, navType])
+
   return null
 }
 
 export default function App() {
   return (
     <>
-      <ScrollToTop />
+      <OfflineBanner />
+      <GlobalLoadingBar />
+      <ScrollRestoration />
       <Routes>
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
@@ -86,7 +110,9 @@ export default function App() {
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 
-        <Route path="*" element={<Home />} />
+        <Route path="/403" element={<Forbidden />} />
+        <Route path="/500" element={<ServerError />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   )

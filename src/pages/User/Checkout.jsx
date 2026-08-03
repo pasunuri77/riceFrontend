@@ -30,6 +30,7 @@ export default function Checkout() {
   const [modalOpen, setModalOpen] = useState(false)
   const [payment, setPayment] = useState('upi')
   const [placed, setPlaced] = useState(false)
+  const [placing, setPlacing] = useState(false)
   const [orderId, setOrderId] = useState('')
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export default function Checkout() {
     if (!selected) { showToast('Please select a delivery address', 'error'); return }
     const addr = addresses.find((a) => a.id === selected)
     const addressLine = addr ? [addr.flat, addr.area, addr.city].filter(Boolean).join(', ') : ''
+    setPlacing(true)
     orderApi.create({
       customerId: user?.id,
       customerName: user?.name,
@@ -67,7 +69,8 @@ export default function Checkout() {
       setOrderId(order.id)
       setPlaced(true)
       clearCart()
-    })
+    }).catch(() => showToast('Failed to place order. Please try again.', 'error'))
+      .finally(() => setPlacing(false))
   }
 
   if (placed) {
@@ -93,18 +96,28 @@ export default function Checkout() {
         <div className="space-y-6">
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold">1. Select Delivery Address</h3>
+              <h3 className="font-bold flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
+                Select Delivery Address
+              </h3>
               <button onClick={() => setModalOpen(true)} className="btn-outline text-xs py-1.5 px-3"><Plus className="w-3.5 h-3.5" /> Add New</button>
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {addresses.map((a) => (
-                <AddressCard key={a.id} address={a} onSelect={(addr) => setSelected(addr.id)} selected={selected === a.id} onSetDefault={setDefaultAddress} />
-              ))}
-            </div>
+            {addresses.length === 0 ? (
+              <div className="card p-6 text-center text-sm text-ink/50">No saved addresses yet. Add one to continue.</div>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {addresses.map((a) => (
+                  <AddressCard key={a.id} address={a} onSelect={(addr) => setSelected(addr.id)} selected={selected === a.id} onSetDefault={setDefaultAddress} />
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
-            <h3 className="font-bold mb-3">2. Payment Method</h3>
+            <h3 className="font-bold mb-3 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
+              Payment Method
+            </h3>
             <div className="grid sm:grid-cols-2 gap-3">
               {PAYMENT_METHODS.map((pm) => (
                 <label key={pm.id} className={`card p-4 flex items-center gap-3 cursor-pointer ${payment === pm.id ? 'ring-2 ring-primary-500' : ''}`}>
@@ -117,7 +130,10 @@ export default function Checkout() {
           </div>
 
           <div>
-            <h3 className="font-bold mb-3">3. Order Items ({items.length})</h3>
+            <h3 className="font-bold mb-3 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center shrink-0">3</span>
+              Order Items ({items.length})
+            </h3>
             <div className="card divide-y divide-black/5">
               {items.map((i) => (
                 <div key={i.id + i.weight} className="p-3 flex items-center gap-3">
@@ -144,7 +160,7 @@ export default function Checkout() {
             <span className="font-bold">Total</span>
             <span className="font-extrabold text-xl text-primary-700">{formatINR(total)}</span>
           </div>
-          <button onClick={placeOrder} className="btn-primary w-full mt-5">Place Order</button>
+          <button onClick={placeOrder} disabled={placing} className="btn-primary w-full mt-5">{placing ? 'Placing Order...' : 'Place Order'}</button>
         </div>
       </div>
 

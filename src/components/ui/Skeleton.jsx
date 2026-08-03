@@ -1,6 +1,6 @@
 export function ProductCardSkeleton() {
   return (
-    <div className="card p-3">
+    <div className="card p-3" role="status" aria-label="Loading product">
       <div className="skeleton aspect-square w-full mb-3" />
       <div className="skeleton h-3 w-3/4 mb-2" />
       <div className="skeleton h-3 w-1/2 mb-3" />
@@ -11,7 +11,7 @@ export function ProductCardSkeleton() {
 
 export function RowSkeleton({ cols = 5 }) {
   return (
-    <tr>
+    <tr role="status" aria-label="Loading row">
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="px-4 py-3">
           <div className="skeleton h-4 w-full" />
@@ -22,5 +22,5 @@ export function RowSkeleton({ cols = 5 }) {
 }
 
 export function TextSkeleton({ className = 'h-4 w-full' }) {
-  return <div className={`skeleton ${className}`} />
+  return <div className={`skeleton ${className}`} role="status" aria-label="Loading" />
 }

@@ -1,13 +1,28 @@
+import { getSessionStore } from '../utils/rememberMe'
+import { isTokenExpired } from '../utils/jwt'
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const TOKEN_KEY = 'rb_token'
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY)
+  const token = getSessionStore().getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY)
+  // A locally-expired token can never succeed against the backend - treat it as
+  // absent so we don't attach a doomed Authorization header to every request.
+  if (token && isTokenExpired(token)) {
+    setToken(null)
+    window.dispatchEvent(new Event('auth:invalid'))
+    return null
+  }
+  return token
 }
 
 export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-  else localStorage.removeItem(TOKEN_KEY)
+  const store = getSessionStore()
+  if (token) store.setItem(TOKEN_KEY, token)
+  else {
+    localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
+  }
 }
 
 export class ApiError extends Error {
@@ -18,16 +33,34 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+const RETRYABLE_STATUS = new Set([502, 503, 504])
+const MAX_RETRIES = 2
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function request(path, { method = 'GET', body } = {}, attempt = 0) {
   const headers = { 'Content-Type': 'application/json' }
   const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  let res
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+  } catch (networkErr) {
+    // fetch throwing means the request never reached the server at all (offline,
+    // DNS failure, connection refused) - safe to retry regardless of HTTP method.
+    if (attempt < MAX_RETRIES) {
+      await delay(500 * (attempt + 1))
+      return request(path, { method, body }, attempt + 1)
+    }
+    throw new ApiError('Unable to reach the server. Check your connection and try again.', 0, null)
+  }
 
   if (res.status === 204) return null
 
@@ -35,14 +68,28 @@ async function request(path, { method = 'GET', body } = {}) {
   const data = isJson ? await res.json() : null
 
   if (!res.ok) {
-    // A 401/403 while holding a token means that token is stale/invalid (e.g. the
-    // account behind it no longer exists) - drop it so it stops poisoning every
-    // subsequent request, including ones that don't even require auth.
-    if (token && (res.status === 401 || res.status === 403)) {
+    // A 401 while holding a token means that token itself is stale/invalid (expired,
+    // revoked, or the account behind it no longer exists) - drop it so it stops
+    // poisoning every subsequent request, including ones that don't even require auth.
+    // A 403 is different: the session is still valid, the caller just lacks permission
+    // for this one action - forcing a full logout there would kill a legitimate
+    // session over a single denied request, so we leave the token alone.
+    if (token && res.status === 401) {
       setToken(null)
       window.dispatchEvent(new Event('auth:invalid'))
     }
-    throw new ApiError(data?.message || res.statusText || 'Request failed', res.status, data)
+    // Only retry GET requests on transient server errors - retrying a POST/PUT/DELETE
+    // here is unsafe since the server already received and may have processed it.
+    if (method === 'GET' && RETRYABLE_STATUS.has(res.status) && attempt < MAX_RETRIES) {
+      await delay(500 * (attempt + 1))
+      return request(path, { method, body }, attempt + 1)
+    }
+    // Never surface raw 5xx bodies to the UI - the backend may include stack traces
+    // or internal details in error responses that shouldn't be shown to end users.
+    const message = res.status >= 500
+      ? 'Something went wrong on our end. Please try again shortly.'
+      : (data?.message || res.statusText || 'Request failed')
+    throw new ApiError(message, res.status, data)
   }
 
   return data

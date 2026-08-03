@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, MapPin } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
+import Breadcrumb from '../../components/ui/Breadcrumb'
 import AddressCard from '../../components/forms/AddressCard'
 import AddressForm from '../../components/forms/AddressForm'
 import Modal from '../../components/ui/Modal'
@@ -30,6 +31,7 @@ export default function Addresses() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Addresses' }]} />
       <PageHeader
         title="Manage Addresses"
         subtitle="Save multiple addresses for faster checkout"

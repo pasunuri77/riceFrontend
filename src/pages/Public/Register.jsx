@@ -1,41 +1,50 @@
-import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
 import otpApi from '../../api/otp/otpApi'
+import FormField from '../../components/ui/FormField'
+import SubmitButton from '../../components/ui/SubmitButton'
 
-const EMPTY = {
-  fullName: '', mobile: '', email: '', password: '', confirmPassword: '',
-}
+const schema = z
+  .object({
+    fullName: z.string().min(1, 'Full name is required'),
+    mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
+    email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  })
 
 export default function Register() {
-  const [form, setForm] = useState(EMPTY)
-  const [sending, setSending] = useState(false)
   const { showToast } = useToast()
   const navigate = useNavigate()
 
-  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(schema),
+    mode: 'onTouched',
+    defaultValues: { fullName: '', mobile: '', email: '', password: '', confirmPassword: '' },
+  })
 
-  const sendOtp = async (e) => {
-    e.preventDefault()
-    if (!/^[6-9]\d{9}$/.test(form.mobile)) {
-      showToast('Enter a valid 10-digit Indian mobile number', 'error')
-      return
-    }
-    if (form.password !== form.confirmPassword) {
-      showToast('Passwords do not match', 'error')
-      return
-    }
-    setSending(true)
+  const { onChange: onMobileChange, ...mobileField } = register('mobile')
+
+  const onSubmit = async (data) => {
     try {
-      await otpApi.sendRegistrationOtp(form.email)
+      await otpApi.sendRegistrationOtp(data.email)
       showToast('OTP sent to your email', 'success')
-      navigate('/verify-otp', { state: { email: form.email, purpose: 'register', formData: form } })
+      navigate('/verify-otp', { state: { email: data.email, purpose: 'register', formData: data } })
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to send OTP', 'error')
-    } finally {
-      setSending(false)
     }
   }
 
@@ -48,20 +57,35 @@ export default function Register() {
           <p className="text-ink/50 text-sm mt-1">Join RiceBazaar and start ordering</p>
         </div>
 
-        <form onSubmit={sendOtp} className="space-y-4">
-          <div><label className="label-field">Full Name</label><input required className="input-field" value={form.fullName} onChange={update('fullName')} /></div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <FormField label="Full Name" error={errors.fullName?.message}>
+            <input {...register('fullName')} autoFocus className="input-field" aria-invalid={!!errors.fullName} />
+          </FormField>
           <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="label-field">Mobile Number</label>
-              <input required pattern="[6-9][0-9]{9}" maxLength={10} title="Enter a valid 10-digit Indian mobile number" placeholder="98765 43210" className="input-field" value={form.mobile} onChange={(e) => update('mobile')({ target: { value: e.target.value.replace(/\D/g, '').slice(0, 10) } })} />
-            </div>
-            <div><label className="label-field">Email</label><input required type="email" className="input-field" value={form.email} onChange={update('email')} /></div>
+            <FormField label="Mobile Number" error={errors.mobile?.message}>
+              <input
+                {...mobileField}
+                onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); onMobileChange(e) }}
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="98765 43210"
+                className="input-field"
+                aria-invalid={!!errors.mobile}
+              />
+            </FormField>
+            <FormField label="Email" error={errors.email?.message}>
+              <input {...register('email')} type="email" className="input-field" aria-invalid={!!errors.email} />
+            </FormField>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
-            <div><label className="label-field">Password</label><input required type="password" className="input-field" value={form.password} onChange={update('password')} /></div>
-            <div><label className="label-field">Confirm Password</label><input required type="password" className="input-field" value={form.confirmPassword} onChange={update('confirmPassword')} /></div>
+            <FormField label="Password" error={errors.password?.message}>
+              <input {...register('password')} type="password" className="input-field" aria-invalid={!!errors.password} />
+            </FormField>
+            <FormField label="Confirm Password" error={errors.confirmPassword?.message}>
+              <input {...register('confirmPassword')} type="password" className="input-field" aria-invalid={!!errors.confirmPassword} />
+            </FormField>
           </div>
-          <button className="btn-primary w-full" disabled={sending}>{sending ? 'Sending OTP...' : 'Send OTP'}</button>
+          <SubmitButton loading={isSubmitting} loadingLabel="Sending OTP...">Send OTP</SubmitButton>
         </form>
 
         <p className="text-sm text-center text-ink/60 mt-6">

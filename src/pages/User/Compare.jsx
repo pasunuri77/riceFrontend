@@ -36,11 +36,11 @@ export default function Compare() {
           <table className="w-full border-separate border-spacing-0 min-w-[600px]">
             <thead>
               <tr>
-                <th className="w-40"></th>
+                <th scope="col" className="w-40"><span className="sr-only">Attribute</span></th>
                 {compareList.map((p) => (
-                  <th key={p.id} className="p-3 align-top">
+                  <th scope="col" key={p.id} className="p-3 align-top">
                     <div className="card p-3 relative">
-                      <button onClick={() => toggleCompare(p)} className="absolute top-2 right-2 text-ink/40 hover:text-red-500"><X className="w-4 h-4" /></button>
+                      <button onClick={() => toggleCompare(p)} aria-label={`Remove ${p.name} from comparison`} className="absolute top-2 right-2 text-ink/40 hover:text-red-500"><X className="w-4 h-4" /></button>
                       <img src={p.image} alt="" className="w-full aspect-square object-cover rounded-lg mb-2" />
                       <Link to={`/products/${p.id}`} className="text-sm font-semibold line-clamp-2 hover:text-primary-600">{p.name}</Link>
                       <button onClick={() => addToCart(p)} className="btn-primary w-full mt-2 text-xs py-1.5"><ShoppingCart className="w-3.5 h-3.5" /> Add to Cart</button>
@@ -52,14 +52,14 @@ export default function Compare() {
             <tbody>
               {ROWS.map(([label, fn]) => (
                 <tr key={label}>
-                  <td className="px-3 py-3 text-sm font-semibold text-ink/50 border-t border-black/5">{label}</td>
+                  <th scope="row" className="px-3 py-3 text-sm font-semibold text-ink/60 border-t border-black/5 text-left">{label}</th>
                   {compareList.map((p) => (
                     <td key={p.id} className="px-3 py-3 text-sm text-center border-t border-black/5">{fn(p)}</td>
                   ))}
                 </tr>
               ))}
               <tr>
-                <td className="px-3 py-3 text-sm font-semibold text-ink/50 border-t border-black/5">In Stock</td>
+                <th scope="row" className="px-3 py-3 text-sm font-semibold text-ink/60 border-t border-black/5 text-left">In Stock</th>
                 {compareList.map((p) => (
                   <td key={p.id} className="px-3 py-3 text-center border-t border-black/5"><StockBadge stock={p.stock} /></td>
                 ))}
