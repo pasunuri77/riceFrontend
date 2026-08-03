@@ -21,7 +21,7 @@ const PAYMENT_METHODS = [
 ]
 
 export default function Checkout() {
-  const { user, addresses, addAddress } = useAuth()
+  const { user, addresses, addAddress, setDefaultAddress } = useAuth()
   const { items, subtotal, deliveryCharge, total, clearCart } = useCart()
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -98,7 +98,7 @@ export default function Checkout() {
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               {addresses.map((a) => (
-                <AddressCard key={a.id} address={a} onSelect={(addr) => setSelected(addr.id)} selected={selected === a.id} />
+                <AddressCard key={a.id} address={a} onSelect={(addr) => setSelected(addr.id)} selected={selected === a.id} onSetDefault={setDefaultAddress} />
               ))}
             </div>
           </div>
