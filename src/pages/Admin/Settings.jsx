@@ -77,7 +77,7 @@ export default function AdminSettings() {
   }, [user, resetProfile])
 
   useEffect(() => {
-    settingsApi.get()
+    settingsApi.getAdmin()
       .then((data) => setSettings(normalizeSettings(data)))
       .catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to load store settings', 'error'))
       .finally(() => setLoadingSettings(false))
@@ -118,6 +118,7 @@ export default function AdminSettings() {
     try {
       const updated = await settingsApi.update(settings)
       setSettings(normalizeSettings(updated))
+      window.dispatchEvent(new Event('store-settings:saved'))
       showToast('Store settings saved', 'success')
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to save store settings', 'error')
