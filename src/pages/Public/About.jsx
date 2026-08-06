@@ -32,7 +32,11 @@ export default function About() {
             We believe great meals start with great rice — and we're committed to quality, fair pricing, and reliable delivery, every single time.
           </p>
         </div>
-        <img src="https://picsum.photos/seed/aboutus/700/500" alt="Rice fields" className="rounded-2xl2 shadow-cardHover w-full object-cover aspect-[4/3]" />
+        <img
+          src="https://images.unsplash.com/photo-1627482265910-5c0ff6bee088?w=800&h=600&fit=crop&q=80"
+          alt="Premium rice on a wooden table"
+          className="rounded-2xl2 shadow-cardHover w-full object-cover aspect-[4/3]"
+        />
       </motion.div>
 
       <div className="mb-16">

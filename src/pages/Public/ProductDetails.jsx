@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Heart, ShoppingCart, Minus, Plus, Truck, ShieldCheck, RotateCcw, Scale } from 'lucide-react'
+import { Heart, ShoppingCart, Minus, Plus, Truck, ShieldCheck, RotateCcw, Scale, ZoomIn, PackageCheck, Undo2 } from 'lucide-react'
 import productApi from '../../api/productApi'
 import reviewApi from '../../api/reviewApi'
 import ProductCard from '../../components/product/ProductCard'
+import ProductImage from '../../components/product/ProductImage'
 import RatingStars from '../../components/product/RatingStars'
 import StockBadge, { OfferBadge } from '../../components/product/StockBadge'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
+import Modal from '../../components/ui/Modal'
 import { formatINR, estimatedDelivery } from '../../utils/format'
 import { safeImageUrl } from '../../utils/sanitize'
 import { useCart } from '../../context/CartContext'
@@ -16,6 +18,10 @@ import { useWishlist } from '../../context/WishlistContext'
 import { useCompare } from '../../context/CompareContext'
 import { PackageSearch } from 'lucide-react'
 import { TextSkeleton } from '../../components/ui/Skeleton'
+import useRecentlyViewed, { trackRecentlyViewed } from '../../hooks/useRecentlyViewed'
+
+const TABS = ['specs', 'reviews', 'shipping']
+const TAB_LABELS = { specs: 'Specifications', shipping: 'Shipping & Returns' }
 
 export default function ProductDetails() {
   const { id } = useParams()
@@ -28,10 +34,13 @@ export default function ProductDetails() {
   const [product, setProduct] = useState(null)
   const [productReviews, setProductReviews] = useState([])
   const [related, setRelated] = useState([])
+  const [zoomOpen, setZoomOpen] = useState(false)
 
   const [weight, setWeight] = useState(null)
   const [qty, setQty] = useState(1)
   const [tab, setTab] = useState('specs')
+
+  const recentlyViewed = useRecentlyViewed(product?.id)
 
   useEffect(() => {
     setLoading(true)
@@ -41,6 +50,7 @@ export default function ProductDetails() {
       setQty(1)
       setLoading(false)
       if (p) {
+        trackRecentlyViewed(p)
         reviewApi.listByProduct(p.id).then(setProductReviews).catch(() => setProductReviews([]))
         productApi.listRelated(p.category, p.id).then(setRelated).catch(() => setRelated([]))
       }
@@ -75,6 +85,7 @@ export default function ProductDetails() {
   // Can't add more units than the stock on hand allows for the selected pack size.
   const maxQty = Math.max(1, Math.floor(product.stock / weight))
   const total = product.pricePerKg * weight * qty
+  const outOfStock = product.stock <= 0
 
   const buyNow = () => {
     addToCart(product, weight, qty)
@@ -82,14 +93,24 @@ export default function ProductDetails() {
   }
 
   return (
-    <div className="container-app py-8">
+    <div className="container-app py-8 pb-40 lg:pb-8">
       <Breadcrumb items={[{ label: 'Shop', to: '/products' }, { label: product.name }]} />
 
       <div className="grid lg:grid-cols-2 gap-10">
         <div>
-          <div className="aspect-square rounded-2xl2 overflow-hidden bg-primary-50 mb-3">
-            <img src={safeImageUrl(product.image)} alt={product.name} className="w-full h-full object-cover" />
-          </div>
+          <button
+            type="button"
+            onClick={() => setZoomOpen(true)}
+            className="group relative aspect-square rounded-2xl2 overflow-hidden bg-primary-50 mb-3 w-full block"
+            aria-label="Zoom product image"
+          >
+            <ProductImage src={product.image} alt={product.name} className="w-full h-full object-cover" iconClassName="w-16 h-16" />
+            {safeImageUrl(product.image) && (
+              <span className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-card">
+                <ZoomIn className="w-4 h-4 text-ink/70" aria-hidden="true" />
+              </span>
+            )}
+          </button>
         </div>
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -150,8 +171,8 @@ export default function ProductDetails() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => addToCart(product, weight, qty)} disabled={product.stock <= 0} className="btn-primary flex-1"><ShoppingCart className="w-4 h-4" /> Add to Cart</button>
-              <button onClick={buyNow} disabled={product.stock <= 0} className="btn-secondary flex-1">Buy Now</button>
+              <button onClick={() => addToCart(product, weight, qty)} disabled={outOfStock} className="btn-primary flex-1"><ShoppingCart className="w-4 h-4" /> Add to Cart</button>
+              <button onClick={buyNow} disabled={outOfStock} className="btn-secondary flex-1">Buy Now</button>
               <button
                 onClick={() => toggleWishlist(product)}
                 aria-label={isWishlisted(product.id) ? 'Remove from wishlist' : 'Add to wishlist'}
@@ -179,17 +200,17 @@ export default function ProductDetails() {
         </motion.div>
       </div>
 
-      {/* Tabs: Specs / Reviews */}
+      {/* Tabs: Specs / Reviews / Shipping */}
       <div className="mt-14">
-        <div className="flex gap-6 border-b border-black/10">
-          {['specs', 'reviews'].map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`pb-3 px-1 text-sm font-bold capitalize border-b-2 transition ${tab === t ? 'border-primary-500 text-primary-600' : 'border-transparent text-ink/40'}`}>
-              {t === 'specs' ? 'Specifications' : `Reviews (${productReviews.length})`}
+        <div className="flex gap-6 border-b border-black/10 overflow-x-auto">
+          {TABS.map((t) => (
+            <button key={t} onClick={() => setTab(t)} className={`pb-3 px-1 text-sm font-bold capitalize border-b-2 transition whitespace-nowrap ${tab === t ? 'border-primary-500 text-primary-600' : 'border-transparent text-ink/40'}`}>
+              {t === 'reviews' ? `Reviews (${productReviews.length})` : TAB_LABELS[t]}
             </button>
           ))}
         </div>
 
-        {tab === 'specs' ? (
+        {tab === 'specs' && (
           <div className="grid sm:grid-cols-2 gap-x-10 gap-y-3 py-6 text-sm">
             {[
               ['Brand', product.brand], ['Rice Type', product.type], ['Category', product.category],
@@ -201,7 +222,9 @@ export default function ProductDetails() {
               </div>
             ))}
           </div>
-        ) : (
+        )}
+
+        {tab === 'reviews' && (
           <div className="py-6 space-y-4">
             {productReviews.length === 0 && <p className="text-sm text-ink/40">No reviews yet for this product.</p>}
             {productReviews.map((r) => (
@@ -216,6 +239,19 @@ export default function ProductDetails() {
             ))}
           </div>
         )}
+
+        {tab === 'shipping' && (
+          <div className="py-6 grid sm:grid-cols-2 gap-5 text-sm">
+            <div className="card p-5">
+              <div className="flex items-center gap-2 mb-2 font-bold"><PackageCheck className="w-4 h-4 text-primary-600" aria-hidden="true" /> Shipping Policy</div>
+              <p className="text-ink/60 leading-relaxed">Orders are dispatched within 1-2 business days and delivered pan-India, typically within 3-7 business days depending on your location. Estimated delivery is shown at checkout.</p>
+            </div>
+            <div className="card p-5">
+              <div className="flex items-center gap-2 mb-2 font-bold"><Undo2 className="w-4 h-4 text-primary-600" aria-hidden="true" /> Return Policy</div>
+              <p className="text-ink/60 leading-relaxed">Unopened, unused packs can be returned within 7 days of delivery. See our <Link to="/terms" className="text-primary-600 font-semibold">Terms &amp; Conditions</Link> for full details.</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {related.length > 0 && (
@@ -226,6 +262,31 @@ export default function ProductDetails() {
           </div>
         </div>
       )}
+
+      {recentlyViewed.length > 0 && (
+        <div className="mt-14">
+          <h2 className="section-title mb-6">Recently Viewed</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
+            {recentlyViewed.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+          </div>
+        </div>
+      )}
+
+      <Modal open={zoomOpen} onClose={() => setZoomOpen(false)} title={product.name} maxWidth="max-w-2xl">
+        <ProductImage src={product.image} alt={product.name} className="w-full rounded-xl object-contain max-h-[70vh]" iconClassName="w-20 h-20" />
+      </Modal>
+
+      {/* Sticky mobile add-to-cart bar - sits above the site-wide BottomNav (also
+          fixed bottom-0, z-40), not on top of it. */}
+      <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-white border-t border-black/10 px-4 py-3 flex items-center gap-3 shadow-cardHover">
+        <div className="min-w-0">
+          <p className="text-[11px] text-ink/40">Total</p>
+          <p className="font-extrabold text-primary-700 truncate">{formatINR(total)}</p>
+        </div>
+        <button onClick={() => addToCart(product, weight, qty)} disabled={outOfStock} className="btn-primary flex-1 justify-center">
+          <ShoppingCart className="w-4 h-4" aria-hidden="true" /> {outOfStock ? 'Out of Stock' : 'Add to Cart'}
+        </button>
+      </div>
     </div>
   )
 }

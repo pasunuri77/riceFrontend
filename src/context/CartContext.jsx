@@ -99,7 +99,10 @@ export function CartProvider({ children }) {
 
   return (
     <CartContext.Provider
-      value={{ items, addToCart, removeFromCart, updateQty, clearCart, subtotal, deliveryCharge, total, count }}
+      value={{
+        items, addToCart, removeFromCart, updateQty, clearCart, subtotal, deliveryCharge, total, count,
+        freeDeliveryThreshold: deliverySettings.freeDeliveryThreshold,
+      }}
     >
       {children}
     </CartContext.Provider>

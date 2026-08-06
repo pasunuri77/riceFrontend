@@ -12,6 +12,7 @@ import SearchInput from '../../components/ui/SearchInput'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
 import ImageDropzone from '../../components/ui/ImageDropzone'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { safeImageUrl } from '../../utils/sanitize'
 import TableShell from '../../components/ui/TableShell'
 import SortableHeader from '../../components/ui/SortableHeader'
@@ -82,6 +83,9 @@ export default function AdminProducts() {
   const [selected, setSelected] = useState(new Set())
   const [visibleCols, setVisibleCols] = useState({})
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const { showToast } = useToast()
 
   const {
@@ -150,11 +154,14 @@ export default function AdminProducts() {
     setModalOpen(true)
   }
 
-  const handleDelete = (id) => {
-    productApi.remove(id).then(() => {
+  const confirmDeleteOne = () => {
+    setDeleting(true)
+    productApi.remove(confirmDelete.id).then(() => {
       loadProducts()
       showToast('Product deleted', 'success')
+      setConfirmDelete(null)
     }).catch(() => showToast('Failed to delete product', 'error'))
+      .finally(() => setDeleting(false))
   }
 
   const handleBulkDelete = () => {
@@ -164,6 +171,7 @@ export default function AdminProducts() {
         const failed = results.filter((r) => r.status === 'rejected').length
         loadProducts()
         clearSelection()
+        setConfirmBulkDelete(false)
         if (failed > 0) showToast(`${results.length - failed} deleted, ${failed} failed`, 'error')
         else showToast(`${results.length} product(s) deleted`, 'success')
       })
@@ -186,7 +194,7 @@ export default function AdminProducts() {
       ...data,
       mrp: data.pricePerKg * 1.12,
       weightOptions: data.weightOptions.split(',').map((w) => Number(w.trim())).filter(Boolean),
-      image: data.image || `https://picsum.photos/seed/${Date.now()}/600/600`,
+      image: data.image || '',
       rating: editing?.rating || 0,
       reviews: editing?.reviews || 0,
       badges: editing?.badges || [],
@@ -231,7 +239,7 @@ export default function AdminProducts() {
       </div>
 
       <BulkActionsBar count={selected.size} onClear={clearSelection}>
-        <button onClick={handleBulkDelete} disabled={bulkDeleting} className="btn text-xs px-3 py-1.5 bg-red-500 text-white disabled:opacity-60">
+        <button onClick={() => setConfirmBulkDelete(true)} disabled={bulkDeleting} className="btn text-xs px-3 py-1.5 bg-red-500 text-white disabled:opacity-60">
           <Trash2 className="w-3.5 h-3.5" /> {bulkDeleting ? 'Deleting...' : 'Delete Selected'}
         </button>
       </BulkActionsBar>
@@ -266,13 +274,21 @@ export default function AdminProducts() {
                 {isVisible('brand') && <td className="p-3 text-ink/60">{p.brand}</td>}
                 {isVisible('category') && <td className="p-3 text-ink/60">{p.category}</td>}
                 {isVisible('price') && <td className="p-3 font-semibold">{formatINR(p.pricePerKg)}</td>}
-                {isVisible('stock') && <td className="p-3">{p.stock} kg</td>}
+                {isVisible('stock') && (
+                  <td className="p-3">
+                    <div className="flex items-center gap-2">
+                      <span>{p.stock} kg</span>
+                      {p.stock > 0 && p.stock < 30 && <span className="badge bg-amber-100 text-amber-700 text-[10px]">Low</span>}
+                      {p.stock <= 0 && <span className="badge bg-red-100 text-red-600 text-[10px]">Out</span>}
+                    </div>
+                  </td>
+                )}
                 {isVisible('minmax') && <td className="p-3 text-ink/50">{p.minOrder} / {p.maxOrder}</td>}
                 {isVisible('status') && <td className="p-3"><StatusPill status={p.status} /></td>}
                 <td className="p-3">
                   <div className="flex gap-1.5">
                     <button onClick={() => openEdit(p)} aria-label={`Edit ${p.name}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Pencil className="w-4 h-4" aria-hidden="true" /></button>
-                    <button onClick={() => handleDelete(p.id)} aria-label={`Delete ${p.name}`} className="p-1.5 rounded-lg hover:bg-red-100 text-red-500"><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
+                    <button onClick={() => setConfirmDelete(p)} aria-label={`Delete ${p.name}`} className="p-1.5 rounded-lg hover:bg-red-100 text-red-500"><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
                   </div>
                 </td>
               </tr>
@@ -338,9 +354,32 @@ export default function AdminProducts() {
               <option>Active</option><option>Inactive</option>
             </select>
           </FormField>
+
+          <div className="rounded-xl border border-dashed border-black/10 p-4 text-xs text-ink/40">
+            <p className="font-semibold text-ink/50 mb-1">Supplier &amp; Batch Tracking</p>
+            <p>Not yet available - the backend doesn't track supplier or batch/lot data per product. Add these fields there to enable this section.</p>
+          </div>
+
           <SubmitButton loading={isSubmitting}>{editing ? 'Update Product' : 'Add Product'}</SubmitButton>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={confirmDeleteOne}
+        loading={deleting}
+        title="Delete Product"
+        message={confirmDelete ? `Delete "${confirmDelete.name}"? This can't be undone.` : ''}
+      />
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        onConfirm={handleBulkDelete}
+        loading={bulkDeleting}
+        title="Delete Products"
+        message={`Delete ${selected.size} selected product(s)? This can't be undone.`}
+      />
     </div>
   )
 }

@@ -1,45 +1,53 @@
 import { Routes, Route } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, lazy, Suspense } from 'react'
 import { useLocation, useNavigationType } from 'react-router-dom'
 import OfflineBanner from './components/system/OfflineBanner'
 import GlobalLoadingBar from './components/ui/GlobalLoadingBar'
-import NotFound from './pages/System/NotFound'
-import Forbidden from './pages/System/Forbidden'
-import ServerError from './pages/System/ServerError'
+import Loader from './components/ui/Loader'
+import CommandPalette from './components/ui/CommandPalette'
+import BackToTop from './components/ui/BackToTop'
 
 import PublicLayout from './components/layout/PublicLayout'
 import UserLayout from './components/layout/UserLayout'
 import AdminLayout from './components/layout/AdminLayout'
 
-import Home from './pages/Public/Home'
-import About from './pages/Public/About'
-import Contact from './pages/Public/Contact'
-import FAQ from './pages/Public/FAQ'
-import PrivacyPolicy from './pages/Public/PrivacyPolicy'
-import Terms from './pages/Public/Terms'
-import Login from './pages/Public/Login'
-import Register from './pages/Public/Register'
-import ForgotPassword from './pages/Public/ForgotPassword'
-import VerifyOtp from './pages/Public/VerifyOtp'
-import Products from './pages/Public/Products'
-import ProductDetails from './pages/Public/ProductDetails'
+// Every page below is its own chunk, loaded only when its route is visited -
+// keeps the initial bundle to just the shell + whichever page loads first.
+const Home = lazy(() => import('./pages/Public/Home'))
+const About = lazy(() => import('./pages/Public/About'))
+const Contact = lazy(() => import('./pages/Public/Contact'))
+const FAQ = lazy(() => import('./pages/Public/FAQ'))
+const PrivacyPolicy = lazy(() => import('./pages/Public/PrivacyPolicy'))
+const Terms = lazy(() => import('./pages/Public/Terms'))
+const Login = lazy(() => import('./pages/Public/Login'))
+const Register = lazy(() => import('./pages/Public/Register'))
+const ForgotPassword = lazy(() => import('./pages/Public/ForgotPassword'))
+const VerifyOtp = lazy(() => import('./pages/Public/VerifyOtp'))
+const Products = lazy(() => import('./pages/Public/Products'))
+const ProductDetails = lazy(() => import('./pages/Public/ProductDetails'))
 
-import Cart from './pages/User/Cart'
-import Checkout from './pages/User/Checkout'
-import Wishlist from './pages/User/Wishlist'
-import Compare from './pages/User/Compare'
-import UserDashboard from './pages/User/Dashboard'
-import Orders from './pages/User/Orders'
-import OrderDetail from './pages/User/OrderDetail'
-import Addresses from './pages/User/Addresses'
-import Profile from './pages/User/Profile'
+const Cart = lazy(() => import('./pages/User/Cart'))
+const Checkout = lazy(() => import('./pages/User/Checkout'))
+const Wishlist = lazy(() => import('./pages/User/Wishlist'))
+const Compare = lazy(() => import('./pages/User/Compare'))
+const UserDashboard = lazy(() => import('./pages/User/Dashboard'))
+const Orders = lazy(() => import('./pages/User/Orders'))
+const OrderDetail = lazy(() => import('./pages/User/OrderDetail'))
+const Addresses = lazy(() => import('./pages/User/Addresses'))
+const Profile = lazy(() => import('./pages/User/Profile'))
 
-import AdminDashboard from './pages/Admin/Dashboard'
-import AdminProducts from './pages/Admin/Products'
-import AdminCustomers from './pages/Admin/Customers'
-import AdminOrders from './pages/Admin/Orders'
-import AdminReports from './pages/Admin/Reports'
-import AdminSettings from './pages/Admin/Settings'
+const AdminDashboard = lazy(() => import('./pages/Admin/Dashboard'))
+const AdminProducts = lazy(() => import('./pages/Admin/Products'))
+const AdminCustomers = lazy(() => import('./pages/Admin/Customers'))
+const AdminOrders = lazy(() => import('./pages/Admin/Orders'))
+const AdminCoupons = lazy(() => import('./pages/Admin/Coupons'))
+const AdminBanners = lazy(() => import('./pages/Admin/Banners'))
+const AdminReports = lazy(() => import('./pages/Admin/Reports'))
+const AdminSettings = lazy(() => import('./pages/Admin/Settings'))
+
+const NotFound = lazy(() => import('./pages/System/NotFound'))
+const Forbidden = lazy(() => import('./pages/System/Forbidden'))
+const ServerError = lazy(() => import('./pages/System/ServerError'))
 
 const scrollPositions = new Map()
 
@@ -72,50 +80,56 @@ export default function App() {
       <OfflineBanner />
       <GlobalLoadingBar />
       <ScrollRestoration />
-      <Routes>
-        <Route element={<PublicLayout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/verify-otp" element={<VerifyOtp />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/products/:id" element={<ProductDetails />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/wishlist" element={<Wishlist />} />
-          <Route path="/compare" element={<Compare />} />
-        </Route>
+      <CommandPalette />
+      <BackToTop />
+      <Suspense fallback={<Loader />}>
+        <Routes>
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/verify-otp" element={<VerifyOtp />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/products/:id" element={<ProductDetails />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/wishlist" element={<Wishlist />} />
+            <Route path="/compare" element={<Compare />} />
+          </Route>
 
-        <Route path="/dashboard" element={<UserLayout />}>
-          <Route index element={<UserDashboard />} />
-          <Route path="orders" element={<Orders />} />
-          <Route path="orders/:id" element={<OrderDetail />} />
-          <Route path="addresses" element={<Addresses />} />
-          <Route path="wishlist" element={<Wishlist />} />
-          <Route path="compare" element={<Compare />} />
-          <Route path="cart" element={<Cart />} />
-          <Route path="profile" element={<Profile />} />
-        </Route>
+          <Route path="/dashboard" element={<UserLayout />}>
+            <Route index element={<UserDashboard />} />
+            <Route path="orders" element={<Orders />} />
+            <Route path="orders/:id" element={<OrderDetail />} />
+            <Route path="addresses" element={<Addresses />} />
+            <Route path="wishlist" element={<Wishlist />} />
+            <Route path="compare" element={<Compare />} />
+            <Route path="cart" element={<Cart />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
 
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="products" element={<AdminProducts />} />
-          <Route path="customers" element={<AdminCustomers />} />
-          <Route path="orders" element={<AdminOrders />} />
-          <Route path="reports" element={<AdminReports />} />
-          <Route path="settings" element={<AdminSettings />} />
-        </Route>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="customers" element={<AdminCustomers />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="banners" element={<AdminBanners />} />
+            <Route path="reports" element={<AdminReports />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
 
-        <Route path="/403" element={<Forbidden />} />
-        <Route path="/500" element={<ServerError />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          <Route path="/403" element={<Forbidden />} />
+          <Route path="/500" element={<ServerError />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </>
   )
 }

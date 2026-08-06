@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 
-export default function EmptyState({ icon: Icon, title, subtitle, actionLabel, actionTo }) {
+export default function EmptyState({ icon: Icon, title, subtitle, actionLabel, actionTo, onAction }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -13,7 +13,12 @@ export default function EmptyState({ icon: Icon, title, subtitle, actionLabel, a
       </div>
       <h3 className="text-lg font-bold text-ink">{title}</h3>
       {subtitle && <p className="text-ink/50 text-sm mt-1 max-w-xs">{subtitle}</p>}
-      {actionLabel && actionTo && (
+      {actionLabel && onAction && (
+        <button type="button" onClick={onAction} className="btn-primary mt-5">
+          {actionLabel}
+        </button>
+      )}
+      {actionLabel && actionTo && !onAction && (
         <Link to={actionTo} className="btn-primary mt-5">
           {actionLabel}
         </Link>

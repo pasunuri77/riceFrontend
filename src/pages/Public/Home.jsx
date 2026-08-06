@@ -8,6 +8,12 @@ import brandApi from '../../api/brandApi'
 import ProductCard from '../../components/product/ProductCard'
 import CategoryCard from '../../components/product/CategoryCard'
 import { ProductCardSkeleton, TextSkeleton } from '../../components/ui/Skeleton'
+import TrustBadges from '../../components/ui/TrustBadges'
+import AnimatedCounter from '../../components/ui/AnimatedCounter'
+import QualityProcess from '../../components/home/QualityProcess'
+import Testimonials from '../../components/home/Testimonials'
+import FaqPreview from '../../components/home/FaqPreview'
+import Newsletter from '../../components/home/Newsletter'
 
 const WHY_US = [
   { icon: ShieldCheck, title: 'Quality Assured', desc: 'Every batch lab-tested for purity and grain quality.' },
@@ -69,14 +75,18 @@ export default function Home() {
             </form>
 
             <div className="flex gap-8 mt-8">
-              <div>{loading ? <TextSkeleton className="h-7 w-10 mb-1" /> : <p className="text-2xl font-extrabold font-display text-primary-700">{brands.length}</p>}<p className="text-xs text-ink/50">Trusted Brands</p></div>
-              <div>{loading ? <TextSkeleton className="h-7 w-10 mb-1" /> : <p className="text-2xl font-extrabold font-display text-primary-700">{products.length}</p>}<p className="text-xs text-ink/50">Rice Varieties</p></div>
+              <div>{loading ? <TextSkeleton className="h-7 w-10 mb-1" /> : <p className="text-2xl font-extrabold font-display text-primary-700"><AnimatedCounter value={brands.length} /></p>}<p className="text-xs text-ink/50">Trusted Brands</p></div>
+              <div>{loading ? <TextSkeleton className="h-7 w-10 mb-1" /> : <p className="text-2xl font-extrabold font-display text-primary-700"><AnimatedCounter value={products.length} /></p>}<p className="text-xs text-ink/50">Rice Varieties</p></div>
             </div>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6 }} className="relative">
             <div className="aspect-square rounded-full bg-gradient-to-br from-primary-200 to-leaf-200 p-8 max-w-md mx-auto">
-              <img src="https://picsum.photos/seed/heroRice/700/700" alt="Premium rice bags" className="w-full h-full object-cover rounded-full shadow-cardHover" />
+              <img
+                src="https://images.unsplash.com/photo-1586201375761-83865001e31c?w=800&h=800&fit=crop&q=80"
+                alt="Premium white rice grains"
+                className="w-full h-full object-cover rounded-full shadow-cardHover"
+              />
             </div>
             <div className="absolute -bottom-4 left-2 sm:left-8 card px-4 py-3 flex items-center gap-2">
               <span className="text-2xl">🚚</span>
@@ -84,6 +94,11 @@ export default function Home() {
             </div>
           </motion.div>
         </div>
+      </section>
+
+      {/* Trust Badges */}
+      <section className="container-app py-10">
+        <TrustBadges />
       </section>
 
       {/* Categories */}
@@ -123,6 +138,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <QualityProcess />
 
       {/* Popular Brands */}
       <section className="container-app py-14">
@@ -179,6 +196,8 @@ export default function Home() {
         </div>
       </section>
 
+      <Testimonials />
+
       {/* Latest Arrivals */}
       <section className="container-app py-14">
         <div className="flex items-end justify-between mb-6">
@@ -210,6 +229,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <FaqPreview />
+      <Newsletter />
     </div>
   )
 }

@@ -113,6 +113,15 @@ export default function Navbar() {
         </form>
 
         <div className="flex items-center gap-1 ml-auto md:ml-0">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('command-palette:open'))}
+            aria-label="Open quick search (Ctrl+K)"
+            title="Quick search (Ctrl+K)"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-black/10 text-ink/40 hover:text-ink/70 hover:border-black/20 text-xs mr-1"
+          >
+            <kbd className="font-sans">Ctrl</kbd><kbd className="font-sans">K</kbd>
+          </button>
           <Link to="/compare" aria-label={`Compare${compareList.length ? `, ${compareList.length} items` : ''}`} className="relative p-2 rounded-lg hover:bg-primary-50 hidden sm:inline-flex" title="Compare">
             <Scale className="w-5 h-5 text-ink/70" aria-hidden="true" />
             {compareList.length > 0 && (

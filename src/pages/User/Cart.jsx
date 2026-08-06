@@ -1,21 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Minus, Plus, Trash2, ShoppingCart, ArrowRight } from 'lucide-react'
+import { Minus, Plus, Trash2, ShoppingCart, ArrowRight, Truck, ShieldCheck, RotateCcw } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
+import ProductCard from '../../components/product/ProductCard'
+import FreeShippingProgress from '../../components/cart/FreeShippingProgress'
+import CouponInput from '../../components/cart/CouponInput'
 import { formatINR, estimatedDelivery } from '../../utils/format'
 import { safeImageUrl } from '../../utils/sanitize'
 import { useCart } from '../../context/CartContext'
 import productApi from '../../api/productApi'
 
 export default function Cart() {
-  const { items, updateQty, removeFromCart, subtotal, deliveryCharge, total } = useCart()
+  const { items, updateQty, removeFromCart, subtotal, deliveryCharge, total, freeDeliveryThreshold } = useCart()
   const [products, setProducts] = useState({})
+  const [allProducts, setAllProducts] = useState([])
 
   useEffect(() => {
     productApi.list()
-      .then((list) => setProducts(Object.fromEntries(list.map((p) => [p.id, p]))))
-      .catch(() => setProducts({}))
+      .then((list) => {
+        setAllProducts(list)
+        setProducts(Object.fromEntries(list.map((p) => [p.id, p])))
+      })
+      .catch(() => { setProducts({}); setAllProducts([]) })
   }, [])
 
   // Same cap as the product page: can't hold more units in the cart than the current
@@ -26,13 +33,43 @@ export default function Cart() {
     return Math.max(1, Math.floor(product.stock / item.weight))
   }
 
+  // Real savings, computed from each item's actual MRP on the fetched product data -
+  // not a fabricated discount.
+  const totalSavings = items.reduce((sum, i) => {
+    const product = products[i.id]
+    if (!product?.mrp || product.mrp <= product.pricePerKg) return sum
+    return sum + (product.mrp - product.pricePerKg) * i.weight * i.qty
+  }, 0)
+
+  const cartProductIds = new Set(items.map((i) => i.id))
+  const recommended = useMemo(
+    () => allProducts.filter((p) => !cartProductIds.has(p.id) && p.stock > 0).slice(0, 4),
+    [allProducts, items]
+  )
+
   return (
     <div className="container-app py-8">
       <Breadcrumb items={[{ label: 'Cart' }]} />
-      <h1 className="section-title mb-6">Shopping Cart</h1>
+      <h1 className="section-title mb-2">Shopping Cart</h1>
+
+      {items.length > 0 && (
+        <div className="flex items-center gap-2 text-xs font-semibold text-primary-700 bg-primary-50 rounded-lg px-3 py-2 mb-6 w-fit">
+          <Truck className="w-3.5 h-3.5" aria-hidden="true" /> Estimated delivery by {estimatedDelivery()}
+        </div>
+      )}
 
       {items.length === 0 ? (
-        <EmptyState icon={ShoppingCart} title="Your cart is empty" subtitle="Looks like you haven't added any rice yet." actionLabel="Continue Shopping" actionTo="/products" />
+        <>
+          <EmptyState icon={ShoppingCart} title="Your cart is empty" subtitle="Looks like you haven't added any rice yet." actionLabel="Continue Shopping" actionTo="/products" />
+          {allProducts.length > 0 && (
+            <div className="mt-8">
+              <h2 className="section-title !text-xl mb-4">You Might Like</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
+                {allProducts.slice(0, 4).map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="grid lg:grid-cols-[1fr_340px] gap-8">
           <div className="space-y-3">
@@ -72,20 +109,46 @@ export default function Cart() {
               )
             })}
             <Link to="/products" className="text-sm font-semibold text-primary-600 inline-block mt-2">← Continue Shopping</Link>
+
+            {recommended.length > 0 && (
+              <div className="mt-10">
+                <h2 className="section-title !text-xl mb-4">You Might Also Like</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
+                  {recommended.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="card p-5 h-fit sticky top-20">
-            <h3 className="font-bold mb-4">Order Summary</h3>
-            <div className="space-y-2.5 text-sm">
-              <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatINR(subtotal)}</span></div>
-              <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatINR(deliveryCharge)}</span></div>
-              <div className="flex justify-between text-ink/50"><span>Estimated Delivery</span><span className="font-semibold text-ink">{estimatedDelivery()}</span></div>
+          <div className="space-y-4 h-fit sticky top-20">
+            <FreeShippingProgress subtotal={subtotal} threshold={freeDeliveryThreshold} />
+
+            <div className="card p-5">
+              <h3 className="font-bold mb-3 text-sm">Have a Coupon?</h3>
+              <CouponInput />
             </div>
-            <div className="border-t border-black/10 mt-4 pt-4 flex justify-between items-center">
-              <span className="font-bold">Total</span>
-              <span className="font-extrabold text-xl text-primary-700">{formatINR(total)}</span>
+
+            <div className="card p-5">
+              <h3 className="font-bold mb-4">Order Summary</h3>
+              <div className="space-y-2.5 text-sm">
+                <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatINR(subtotal)}</span></div>
+                {totalSavings > 0 && (
+                  <div className="flex justify-between text-leaf-600"><span>You Save</span><span className="font-semibold">-{formatINR(totalSavings)}</span></div>
+                )}
+                <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatINR(deliveryCharge)}</span></div>
+                <div className="flex justify-between text-ink/50"><span>Estimated Delivery</span><span className="font-semibold text-ink">{estimatedDelivery()}</span></div>
+              </div>
+              <div className="border-t border-black/10 mt-4 pt-4 flex justify-between items-center">
+                <span className="font-bold">Total</span>
+                <span className="font-extrabold text-xl text-primary-700">{formatINR(total)}</span>
+              </div>
+              <Link to="/checkout" className="btn-primary w-full mt-5">Checkout <ArrowRight className="w-4 h-4" /></Link>
+              <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-black/5 text-center">
+                <div><ShieldCheck className="w-4 h-4 mx-auto text-primary-600 mb-1" aria-hidden="true" /><p className="text-[10px] text-ink/40 leading-tight">Secure Payments</p></div>
+                <div><Truck className="w-4 h-4 mx-auto text-primary-600 mb-1" aria-hidden="true" /><p className="text-[10px] text-ink/40 leading-tight">Fast Delivery</p></div>
+                <div><RotateCcw className="w-4 h-4 mx-auto text-primary-600 mb-1" aria-hidden="true" /><p className="text-[10px] text-ink/40 leading-tight">Easy Returns</p></div>
+              </div>
             </div>
-            <Link to="/checkout" className="btn-primary w-full mt-5">Checkout <ArrowRight className="w-4 h-4" /></Link>
           </div>
         </div>
       )}

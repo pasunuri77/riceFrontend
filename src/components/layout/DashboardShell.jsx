@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { NavLink, Outlet, Link, Navigate, useLocation } from 'react-router-dom'
+import { NavLink, Link, Navigate, useLocation } from 'react-router-dom'
 import { Menu, X, LogOut, ChevronDown, User as UserIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../context/AuthContext'
 import NotificationBell from '../ui/NotificationBell'
+import PageTransition from '../ui/PageTransition'
 
 export default function DashboardShell({ navItems, brandLabel, requireRole, profileTo = '/dashboard/profile' }) {
   const [open, setOpen] = useState(false)
@@ -123,7 +124,7 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
           </div>
         </header>
         <main id="main-content" className="flex-1 p-4 sm:p-6">
-          <Outlet />
+          <PageTransition />
         </main>
       </div>
     </div>

@@ -1,15 +1,16 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Heart, ShoppingCart, Scale } from 'lucide-react'
 import RatingStars from './RatingStars'
 import StockBadge, { OfferBadge } from './StockBadge'
 import { formatINR } from '../../utils/format'
-import { safeImageUrl } from '../../utils/sanitize'
+import ProductImage from './ProductImage'
 import { useCart } from '../../context/CartContext'
 import { useWishlist } from '../../context/WishlistContext'
 import { useCompare } from '../../context/CompareContext'
 
-export default function ProductCard({ product, index = 0 }) {
+function ProductCard({ product, index = 0 }) {
   const { addToCart } = useCart()
   const { isWishlisted, toggleWishlist } = useWishlist()
   const { isComparing, toggleCompare } = useCompare()
@@ -26,10 +27,9 @@ export default function ProductCard({ product, index = 0 }) {
     >
       <div className="relative aspect-square overflow-hidden bg-primary-50">
         <Link to={`/products/${product.id}`}>
-          <img
-            src={safeImageUrl(product.image)}
+          <ProductImage
+            src={product.image}
             alt={product.name}
-            loading="lazy"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         </Link>
@@ -83,3 +83,5 @@ export default function ProductCard({ product, index = 0 }) {
     </motion.div>
   )
 }
+
+export default memo(ProductCard)
