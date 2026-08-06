@@ -80,7 +80,7 @@ export default function Home() {
             </div>
             <div className="absolute -bottom-4 left-2 sm:left-8 card px-4 py-3 flex items-center gap-2">
               <span className="text-2xl">🚚</span>
-              <div><p className="text-xs font-bold">Free Delivery</p><p className="text-[11px] text-ink/40">On orders above ₹999</p></div>
+              <div><p className="text-xs font-bold">Free Delivery</p><p className="text-[11px] text-ink/40">On orders above ₹10000</p></div>
             </div>
           </motion.div>
         </div>

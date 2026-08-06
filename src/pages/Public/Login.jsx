@@ -10,7 +10,6 @@ import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
-import { setRememberMe, getRememberMe } from '../../utils/rememberMe'
 
 const schema = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
@@ -19,7 +18,6 @@ const schema = z.object({
 
 export default function Login() {
   const [show, setShow] = useState(false)
-  const [remember, setRemember] = useState(getRememberMe())
   const { login } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -33,7 +31,6 @@ export default function Login() {
 
   const onSubmit = async (data) => {
     try {
-      setRememberMe(remember)
       const user = await login(data)
       showToast('Welcome back!', 'success')
       // Only honor an intended destination that matches the account's own role area -
@@ -41,7 +38,7 @@ export default function Login() {
       const from = location.state?.from
       const fromPath = from ? `${from.pathname ?? ''}${from.search ?? ''}` : ''
       const isAdminPath = fromPath.startsWith('/admin')
-      const isUserPath = fromPath.startsWith('/dashboard')
+      const isUserPath = fromPath.startsWith('/dashboard') || fromPath.startsWith('/checkout')
       if (user.role === 'admin' && isAdminPath) navigate(fromPath)
       else if (user.role !== 'admin' && isUserPath) navigate(fromPath)
       else navigate(user.role === 'admin' ? '/admin' : '/dashboard')
@@ -88,16 +85,7 @@ export default function Login() {
               </button>
             </div>
           </FormField>
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-xs font-medium text-ink/60 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-                className="accent-primary-500 w-3.5 h-3.5"
-              />
-              Remember Me
-            </label>
+          <div className="flex items-center justify-end">
             <Link to="/forgot-password" className="text-xs text-primary-600 font-semibold">Forgot Password?</Link>
           </div>
           <SubmitButton loading={isSubmitting} loadingLabel="Logging in...">Login</SubmitButton>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
 import { CheckCircle2, Plus, CreditCard, Wallet, Landmark, Truck } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import AddressCard from '../../components/forms/AddressCard'
@@ -25,6 +25,7 @@ export default function Checkout() {
   const { items, subtotal, deliveryCharge, total, clearCart } = useCart()
   const { showToast } = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [selected, setSelected] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -38,6 +39,13 @@ export default function Checkout() {
       setSelected(addresses.find((a) => a.isDefault)?.id || addresses[0].id)
     }
   }, [addresses])
+
+  // Checkout places a real order tied to the logged-in account - an unauthenticated
+  // visitor must never reach this page, since without a real session there's no
+  // legitimate customer to attach the order to.
+  if (!user) {
+    return <Navigate to="/register" state={{ from: location }} replace />
+  }
 
   if (items.length === 0 && !placed) {
     return (

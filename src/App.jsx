@@ -30,6 +30,7 @@ import Wishlist from './pages/User/Wishlist'
 import Compare from './pages/User/Compare'
 import UserDashboard from './pages/User/Dashboard'
 import Orders from './pages/User/Orders'
+import OrderDetail from './pages/User/OrderDetail'
 import Addresses from './pages/User/Addresses'
 import Profile from './pages/User/Profile'
 
@@ -94,6 +95,7 @@ export default function App() {
         <Route path="/dashboard" element={<UserLayout />}>
           <Route index element={<UserDashboard />} />
           <Route path="orders" element={<Orders />} />
+          <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="addresses" element={<Addresses />} />
           <Route path="wishlist" element={<Wishlist />} />
           <Route path="compare" element={<Compare />} />

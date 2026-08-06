@@ -10,6 +10,7 @@ import { ApiError } from '../../api/client'
 import settingsApi from '../../api/settingsApi'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
+import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 
 const TABS = ['Admin Profile', 'Store Information', 'Delivery & Tax', 'Business Hours']
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -17,7 +18,7 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const profileSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
+  mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
 })
 
 const defaultSettings = {
@@ -67,6 +68,8 @@ export default function AdminSettings() {
     mode: 'onTouched',
     defaultValues: { fullName: '', email: '', mobile: '' },
   })
+
+  const { onChange: onMobileChange, ...mobileField } = registerProfile('mobile')
 
   useEffect(() => {
     resetProfile({
@@ -157,7 +160,15 @@ export default function AdminSettings() {
               <input {...registerProfile('email')} type="email" className="input-field" aria-invalid={!!profileErrors.email} />
             </FormField>
             <FormField label="Mobile Number" error={profileErrors.mobile?.message}>
-              <input {...registerProfile('mobile')} inputMode="numeric" maxLength={10} className="input-field" aria-invalid={!!profileErrors.mobile} />
+              <input
+                {...mobileField}
+                onChange={(e) => sanitizeMobileInput(e, onMobileChange)}
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                className="input-field"
+                aria-invalid={!!profileErrors.mobile}
+              />
             </FormField>
             <SubmitButton loading={savingProfile} className="btn-primary">Save Profile</SubmitButton>
           </form>
@@ -175,7 +186,19 @@ export default function AdminSettings() {
               <div><label className="label-field">Currency</label><input value={settings.currency} disabled className="input-field" /></div>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div><label className="label-field">Phone</label><input value={settings.phone} onChange={updateSettingsField('phone')} placeholder="Enter support phone" className="input-field" disabled={loadingSettings} /></div>
+              <div>
+                <label className="label-field">Phone</label>
+                <input
+                  value={settings.phone}
+                  onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); updateSettingsField('phone')(e) }}
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="Enter support phone"
+                  className="input-field"
+                  disabled={loadingSettings}
+                />
+              </div>
               <div><label className="label-field">Email</label><input value={settings.email} onChange={updateSettingsField('email')} placeholder="Enter support email" type="email" className="input-field" disabled={loadingSettings} /></div>
             </div>
             <button className="btn-primary" disabled={savingSettings || loadingSettings}>{savingSettings ? 'Saving...' : 'Save Changes'}</button>

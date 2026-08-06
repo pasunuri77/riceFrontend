@@ -9,11 +9,12 @@ import SubmitButton from '../../components/ui/SubmitButton'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
+import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 
 const schema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
+  mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
 })
 
 export default function Profile() {
@@ -75,7 +76,8 @@ export default function Profile() {
           <FormField label="Mobile Number" error={errors.mobile?.message}>
             <input
               {...mobileField}
-              onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); onMobileChange(e) }}
+              onChange={(e) => sanitizeMobileInput(e, onMobileChange)}
+              type="tel"
               inputMode="numeric"
               maxLength={10}
               className="input-field"

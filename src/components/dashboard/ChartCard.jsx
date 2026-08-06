@@ -8,8 +8,8 @@ export default function ChartCard({ title, sub, icon: Icon, children, className 
           </div>
         )}
         <div className="min-w-0">
-          <h3 className="font-bold text-ink font-display truncate">{title}</h3>
-          {sub && <p className="text-xs text-ink/45 mt-0.5 truncate">{sub}</p>}
+          <h3 className="font-bold text-ink font-display">{title}</h3>
+          {sub && <p className="text-xs text-ink/45 mt-0.5">{sub}</p>}
         </div>
       </div>
       {children}

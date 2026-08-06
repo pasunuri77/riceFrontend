@@ -94,7 +94,8 @@ export function CartProvider({ children }) {
     return deliverySettings.deliveryCharge
   }, [deliverySettings, subtotal])
   const total = subtotal + deliveryCharge
-  const count = items.reduce((n, i) => n + i.qty, 0)
+  // Number of distinct items in the cart, not the sum of their quantities/pack weights.
+  const count = items.length
 
   return (
     <CartContext.Provider

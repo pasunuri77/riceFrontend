@@ -72,6 +72,8 @@ export default function ProductDetails() {
     return <EmptyState icon={PackageSearch} title="Product not found" subtitle="This rice product may have been removed." actionLabel="Back to Shop" actionTo="/products" />
   }
 
+  // Can't add more units than the stock on hand allows for the selected pack size.
+  const maxQty = Math.max(1, Math.floor(product.stock / weight))
   const total = product.pricePerKg * weight * qty
 
   const buyNow = () => {
@@ -119,7 +121,16 @@ export default function ProductDetails() {
             <p className="label-field">Select Weight</p>
             <div className="flex flex-wrap gap-2 mb-4">
               {product.weightOptions.map((w) => (
-                <button key={w} onClick={() => setWeight(w)} className={`px-4 py-2 rounded-lg text-sm font-semibold border ${weight === w ? 'bg-primary-500 text-white border-primary-500' : 'border-black/10 hover:border-primary-300'}`}>
+                <button
+                  key={w}
+                  onClick={() => {
+                    setWeight(w)
+                    // The per-unit cap changes with pack size, so re-clamp the current quantity to it.
+                    const newMax = Math.max(1, Math.floor(product.stock / w))
+                    setQty((q) => Math.min(q, newMax))
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold border ${weight === w ? 'bg-primary-500 text-white border-primary-500' : 'border-black/10 hover:border-primary-300'}`}
+                >
                   {w} kg
                 </button>
               ))}
@@ -128,9 +139,9 @@ export default function ProductDetails() {
             <p className="label-field">Quantity</p>
             <div className="flex items-center gap-3 mb-5">
               <div className="flex items-center border border-black/10 rounded-lg">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" className="p-2.5 hover:bg-primary-50"><Minus className="w-4 h-4" aria-hidden="true" /></button>
+                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} aria-label="Decrease quantity" className="p-2.5 hover:bg-primary-50 disabled:opacity-40 disabled:cursor-not-allowed"><Minus className="w-4 h-4" aria-hidden="true" /></button>
                 <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
-                <button onClick={() => setQty((q) => q + 1)} aria-label="Increase quantity" className="p-2.5 hover:bg-primary-50"><Plus className="w-4 h-4" aria-hidden="true" /></button>
+                <button onClick={() => setQty((q) => Math.min(maxQty, q + 1))} disabled={qty >= maxQty} aria-label="Increase quantity" className="p-2.5 hover:bg-primary-50 disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-4 h-4" aria-hidden="true" /></button>
               </div>
               <div className="card px-4 py-2.5 bg-primary-50 border-0">
                 <p className="text-[11px] text-ink/50">Total Price</p>

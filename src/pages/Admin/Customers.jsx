@@ -12,7 +12,7 @@ import SortableHeader from '../../components/ui/SortableHeader'
 import ColumnVisibilityMenu from '../../components/ui/ColumnVisibilityMenu'
 import ExportMenu from '../../components/ui/ExportMenu'
 import BulkActionsBar from '../../components/ui/BulkActionsBar'
-import { formatINR, formatDate } from '../../utils/format'
+import { formatINR, formatDate, fitTextSizeClass } from '../../utils/format'
 import { exportToCsv, exportToExcel } from '../../utils/exportTable'
 import { useToast } from '../../context/ToastContext'
 import customerApi from '../../api/customerApi'
@@ -22,6 +22,7 @@ import { RowSkeleton } from '../../components/ui/Skeleton'
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg x${i.qty})`).join(', ') : o.riceName)
 
 const PAGE_SIZE = 8
+const MODAL_STAT_SCALE = ['text-lg', 'text-base', 'text-sm']
 const STATUS_TABS = ['All', 'Active', 'Blocked']
 
 const COLUMNS = [
@@ -246,9 +247,9 @@ export default function AdminCustomers() {
             </div>
 
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="bg-primary-50 rounded-xl p-3"><p className="text-lg font-extrabold font-display">{viewing.orders}</p><p className="text-[11px] text-ink/50 mt-0.5">Orders</p></div>
-              <div className="bg-primary-50 rounded-xl p-3"><p className="text-lg font-extrabold font-display">{formatINR(viewing.totalSpent)}</p><p className="text-[11px] text-ink/50 mt-0.5">Total Spent</p></div>
-              <div className="bg-primary-50 rounded-xl p-3"><p className="text-lg font-extrabold font-display">{formatDate(viewing.joined)}</p><p className="text-[11px] text-ink/50 mt-0.5">Joined</p></div>
+              <div className="bg-primary-50 rounded-xl p-3"><p className={`${fitTextSizeClass(viewing.orders, MODAL_STAT_SCALE)} font-extrabold font-display whitespace-nowrap`}>{viewing.orders}</p><p className="text-[11px] text-ink/50 mt-0.5">Orders</p></div>
+              <div className="bg-primary-50 rounded-xl p-3"><p className={`${fitTextSizeClass(formatINR(viewing.totalSpent), MODAL_STAT_SCALE)} font-extrabold font-display whitespace-nowrap`}>{formatINR(viewing.totalSpent)}</p><p className="text-[11px] text-ink/50 mt-0.5">Total Spent</p></div>
+              <div className="bg-primary-50 rounded-xl p-3"><p className={`${fitTextSizeClass(formatDate(viewing.joined), MODAL_STAT_SCALE)} font-extrabold font-display whitespace-nowrap`}>{formatDate(viewing.joined)}</p><p className="text-[11px] text-ink/50 mt-0.5">Joined</p></div>
             </div>
 
             <div className="flex justify-between text-sm border-t border-black/5 pt-3">

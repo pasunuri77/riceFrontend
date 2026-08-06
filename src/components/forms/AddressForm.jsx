@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { INDIAN_STATES } from '../../data/states'
 import FormField from '../ui/FormField'
 import SubmitButton from '../ui/SubmitButton'
+import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 
 const TYPES = ['Home', 'Office', 'Shop', 'Warehouse', 'Other']
 
@@ -21,8 +22,8 @@ const schema = z
     storeName: z.string().optional(),
     ownerName: z.string().optional(),
     fullName: z.string().min(1, 'Full name is required'),
-    mobile: z.string().regex(/^\d{10}$/, 'Enter a valid 10-digit mobile number'),
-    altMobile: z.string().optional(),
+    mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
+    altMobile: z.union([z.string().length(0), z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number')]).optional(),
     flat: z.string().min(1, 'Flat / Door No. is required'),
     building: z.string().optional(),
     street: z.string().min(1, 'Street is required'),
@@ -58,6 +59,8 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
   })
 
   const addressFor = watch('addressFor')
+  const { onChange: onMobileChange, ...mobileField } = register('mobile')
+  const { onChange: onAltMobileChange, ...altMobileField } = register('altMobile')
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
@@ -91,10 +94,26 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
           <input {...register('fullName')} autoFocus className="input-field" aria-invalid={!!errors.fullName} />
         </FormField>
         <FormField label="Mobile Number" error={errors.mobile?.message}>
-          <input {...register('mobile')} inputMode="numeric" maxLength={10} className="input-field" aria-invalid={!!errors.mobile} />
+          <input
+            {...mobileField}
+            onChange={(e) => sanitizeMobileInput(e, onMobileChange)}
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            className="input-field"
+            aria-invalid={!!errors.mobile}
+          />
         </FormField>
-        <FormField label="Alternate Mobile">
-          <input {...register('altMobile')} className="input-field" />
+        <FormField label="Alternate Mobile" error={errors.altMobile?.message}>
+          <input
+            {...altMobileField}
+            onChange={(e) => sanitizeMobileInput(e, onAltMobileChange)}
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            className="input-field"
+            aria-invalid={!!errors.altMobile}
+          />
         </FormField>
       </div>
 

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Mail, ArrowRight, ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
@@ -11,6 +11,7 @@ import { ApiError } from '../../api/client'
 import otpApi from '../../api/otp/otpApi'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
+import OtpInput from '../../components/ui/OtpInput'
 
 const otpSchema = { otp: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code') }
 
@@ -32,18 +33,22 @@ export default function VerifyOtp() {
   const [resending, setResending] = useState(false)
   const [done, setDone] = useState(false)
 
-  const { email, purpose, formData } = location.state || {}
+  const { email, purpose, formData, from } = location.state || {}
   const schema = purpose === 'reset' ? resetSchema : registerSchema
 
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
     mode: 'onTouched',
     defaultValues: { otp: '', newPassword: '', confirmPassword: '' },
   })
+
+  const otp = watch('otp')
 
   if (!email || !purpose) {
     return <Navigate to="/register" replace />
@@ -68,7 +73,10 @@ export default function VerifyOtp() {
         await otpApi.verifyRegistrationOtp(email, data.otp)
         await registerUser(formData)
         showToast('Account created successfully!', 'success')
-        navigate('/dashboard')
+        // A regular account only ever belongs in /dashboard/* - only honor `from`
+        // if it actually points there (e.g. back to /checkout), same guard as Login.
+        const fromPath = from ? `${from.pathname ?? ''}${from.search ?? ''}` : ''
+        navigate(fromPath.startsWith('/dashboard') || fromPath.startsWith('/checkout') ? fromPath : '/dashboard')
       } else {
         await otpApi.resetPassword(email, data.otp, data.newPassword)
         setDone(true)
@@ -91,42 +99,49 @@ export default function VerifyOtp() {
         ) : (
           <>
             <div className="text-center mb-7">
-              <span className="text-3xl">🔐</span>
-              <h1 className="font-display font-extrabold text-2xl mt-2">Verify OTP</h1>
-              <p className="text-ink/50 text-sm mt-1">Enter the 6-digit code sent to <span className="font-semibold text-ink">{email}</span></p>
+              <div className="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-6 h-6 text-primary-600" aria-hidden="true" />
+              </div>
+              <h1 className="font-display font-extrabold text-2xl">
+                {purpose === 'register' ? 'Verify your email' : 'Verify OTP'}
+              </h1>
+              <p className="text-ink/50 text-sm mt-1.5">
+                We sent a 6-digit code to<br /><span className="font-semibold text-ink">{email}</span>
+              </p>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-              <FormField label="Enter OTP" error={errors.otp?.message}>
-                <input
-                  {...register('otp')}
-                  autoFocus
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="6-digit code"
-                  className="input-field tracking-widest text-center"
-                  aria-invalid={!!errors.otp}
-                />
-              </FormField>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+              <input type="hidden" {...register('otp')} />
+              <OtpInput
+                length={6}
+                value={otp}
+                onChange={(value) => setValue('otp', value, { shouldValidate: true, shouldDirty: true })}
+                error={errors.otp?.message}
+                autoFocus
+              />
 
               {purpose === 'reset' && (
-                <>
+                <div className="space-y-4">
                   <FormField label="New Password" error={errors.newPassword?.message}>
                     <input {...register('newPassword')} type="password" className="input-field" aria-invalid={!!errors.newPassword} />
                   </FormField>
                   <FormField label="Confirm New Password" error={errors.confirmPassword?.message}>
                     <input {...register('confirmPassword')} type="password" className="input-field" aria-invalid={!!errors.confirmPassword} />
                   </FormField>
-                </>
+                </div>
               )}
 
               <SubmitButton loading={isSubmitting}>
-                {purpose === 'register' ? 'Register' : 'Reset Password'}
+                {purpose === 'register' ? 'Verify Email' : 'Reset Password'} <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </SubmitButton>
 
-              <div className="flex justify-between text-xs">
-                <Link to={purpose === 'register' ? '/register' : '/forgot-password'} className="text-ink/50 font-semibold">Change {purpose === 'register' ? 'details' : 'email'}</Link>
-                <button type="button" onClick={resendOtp} disabled={resending} className="text-primary-600 font-semibold">{resending ? 'Resending...' : 'Resend OTP'}</button>
+              <div className="flex items-center justify-between text-xs">
+                <Link to={purpose === 'register' ? '/register' : '/forgot-password'} className="flex items-center gap-1 text-ink/50 font-semibold hover:text-ink">
+                  <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> Go back
+                </Link>
+                <button type="button" onClick={resendOtp} disabled={resending} className="text-primary-600 font-semibold hover:text-primary-700 disabled:opacity-50">
+                  {resending ? 'Resending...' : 'Resend code'}
+                </button>
               </div>
             </form>
           </>

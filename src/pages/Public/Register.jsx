@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,11 +8,12 @@ import { ApiError } from '../../api/client'
 import otpApi from '../../api/otp/otpApi'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
+import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 
 const schema = z
   .object({
     fullName: z.string().min(1, 'Full name is required'),
-    mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
+    mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
     email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
@@ -25,6 +26,7 @@ const schema = z
 export default function Register() {
   const { showToast } = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const {
     register,
@@ -42,7 +44,7 @@ export default function Register() {
     try {
       await otpApi.sendRegistrationOtp(data.email)
       showToast('OTP sent to your email', 'success')
-      navigate('/verify-otp', { state: { email: data.email, purpose: 'register', formData: data } })
+      navigate('/verify-otp', { state: { email: data.email, purpose: 'register', formData: data, from: location.state?.from } })
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to send OTP', 'error')
     }
@@ -65,7 +67,8 @@ export default function Register() {
             <FormField label="Mobile Number" error={errors.mobile?.message}>
               <input
                 {...mobileField}
-                onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); onMobileChange(e) }}
+                onChange={(e) => sanitizeMobileInput(e, onMobileChange)}
+                type="tel"
                 inputMode="numeric"
                 maxLength={10}
                 placeholder="98765 43210"
@@ -89,7 +92,7 @@ export default function Register() {
         </form>
 
         <p className="text-sm text-center text-ink/60 mt-6">
-          Already have an account? <Link to="/login" className="text-primary-600 font-semibold">Login</Link>
+          Already have an account? <Link to="/login" state={location.state} className="text-primary-600 font-semibold">Login</Link>
         </p>
       </motion.div>
     </div>

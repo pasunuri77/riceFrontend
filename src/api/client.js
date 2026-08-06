@@ -1,11 +1,10 @@
-import { getSessionStore } from '../utils/rememberMe'
 import { isTokenExpired } from '../utils/jwt'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const TOKEN_KEY = 'rb_token'
 
 export function getToken() {
-  const token = getSessionStore().getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(TOKEN_KEY)
   // A locally-expired token can never succeed against the backend - treat it as
   // absent so we don't attach a doomed Authorization header to every request.
   if (token && isTokenExpired(token)) {
@@ -17,12 +16,8 @@ export function getToken() {
 }
 
 export function setToken(token) {
-  const store = getSessionStore()
-  if (token) store.setItem(TOKEN_KEY, token)
-  else {
-    localStorage.removeItem(TOKEN_KEY)
-    sessionStorage.removeItem(TOKEN_KEY)
-  }
+  if (token) localStorage.setItem(TOKEN_KEY, token)
+  else localStorage.removeItem(TOKEN_KEY)
 }
 
 export class ApiError extends Error {

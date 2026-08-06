@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Package, FileText, Truck, XCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Package, FileText, Truck, XCircle, Eye } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import StatusPill from '../../components/ui/StatusPill'
@@ -77,7 +78,7 @@ export default function Orders() {
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 justify-between">
                   <p className="font-bold text-sm">{itemNames(o)}</p>
-                  <span className="text-xs text-ink/40">{o.id}</span>
+                  <Link to={`/dashboard/orders/${o.id}`} className="text-xs text-primary-600 font-semibold hover:underline">{o.id}</Link>
                 </div>
                 <p className="text-xs text-ink/50 mt-1">{o.address}</p>
                 <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-ink/50">
@@ -93,7 +94,8 @@ export default function Orders() {
               <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 sm:text-right sm:min-w-[140px]">
                 <p className="font-bold text-lg">{formatINR(o.amount)}</p>
                 <div className="flex sm:flex-col gap-2 w-full">
-                  <button onClick={() => showToast('Tracking order ' + o.id, 'info')} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Truck className="w-3.5 h-3.5" /> Track</button>
+                  <Link to={`/dashboard/orders/${o.id}`} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Eye className="w-3.5 h-3.5" /> View Details</Link>
+                  <button onClick={() => showToast('Tracking order ' + o.id, 'info')} className="btn text-xs px-3 py-1.5 bg-black/5 text-ink/70 w-full justify-center"><Truck className="w-3.5 h-3.5" /> Track</button>
                   <button onClick={() => showToast('Invoice downloaded (demo)', 'info')} className="btn text-xs px-3 py-1.5 bg-black/5 text-ink/70 w-full justify-center"><FileText className="w-3.5 h-3.5" /> Invoice</button>
                   {['Pending', 'Processing'].includes(o.deliveryStatus) && (
                     <button onClick={() => handleCancel(o.id)} disabled={cancellingId === o.id} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">

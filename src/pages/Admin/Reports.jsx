@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Download } from 'lucide-react'
+import { Download, IndianRupee, ClipboardList, Receipt } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import ChartCard from '../../components/dashboard/ChartCard'
+import DashboardCard from '../../components/dashboard/DashboardCard'
 import { formatINR } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
 import orderApi from '../../api/orderApi'
@@ -61,9 +62,9 @@ export default function AdminReports() {
       />
 
       <div className="grid sm:grid-cols-3 gap-4 mb-6">
-        <div className="card p-5"><p className="text-xs text-ink/50">Total Revenue</p><p className="text-2xl font-extrabold font-display mt-1">{formatINR(totalRevenue)}</p></div>
-        <div className="card p-5"><p className="text-xs text-ink/50">Total Orders</p><p className="text-2xl font-extrabold font-display mt-1">{orders.length}</p></div>
-        <div className="card p-5"><p className="text-xs text-ink/50">Avg. Order Value</p><p className="text-2xl font-extrabold font-display mt-1">{formatINR(avgOrderValue)}</p></div>
+        <DashboardCard icon={IndianRupee} label="Total Revenue" value={formatINR(totalRevenue)} tint="primary" index={0} />
+        <DashboardCard icon={ClipboardList} label="Total Orders" value={orders.length} tint="leaf" index={1} />
+        <DashboardCard icon={Receipt} label="Avg. Order Value" value={formatINR(avgOrderValue)} tint="amber" index={2} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5 mb-6">

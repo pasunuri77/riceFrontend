@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import useAuthStorage from '../hooks/useAuthStorage'
+import useLocalStorage from '../hooks/useLocalStorage'
 import useIdleLogout from '../hooks/useIdleLogout'
 import authApi from '../api/authApi'
 import addressApi from '../api/addressApi'
@@ -10,7 +10,7 @@ import { useToast } from './ToastContext'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useAuthStorage()
+  const [user, setUser] = useLocalStorage('rb_user', null)
   const [addresses, setAddresses] = useState([])
   const navigate = useNavigate()
   const { showToast } = useToast()
@@ -44,7 +44,16 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!user) { setAddresses([]); return }
-    addressApi.list().then(setAddresses).catch(() => setAddresses([]))
+    // If the user logs out (or switches accounts) while this request is still in
+    // flight, its response arrives after `user` has already changed - applying it
+    // then would leak the previous account's addresses into the new/logged-out
+    // state. `ignore` drops any response that resolves after this effect's own
+    // user has stopped being the current one.
+    let ignore = false
+    addressApi.list()
+      .then((list) => { if (!ignore) setAddresses(list) })
+      .catch(() => { if (!ignore) setAddresses([]) })
+    return () => { ignore = true }
   }, [user?.id])
 
   const login = (credentials) => authApi.login(credentials).then((u) => { setUser(u); return u })
