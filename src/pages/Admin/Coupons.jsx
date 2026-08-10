@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Pencil, Trash2, Tag, Info } from 'lucide-react'
+import { Plus, Pencil, Trash2, Tag } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import Modal from '../../components/ui/Modal'
@@ -11,40 +11,39 @@ import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
 import EmptyState from '../../components/ui/EmptyState'
 import TableShell from '../../components/ui/TableShell'
+import { formatDate } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
-
-const STORAGE_KEY = 'rb_admin_coupons_preview'
+import { ApiError } from '../../api/client'
+import couponApi from '../../api/couponApi'
 
 const schema = z.object({
   code: z.string().min(3, 'Code must be at least 3 characters').max(20).transform((v) => v.toUpperCase()),
-  type: z.enum(['percent', 'flat']),
+  type: z.enum(['PERCENT', 'FLAT']),
   value: z.coerce.number().positive('Enter a value greater than 0'),
-  minOrder: z.coerce.number().min(0).optional(),
-  expiresAt: z.string().optional(),
+  minOrder: z.coerce.number().min(0),
+  expiresAt: z.string().min(1, 'Expiry date is required'),
   active: z.boolean(),
 })
 
-function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-function persist(list) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)) } catch { /* ignore */ }
-}
+// UI form uses a plain <input type="date">; backend wants a full ISO Instant.
+// End-of-day on the chosen date is what a customer would expect "expires on X" to mean.
+const toIsoInstant = (dateStr) => new Date(`${dateStr}T23:59:59`).toISOString()
+const toDateInput = (iso) => (iso ? iso.slice(0, 10) : '')
 
 export default function AdminCoupons() {
-  const [coupons, setCoupons] = useState(load)
+  const [coupons, setCoupons] = useState([])
+  const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const { showToast } = useToast()
 
-  useEffect(() => persist(coupons), [coupons])
+  const loadCoupons = () => couponApi.list().then(setCoupons).catch(() => setCoupons([]))
+
+  useEffect(() => {
+    loadCoupons().finally(() => setLoading(false))
+  }, [])
 
   const {
     register,
@@ -54,27 +53,48 @@ export default function AdminCoupons() {
   } = useForm({
     resolver: zodResolver(schema),
     mode: 'onTouched',
-    defaultValues: { code: '', type: 'percent', value: '', minOrder: 0, expiresAt: '', active: true },
+    defaultValues: { code: '', type: 'PERCENT', value: '', minOrder: 0, expiresAt: '', active: true },
   })
 
-  const openAdd = () => { setEditing(null); reset({ code: '', type: 'percent', value: '', minOrder: 0, expiresAt: '', active: true }); setModalOpen(true) }
-  const openEdit = (c) => { setEditing(c); reset(c); setModalOpen(true) }
-
-  const onSubmit = async (data) => {
-    if (editing) {
-      setCoupons((prev) => prev.map((c) => (c.id === editing.id ? { ...data, id: editing.id } : c)))
-      showToast('Coupon updated (preview only)', 'success')
-    } else {
-      setCoupons((prev) => [{ ...data, id: crypto.randomUUID() }, ...prev])
-      showToast('Coupon added (preview only)', 'success')
-    }
-    setModalOpen(false)
+  const openAdd = () => { setEditing(null); reset({ code: '', type: 'PERCENT', value: '', minOrder: 0, expiresAt: '', active: true }); setModalOpen(true) }
+  const openEdit = (c) => {
+    setEditing(c)
+    // The backend returns `type` lowercased ("percent") even though it requires
+    // uppercase ("PERCENT") on write - normalize on read so the dropdown and the
+    // "% vs ₹" display match, rather than silently landing on the wrong option.
+    reset({ code: c.code, type: (c.type || '').toUpperCase(), value: c.value, minOrder: c.minOrder, expiresAt: toDateInput(c.expiresAt), active: c.active })
+    setModalOpen(true)
   }
 
-  const confirmRemove = () => {
-    setCoupons((prev) => prev.filter((c) => c.id !== confirmDelete.id))
-    showToast('Coupon removed', 'success')
-    setConfirmDelete(null)
+  const onSubmit = async (data) => {
+    const payload = { ...data, expiresAt: toIsoInstant(data.expiresAt) }
+    try {
+      if (editing) {
+        await couponApi.update(editing.id, payload)
+        showToast('Coupon updated', 'success')
+      } else {
+        await couponApi.create(payload)
+        showToast('Coupon added', 'success')
+      }
+      await loadCoupons()
+      setModalOpen(false)
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to save coupon', 'error')
+    }
+  }
+
+  const confirmRemove = async () => {
+    setDeleting(true)
+    try {
+      await couponApi.remove(confirmDelete.id)
+      showToast('Coupon removed', 'success')
+      await loadCoupons()
+      setConfirmDelete(null)
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to delete coupon', 'error')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -86,12 +106,9 @@ export default function AdminCoupons() {
         action={<button onClick={openAdd} className="btn-primary text-sm"><Plus className="w-4 h-4" /> Add Coupon</button>}
       />
 
-      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-6">
-        <Info className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-        <p>Preview only - there's no coupon endpoint on the backend yet, so codes created here are saved locally in this browser and won't actually apply a discount at checkout. Wire this up once a real coupon API exists.</p>
-      </div>
-
-      {coupons.length === 0 ? (
+      {loading ? (
+        <div className="skeleton h-40 rounded-2xl" />
+      ) : coupons.length === 0 ? (
         <EmptyState icon={Tag} title="No coupons yet" subtitle="Create your first coupon to see it here." actionLabel="Add Coupon" onAction={openAdd} />
       ) : (
         <TableShell minWidth="640px">
@@ -109,9 +126,9 @@ export default function AdminCoupons() {
             {coupons.map((c) => (
               <tr key={c.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
                 <td className="p-3 font-mono font-bold text-primary-700">{c.code}</td>
-                <td className="p-3">{c.type === 'percent' ? `${c.value}% OFF` : `₹${c.value} OFF`}</td>
+                <td className="p-3">{(c.type || '').toUpperCase() === 'PERCENT' ? `${c.value}% OFF` : `₹${c.value} OFF`}</td>
                 <td className="p-3 text-ink/60">{c.minOrder > 0 ? `₹${c.minOrder}` : '-'}</td>
-                <td className="p-3 text-ink/60">{c.expiresAt || 'No expiry'}</td>
+                <td className="p-3 text-ink/60">{c.expiresAt ? formatDate(c.expiresAt) : 'No expiry'}</td>
                 <td className="p-3"><span className={`badge ${c.active ? 'bg-leaf-100 text-leaf-700' : 'bg-black/10 text-ink/50'}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
                 <td className="p-3">
                   <div className="flex gap-1.5">
@@ -133,8 +150,8 @@ export default function AdminCoupons() {
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Discount Type">
               <select {...register('type')} className="input-field">
-                <option value="percent">Percentage (%)</option>
-                <option value="flat">Flat Amount (₹)</option>
+                <option value="PERCENT">Percentage (%)</option>
+                <option value="FLAT">Flat Amount (₹)</option>
               </select>
             </FormField>
             <FormField label="Value" error={errors.value?.message}>
@@ -144,8 +161,8 @@ export default function AdminCoupons() {
           <FormField label="Minimum Order Value (₹)">
             <input {...register('minOrder')} type="number" className="input-field" />
           </FormField>
-          <FormField label="Expiry Date (Optional)">
-            <input {...register('expiresAt')} type="date" className="input-field" />
+          <FormField label="Expiry Date" error={errors.expiresAt?.message}>
+            <input {...register('expiresAt')} type="date" className="input-field" aria-invalid={!!errors.expiresAt} />
           </FormField>
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" {...register('active')} className="accent-primary-500 w-4 h-4" />
@@ -159,6 +176,7 @@ export default function AdminCoupons() {
         open={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
         onConfirm={confirmRemove}
+        loading={deleting}
         title="Delete Coupon"
         message={confirmDelete ? `Delete coupon "${confirmDelete.code}"?` : ''}
       />

@@ -2,16 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Search, Home, ShoppingBag, ShoppingCart, Heart, Scale, User, LayoutDashboard, Package, Users, ClipboardList, Tag, Image, BarChart3, Settings, CornerDownLeft } from 'lucide-react'
+import { Search, Home, ShoppingBag, ShoppingCart, User, LayoutDashboard, Package, Users, ClipboardList, Tag, BarChart3, Settings, CornerDownLeft } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import productApi from '../../api/productApi'
+import useHomeProducts from '../../hooks/useHomeProducts'
 
 const BASE_COMMANDS = [
   { id: 'home', label: 'Home', to: '/', icon: Home },
-  { id: 'shop', label: 'Shop All Rice', to: '/products', icon: ShoppingBag },
+  { id: 'shop', label: 'Shop', to: '/products', icon: ShoppingBag },
   { id: 'cart', label: 'Cart', to: '/cart', icon: ShoppingCart },
-  { id: 'wishlist', label: 'Wishlist', to: '/wishlist', icon: Heart },
-  { id: 'compare', label: 'Compare', to: '/compare', icon: Scale },
 ]
 
 const USER_COMMANDS = [
@@ -26,7 +24,6 @@ const ADMIN_COMMANDS = [
   { id: 'admin-customers', label: 'Manage Customers', to: '/admin/customers', icon: Users },
   { id: 'admin-orders', label: 'Manage Orders', to: '/admin/orders', icon: ClipboardList },
   { id: 'admin-coupons', label: 'Manage Coupons', to: '/admin/coupons', icon: Tag },
-  { id: 'admin-banners', label: 'Manage Banners', to: '/admin/banners', icon: Image },
   { id: 'admin-reports', label: 'Reports', to: '/admin/reports', icon: BarChart3 },
   { id: 'admin-settings', label: 'Store Settings', to: '/admin/settings', icon: Settings },
 ]
@@ -35,10 +32,12 @@ export default function CommandPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const [products, setProducts] = useState(null)
   const inputRef = useRef(null)
   const navigate = useNavigate()
   const { user } = useAuth()
+  // Only ever searches the products actually available in the shop, same as the
+  // navbar search and the Home/Shop pages.
+  const { products } = useHomeProducts()
 
   // Global Ctrl/Cmd+K to open from anywhere in the app.
   useEffect(() => {
@@ -63,9 +62,6 @@ export default function CommandPalette() {
       setQuery('')
       setActiveIndex(0)
       setTimeout(() => inputRef.current?.focus(), 10)
-      if (products === null) {
-        productApi.list().then(setProducts).catch(() => setProducts([]))
-      }
     }
   }, [open])
 

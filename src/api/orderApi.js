@@ -24,8 +24,8 @@ const orderApi = {
     return http.get(`/api/orders/${numericId}`)
   },
 
-  create: ({ address, paymentMethod, items }) =>
-    http.post('/api/orders', { address, paymentMethod, items }),
+  create: ({ address, paymentMethod, items, couponCode, notes }) =>
+    http.post('/api/orders', { address, paymentMethod, items, couponCode, notes }),
 
 
   cancel: (id) => http.patch(`/api/orders/${id}/cancel`),

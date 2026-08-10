@@ -28,8 +28,6 @@ const ProductDetails = lazy(() => import('./pages/Public/ProductDetails'))
 
 const Cart = lazy(() => import('./pages/User/Cart'))
 const Checkout = lazy(() => import('./pages/User/Checkout'))
-const Wishlist = lazy(() => import('./pages/User/Wishlist'))
-const Compare = lazy(() => import('./pages/User/Compare'))
 const UserDashboard = lazy(() => import('./pages/User/Dashboard'))
 const Orders = lazy(() => import('./pages/User/Orders'))
 const OrderDetail = lazy(() => import('./pages/User/OrderDetail'))
@@ -41,7 +39,6 @@ const AdminProducts = lazy(() => import('./pages/Admin/Products'))
 const AdminCustomers = lazy(() => import('./pages/Admin/Customers'))
 const AdminOrders = lazy(() => import('./pages/Admin/Orders'))
 const AdminCoupons = lazy(() => import('./pages/Admin/Coupons'))
-const AdminBanners = lazy(() => import('./pages/Admin/Banners'))
 const AdminReports = lazy(() => import('./pages/Admin/Reports'))
 const AdminSettings = lazy(() => import('./pages/Admin/Settings'))
 
@@ -99,8 +96,6 @@ export default function App() {
             <Route path="/products/:id" element={<ProductDetails />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
-            <Route path="/wishlist" element={<Wishlist />} />
-            <Route path="/compare" element={<Compare />} />
           </Route>
 
           <Route path="/dashboard" element={<UserLayout />}>
@@ -108,8 +103,6 @@ export default function App() {
             <Route path="orders" element={<Orders />} />
             <Route path="orders/:id" element={<OrderDetail />} />
             <Route path="addresses" element={<Addresses />} />
-            <Route path="wishlist" element={<Wishlist />} />
-            <Route path="compare" element={<Compare />} />
             <Route path="cart" element={<Cart />} />
             <Route path="profile" element={<Profile />} />
           </Route>
@@ -120,7 +113,6 @@ export default function App() {
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="coupons" element={<AdminCoupons />} />
-            <Route path="banners" element={<AdminBanners />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>

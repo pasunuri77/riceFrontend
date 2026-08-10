@@ -1,12 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Grid3x3, ShoppingCart, Heart, User } from 'lucide-react'
+import { Home, Grid3x3, ShoppingCart, User } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 
 const ITEMS = [
   { to: '/', icon: Home, label: 'Home', end: true },
   { to: '/products', icon: Grid3x3, label: 'Shop' },
   { to: '/cart', icon: ShoppingCart, label: 'Cart' },
-  { to: '/wishlist', icon: Heart, label: 'Wishlist' },
   { to: '/dashboard', icon: User, label: 'Account' },
 ]
 

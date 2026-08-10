@@ -1,6 +1,7 @@
 import Navbar from './Navbar'
 import Footer from './Footer'
 import BottomNav from './BottomNav'
+import AnnouncementBar from './AnnouncementBar'
 import PageTransition from '../ui/PageTransition'
 
 export default function PublicLayout() {
@@ -13,6 +14,7 @@ export default function PublicLayout() {
         Skip to main content
       </a>
       <Navbar />
+      <AnnouncementBar />
       <main id="main-content" className="flex-1">
         <PageTransition />
       </main>

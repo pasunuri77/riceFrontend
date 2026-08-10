@@ -16,26 +16,33 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { safeImageUrl } from '../../utils/sanitize'
 import TableShell from '../../components/ui/TableShell'
 import SortableHeader from '../../components/ui/SortableHeader'
-import ColumnVisibilityMenu from '../../components/ui/ColumnVisibilityMenu'
-import ExportMenu from '../../components/ui/ExportMenu'
 import BulkActionsBar from '../../components/ui/BulkActionsBar'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 import { formatINR } from '../../utils/format'
-import { exportToCsv, exportToExcel } from '../../utils/exportTable'
+import { getStockStatus } from '../../utils/stock'
 import { useToast } from '../../context/ToastContext'
+import { useNotifications } from '../../context/NotificationContext'
+import { FEATURED_BRAND } from '../../hooks/useHomeProducts'
 import productApi from '../../api/productApi'
 import categoryApi from '../../api/categoryApi'
-import brandApi from '../../api/brandApi'
 import { ORIGIN_STATES } from '../../data/states'
 
 const PAGE_SIZE = 8
 const DESCRIPTION_MAX = 500
 
-const emptyForm = (brandsData, categoriesData) => ({
-  name: '', brand: brandsData[0]?.name || '', category: categoriesData[0]?.name || '', description: '',
+const emptyForm = (categoriesData) => ({
+  name: '', brand: FEATURED_BRAND, category: categoriesData[0]?.name || '', description: '',
   origin: ORIGIN_STATES[0], grainLength: '', pricePerKg: '', stock: '', minOrder: 1, maxOrder: 25,
-  weightOptions: '1,5,10,25', image: '', status: 'Active',
+  weightOptions: '1,5,10,25', image: '', status: 'Active', badges: [],
 })
+
+// The homepage's "Today's Offers" section (and the Best Seller/Organic labels
+// everywhere else) are driven entirely by this real, admin-editable `badges`
+// list on the product - checking "Limited Offer" here is what puts a product
+// in Today's Offers. There's no separate priority/ordering field yet (see
+// BACKEND_TODO), so Today's Offers currently just shows whichever matching
+// products the API returns, capped to 4.
+const BADGE_OPTIONS = ['Best Seller', 'New Arrival', 'Limited Offer', 'Organic']
 
 const COLUMNS = [
   { key: 'name', label: 'Rice Name', sortField: 'name' },
@@ -62,6 +69,7 @@ const productSchema = z
     weightOptions: z.string().min(1, 'Enter at least one weight option'),
     image: z.string().optional(),
     status: z.string(),
+    badges: z.array(z.string()).default([]),
   })
   .refine((data) => data.maxOrder >= data.minOrder, {
     message: 'Maximum order must be greater than or equal to minimum order',
@@ -71,7 +79,6 @@ const productSchema = z
 export default function AdminProducts() {
   const [products, setProducts] = useState([])
   const [categoriesData, setCategoriesData] = useState([])
-  const [brandsData, setBrandsData] = useState([])
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -81,12 +88,12 @@ export default function AdminProducts() {
   const [editing, setEditing] = useState(null)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(new Set())
-  const [visibleCols, setVisibleCols] = useState({})
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const { showToast } = useToast()
+  const { notify } = useNotifications()
 
   const {
     register,
@@ -98,19 +105,31 @@ export default function AdminProducts() {
   } = useForm({
     resolver: zodResolver(productSchema),
     mode: 'onTouched',
-    defaultValues: emptyForm([], []),
+    defaultValues: emptyForm([]),
   })
 
   const description = watch('description')
   const image = watch('image')
+  const badges = watch('badges') || []
+  const toggleBadge = (label) => {
+    setValue('badges', badges.includes(label) ? badges.filter((b) => b !== label) : [...badges, label], { shouldDirty: true })
+  }
 
-  const loadProducts = () => productApi.list().then((list) => setProducts(list.map((p) => ({ ...p, status: p.status || (p.stock > 0 ? 'Active' : 'Inactive') })))).catch(() => setProducts([]))
+  // The storefront only carries FEATURED_BRAND right now - the admin catalogue is
+  // scoped to match, so it never shows or lets you manage a brand that can't
+  // actually appear anywhere on the site.
+  const loadProducts = () => productApi.list()
+    .then((list) => setProducts(
+      list
+        .filter((p) => p.brand === FEATURED_BRAND)
+        .map((p) => ({ ...p, status: p.status || (p.stock > 0 ? 'Active' : 'Inactive') }))
+    ))
+    .catch(() => setProducts([]))
 
   useEffect(() => {
     Promise.all([
       loadProducts(),
       categoryApi.list().then(setCategoriesData).catch(() => setCategoriesData([])),
-      brandApi.list().then(setBrandsData).catch(() => setBrandsData([])),
     ]).finally(() => setLoading(false))
   }, [])
 
@@ -135,8 +154,6 @@ export default function AdminProducts() {
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
-  const toggleCol = (key) => setVisibleCols((v) => ({ ...v, [key]: v[key] === false ? true : false }))
-  const isVisible = (key) => visibleCols[key] !== false
 
   const toggleSelect = (id) => setSelected((s) => { const next = new Set(s); next.has(id) ? next.delete(id) : next.add(id); return next })
   const toggleSelectPage = () => setSelected((s) => {
@@ -147,7 +164,7 @@ export default function AdminProducts() {
   })
   const clearSelection = () => setSelected(new Set())
 
-  const openAdd = () => { setEditing(null); reset(emptyForm(brandsData, categoriesData)); setModalOpen(true) }
+  const openAdd = () => { setEditing(null); reset(emptyForm(categoriesData)); setModalOpen(true) }
   const openEdit = (p) => {
     setEditing(p)
     reset({ ...p, weightOptions: p.weightOptions.join(',') })
@@ -156,9 +173,11 @@ export default function AdminProducts() {
 
   const confirmDeleteOne = () => {
     setDeleting(true)
+    const deletedName = confirmDelete.name
     productApi.remove(confirmDelete.id).then(() => {
       loadProducts()
       showToast('Product deleted', 'success')
+      notify('ADMIN_PRODUCT_DELETED', { productName: deletedName })
       setConfirmDelete(null)
     }).catch(() => showToast('Failed to delete product', 'error'))
       .finally(() => setDeleting(false))
@@ -174,20 +193,11 @@ export default function AdminProducts() {
         setConfirmBulkDelete(false)
         if (failed > 0) showToast(`${results.length - failed} deleted, ${failed} failed`, 'error')
         else showToast(`${results.length} product(s) deleted`, 'success')
+        const succeeded = results.length - failed
+        if (succeeded > 0) notify('ADMIN_PRODUCT_DELETED', { productName: `${succeeded} products` })
       })
       .finally(() => setBulkDeleting(false))
   }
-
-  const exportColumns = [
-    { label: 'Rice Name', value: (p) => p.name },
-    { label: 'Brand', value: (p) => p.brand },
-    { label: 'Category', value: (p) => p.category },
-    { label: 'Price/KG', value: (p) => p.pricePerKg },
-    { label: 'Stock', value: (p) => p.stock },
-    { label: 'Min Order', value: (p) => p.minOrder },
-    { label: 'Max Order', value: (p) => p.maxOrder },
-    { label: 'Status', value: (p) => p.status },
-  ]
 
   const onSubmitProduct = (data) => {
     const payload = {
@@ -197,17 +207,18 @@ export default function AdminProducts() {
       image: data.image || '',
       rating: editing?.rating || 0,
       reviews: editing?.reviews || 0,
-      badges: editing?.badges || [],
+      badges: data.badges || [],
     }
     const request = editing ? productApi.update(editing.id, payload) : productApi.create(payload)
     return request.then(() => {
       loadProducts()
       showToast(editing ? 'Product updated' : 'Product added', 'success')
+      notify(editing ? 'ADMIN_PRODUCT_UPDATED' : 'ADMIN_PRODUCT_ADDED', { productName: data.name })
       setModalOpen(false)
     }).catch(() => showToast(editing ? 'Failed to update product' : 'Failed to add product', 'error'))
   }
 
-  const colCount = 2 + COLUMNS.filter((c) => isVisible(c.key)).length + 1
+  const colCount = 2 + COLUMNS.length + 1
 
   return (
     <div>
@@ -229,13 +240,6 @@ export default function AdminProducts() {
           <option>Active</option>
           <option>Inactive</option>
         </select>
-        <div className="ml-auto flex items-center gap-2">
-          <ColumnVisibilityMenu columns={COLUMNS} visible={visibleCols} onToggle={toggleCol} />
-          <ExportMenu
-            onExportCsv={() => exportToCsv('products', exportColumns, filtered)}
-            onExportExcel={() => exportToExcel('products', exportColumns, filtered)}
-          />
-        </div>
       </div>
 
       <BulkActionsBar count={selected.size} onClear={clearSelection}>
@@ -251,13 +255,13 @@ export default function AdminProducts() {
                 <input type="checkbox" aria-label="Select all products on this page" className="accent-primary-500 w-4 h-4" checked={pageItems.length > 0 && pageItems.every((p) => selected.has(p.id))} onChange={toggleSelectPage} />
               </th>
               <th scope="col" className="p-3.5">Image</th>
-              {isVisible('name') && <SortableHeader label="Rice Name" sortKey="name" sort={sort} onSort={toggleSort} />}
-              {isVisible('brand') && <SortableHeader label="Brand" sortKey="brand" sort={sort} onSort={toggleSort} />}
-              {isVisible('category') && <SortableHeader label="Category" sortKey="category" sort={sort} onSort={toggleSort} />}
-              {isVisible('price') && <SortableHeader label="Price/KG" sortKey="price" sort={sort} onSort={toggleSort} />}
-              {isVisible('stock') && <SortableHeader label="Stock" sortKey="stock" sort={sort} onSort={toggleSort} />}
-              {isVisible('minmax') && <th scope="col" className="p-3.5">Min / Max</th>}
-              {isVisible('status') && <th scope="col" className="p-3.5">Status</th>}
+              <SortableHeader label="Rice Name" sortKey="name" sort={sort} onSort={toggleSort} />
+              <SortableHeader label="Brand" sortKey="brand" sort={sort} onSort={toggleSort} />
+              <SortableHeader label="Category" sortKey="category" sort={sort} onSort={toggleSort} />
+              <SortableHeader label="Price/KG" sortKey="price" sort={sort} onSort={toggleSort} />
+              <SortableHeader label="Stock" sortKey="stock" sort={sort} onSort={toggleSort} />
+              <th scope="col" className="p-3.5">Min / Max</th>
+              <th scope="col" className="p-3.5">Status</th>
               <th scope="col" className="p-3.5">Actions</th>
             </tr>
           </thead>
@@ -270,21 +274,19 @@ export default function AdminProducts() {
               <tr key={p.id} className={`border-b border-black/5 last:border-0 hover:bg-primary-50/40 ${selected.has(p.id) ? 'bg-primary-50/60' : ''}`}>
                 <td className="p-3"><input type="checkbox" aria-label={`Select ${p.name}`} className="accent-primary-500 w-4 h-4" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
                 <td className="p-3"><img src={safeImageUrl(p.image)} alt="" className="w-11 h-11 rounded-lg object-cover" /></td>
-                {isVisible('name') && <td className="p-3 font-semibold max-w-[220px] truncate">{p.name}</td>}
-                {isVisible('brand') && <td className="p-3 text-ink/60">{p.brand}</td>}
-                {isVisible('category') && <td className="p-3 text-ink/60">{p.category}</td>}
-                {isVisible('price') && <td className="p-3 font-semibold">{formatINR(p.pricePerKg)}</td>}
-                {isVisible('stock') && (
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      <span>{p.stock} kg</span>
-                      {p.stock > 0 && p.stock < 30 && <span className="badge bg-amber-100 text-amber-700 text-[10px]">Low</span>}
-                      {p.stock <= 0 && <span className="badge bg-red-100 text-red-600 text-[10px]">Out</span>}
-                    </div>
-                  </td>
-                )}
-                {isVisible('minmax') && <td className="p-3 text-ink/50">{p.minOrder} / {p.maxOrder}</td>}
-                {isVisible('status') && <td className="p-3"><StatusPill status={p.status} /></td>}
+                <td className="p-3 font-semibold max-w-[220px] truncate">{p.name}</td>
+                <td className="p-3 text-ink/60">{p.brand}</td>
+                <td className="p-3 text-ink/60">{p.category}</td>
+                <td className="p-3 font-semibold">{formatINR(p.pricePerKg)}</td>
+                <td className="p-3">
+                  <div className="flex items-center gap-2">
+                    <span>{p.stock} kg</span>
+                    {getStockStatus(p.stock) === 'low' && <span className="badge bg-amber-100 text-amber-700 text-[10px]">Low</span>}
+                    {getStockStatus(p.stock) === 'out' && <span className="badge bg-red-100 text-red-600 text-[10px]">Out</span>}
+                  </div>
+                </td>
+                <td className="p-3 text-ink/50">{p.minOrder} / {p.maxOrder}</td>
+                <td className="p-3"><StatusPill status={p.status} /></td>
                 <td className="p-3">
                   <div className="flex gap-1.5">
                     <button onClick={() => openEdit(p)} aria-label={`Edit ${p.name}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Pencil className="w-4 h-4" aria-hidden="true" /></button>
@@ -303,9 +305,9 @@ export default function AdminProducts() {
             <input {...register('name')} autoFocus className="input-field" aria-invalid={!!errors.name} />
           </FormField>
           <div className="grid sm:grid-cols-2 gap-4">
-            <FormField label="Brand" error={errors.brand?.message}>
-              <select {...register('brand')} className="input-field" aria-invalid={!!errors.brand}>
-                {brandsData.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}
+            <FormField label="Brand" hint="The storefront currently carries one brand only.">
+              <select {...register('brand')} className="input-field">
+                <option value={FEATURED_BRAND}>{FEATURED_BRAND}</option>
               </select>
             </FormField>
             <FormField label="Rice Category" error={errors.category?.message}>
@@ -353,6 +355,25 @@ export default function AdminProducts() {
             <select {...register('status')} className="input-field">
               <option>Active</option><option>Inactive</option>
             </select>
+          </FormField>
+
+          <FormField label="Promotional Badges" hint="Shown on this product's storefront card. Limited Offer also puts it in the homepage's Today's Offers section.">
+            <div className="flex flex-wrap gap-2">
+              {BADGE_OPTIONS.map((label) => {
+                const active = badges.includes(label)
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => toggleBadge(label)}
+                    aria-pressed={active}
+                    className={`badge cursor-pointer transition ${active ? 'bg-primary-500 text-white' : 'bg-black/5 text-ink/60 hover:bg-black/10'}`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
           </FormField>
 
           <div className="rounded-xl border border-dashed border-black/10 p-4 text-xs text-ink/40">

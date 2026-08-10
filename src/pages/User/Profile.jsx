@@ -8,6 +8,7 @@ import Breadcrumb from '../../components/ui/Breadcrumb'
 import SubmitButton from '../../components/ui/SubmitButton'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
+import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
 import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 
@@ -20,6 +21,7 @@ const schema = z.object({
 export default function Profile() {
   const { user, updateProfile } = useAuth()
   const { showToast } = useToast()
+  const { notify } = useNotifications()
 
   const {
     register,
@@ -48,6 +50,7 @@ export default function Profile() {
     try {
       await updateProfile(data)
       showToast('Profile updated', 'success')
+      notify('PROFILE_UPDATED', {})
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to update profile', 'error')
     }

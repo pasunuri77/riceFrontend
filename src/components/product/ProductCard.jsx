@@ -1,21 +1,15 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Heart, ShoppingCart, Scale } from 'lucide-react'
+import { ShoppingCart } from 'lucide-react'
 import RatingStars from './RatingStars'
 import StockBadge, { OfferBadge } from './StockBadge'
 import { formatINR } from '../../utils/format'
 import ProductImage from './ProductImage'
 import { useCart } from '../../context/CartContext'
-import { useWishlist } from '../../context/WishlistContext'
-import { useCompare } from '../../context/CompareContext'
 
 function ProductCard({ product, index = 0 }) {
   const { addToCart } = useCart()
-  const { isWishlisted, toggleWishlist } = useWishlist()
-  const { isComparing, toggleCompare } = useCompare()
-  const wished = isWishlisted(product.id)
-  const comparing = isComparing(product.id)
 
   return (
     <motion.div
@@ -36,23 +30,6 @@ function ProductCard({ product, index = 0 }) {
         <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
           {product.badges?.map((b) => <OfferBadge key={b} label={b} />)}
         </div>
-        <button
-          onClick={() => toggleWishlist(product)}
-          aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
-          aria-pressed={wished}
-          className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur bg-white/80 hover:bg-white transition ${wished ? 'text-red-500' : 'text-ink/50'}`}
-        >
-          <Heart className={`w-4 h-4 ${wished ? 'fill-red-500' : ''}`} aria-hidden="true" />
-        </button>
-        <button
-          onClick={() => toggleCompare(product)}
-          aria-label={comparing ? `Remove ${product.name} from comparison` : `Add ${product.name} to comparison`}
-          aria-pressed={comparing}
-          title="Add to compare"
-          className={`absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur bg-white/80 hover:bg-white transition opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 ${comparing ? 'text-primary-600 ring-2 ring-primary-400' : 'text-ink/50'}`}
-        >
-          <Scale className="w-4 h-4" aria-hidden="true" />
-        </button>
       </div>
 
       <div className="p-3.5 flex flex-col flex-1">

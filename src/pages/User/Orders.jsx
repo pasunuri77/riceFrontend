@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, FileText, Truck, XCircle, Eye } from 'lucide-react'
+import { Package, XCircle, Eye } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import StatusPill from '../../components/ui/StatusPill'
 import EmptyState from '../../components/ui/EmptyState'
 import { TextSkeleton } from '../../components/ui/Skeleton'
-import { formatINR, formatDate } from '../../utils/format'
+import { formatINR, formatDate, estimatedDelivery } from '../../utils/format'
 import { useToast } from '../../context/ToastContext'
+import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
 
@@ -22,6 +23,7 @@ export default function Orders() {
   const [cancellingId, setCancellingId] = useState(null)
   const [loading, setLoading] = useState(true)
   const { showToast } = useToast()
+  const { notify } = useNotifications()
 
   useEffect(() => {
     orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])).finally(() => setLoading(false))
@@ -35,6 +37,7 @@ export default function Orders() {
       const updatedOrder = await orderApi.cancel(orderId)
       setOrdersData((current) => current.map((order) => order.id === orderId ? updatedOrder : order))
       showToast('Order cancelled', 'success')
+      notify('ORDER_CANCELLED', { orderId })
     } catch (error) {
       showToast(error instanceof ApiError ? error.message : 'Order can no longer be cancelled', 'error')
     } finally {
@@ -74,7 +77,13 @@ export default function Orders() {
         <div className="space-y-4">
           {orders.map((o) => (
             <div key={o.id} className="card p-4 sm:p-5 flex flex-col sm:flex-row gap-4">
-              <img src={o.image} alt="" className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover shrink-0" />
+              {o.productId ? (
+                <Link to={`/products/${o.productId}`} className="shrink-0">
+                  <img src={o.image} alt="" className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover" />
+                </Link>
+              ) : (
+                <img src={o.image} alt="" className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover shrink-0" />
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 justify-between">
                   <p className="font-bold text-sm">{itemNames(o)}</p>
@@ -85,6 +94,12 @@ export default function Orders() {
                   <span>Qty: {itemQtys(o)}</span>
                   <span>•</span>
                   <span>Ordered: {formatDate(o.date)}</span>
+                  {o.deliveryStatus !== 'Cancelled' && (
+                    <>
+                      <span>•</span>
+                      <span>Estimated Delivery: <span className="font-semibold text-ink/70">{estimatedDelivery(4, o.date)}</span></span>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <StatusPill status={o.deliveryStatus} />
@@ -95,8 +110,6 @@ export default function Orders() {
                 <p className="font-bold text-lg">{formatINR(o.amount)}</p>
                 <div className="flex sm:flex-col gap-2 w-full">
                   <Link to={`/dashboard/orders/${o.id}`} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Eye className="w-3.5 h-3.5" /> View Details</Link>
-                  <button onClick={() => showToast('Tracking order ' + o.id, 'info')} className="btn text-xs px-3 py-1.5 bg-black/5 text-ink/70 w-full justify-center"><Truck className="w-3.5 h-3.5" /> Track</button>
-                  <button onClick={() => showToast('Invoice downloaded (demo)', 'info')} className="btn text-xs px-3 py-1.5 bg-black/5 text-ink/70 w-full justify-center"><FileText className="w-3.5 h-3.5" /> Invoice</button>
                   {['Pending', 'Processing'].includes(o.deliveryStatus) && (
                     <button onClick={() => handleCancel(o.id)} disabled={cancellingId === o.id} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
                       <XCircle className="w-3.5 h-3.5" /> {cancellingId === o.id ? 'Cancelling...' : 'Cancel'}

@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle2, Plus, CreditCard, Smartphone, Landmark, Truck, Loader2, XCircle, RotateCcw, AlertTriangle, ShieldCheck } from 'lucide-react'
-import Breadcrumb from '../../components/ui/Breadcrumb'
-import AddressCard from '../../components/forms/AddressCard'
+import { CheckCircle2, CreditCard, Smartphone, Landmark, Truck, Loader2, XCircle, RotateCcw, AlertTriangle, ShieldCheck, MapPin, Check } from 'lucide-react'
 import AddressForm from '../../components/forms/AddressForm'
 import Modal from '../../components/ui/Modal'
+import DeliveryAddressModal from '../../components/checkout/DeliveryAddressModal'
 import EmptyState from '../../components/ui/EmptyState'
 import DeliveryTimeline from '../../components/ui/DeliveryTimeline'
 import CouponInput from '../../components/cart/CouponInput'
@@ -13,6 +12,7 @@ import { formatINR, estimatedDelivery } from '../../utils/format'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
 import { useToast } from '../../context/ToastContext'
+import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
 import productApi from '../../api/productApi'
@@ -26,14 +26,17 @@ const PAYMENT_METHODS = [
 ]
 
 export default function Checkout() {
-  const { user, addresses, addAddress, setDefaultAddress } = useAuth()
-  const { items, subtotal, deliveryCharge, total, clearCart } = useCart()
+  const { user, addresses, addAddress, updateAddress, deleteAddress } = useAuth()
+  const { items, subtotal, deliveryCharge, tax, discountAmount, coupon, total, clearCart } = useCart()
   const { showToast } = useToast()
+  const { notify } = useNotifications()
   const navigate = useNavigate()
   const location = useLocation()
 
   const [selected, setSelected] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
+  const [addressModalOpen, setAddressModalOpen] = useState(false)
+  const [formModalOpen, setFormModalOpen] = useState(false)
+  const [editingAddress, setEditingAddress] = useState(null)
   const [payment, setPayment] = useState('upi')
   const [notes, setNotes] = useState('')
   const [stage, setStage] = useState('form') // 'form' | 'processing' | 'failed' | 'placed'
@@ -45,6 +48,8 @@ export default function Checkout() {
       setSelected(addresses.find((a) => a.isDefault)?.id || addresses[0].id)
     }
   }, [addresses])
+
+  const selectedAddress = addresses.find((a) => a.id === selected)
 
   // Checkout places a real order tied to the logged-in account - an unauthenticated
   // visitor must never reach this page, since without a real session there's no
@@ -61,10 +66,24 @@ export default function Checkout() {
     )
   }
 
-  const handleAddAddress = (data) => {
-    addAddress(data)
-    setModalOpen(false)
-    showToast('Address added', 'success')
+  const openAddAddress = () => { setEditingAddress(null); setFormModalOpen(true) }
+  const openEditAddress = (addr) => { setEditingAddress(addr); setFormModalOpen(true) }
+
+  const handleAddressFormSubmit = (data) => {
+    if (editingAddress) {
+      updateAddress(editingAddress.id, data)
+      showToast('Address updated', 'success')
+    } else {
+      addAddress(data)
+      showToast('Address added', 'success')
+    }
+    setFormModalOpen(false)
+  }
+
+  const handleDeleteAddress = (id) => {
+    deleteAddress(id)
+    if (selected === id) setSelected('')
+    showToast('Address removed', 'success')
   }
 
   const placeOrder = async () => {
@@ -98,10 +117,14 @@ export default function Checkout() {
       address: addressLine,
       paymentMethod: payment,
       items,
+      couponCode: coupon?.code,
+      notes,
     }).then((order) => {
       setOrderId(order.id)
       setStage('placed')
       clearCart()
+      notify('ORDER_PLACED', { orderId: order.id })
+      if (payment !== 'cod') notify('PAYMENT_SUCCESS', { orderId: order.id, amount: total })
     }).catch((err) => {
       if (payment === 'cod') {
         showToast(err instanceof ApiError ? err.message : 'Failed to place order. Please try again.', 'error')
@@ -110,6 +133,7 @@ export default function Checkout() {
         // A non-COD method failing mid-flow reads as a payment failure, not just a
         // generic order error - give it its own recoverable screen with a retry.
         setStage('failed')
+        notify('PAYMENT_FAILED', {})
       }
     })
   }
@@ -163,8 +187,19 @@ export default function Checkout() {
 
   return (
     <div className="container-app py-8">
-      <Breadcrumb items={[{ label: 'Cart', to: '/cart' }, { label: 'Checkout' }]} />
-      <h1 className="section-title mb-6">Checkout</h1>
+      {/* Step strip - reflects the real page flow (Cart -> Checkout -> Confirmation), not fabricated sub-steps */}
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-black/5">
+        <div className="flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wide">
+          <span className="flex items-center gap-1.5 text-leaf-600"><Check className="w-3.5 h-3.5" /> Bag</span>
+          <span className="w-6 sm:w-10 border-t border-dashed border-black/20" />
+          <span className="text-primary-600">Checkout</span>
+          <span className="w-6 sm:w-10 border-t border-dashed border-black/20" />
+          <span className="text-ink/30">Confirmation</span>
+        </div>
+        <span className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-leaf-600 uppercase tracking-wide">
+          <ShieldCheck className="w-4 h-4" aria-hidden="true" /> 100% Secure
+        </span>
+      </div>
 
       <AnimatePresence>
         {stockWarning && (
@@ -178,31 +213,34 @@ export default function Checkout() {
       </AnimatePresence>
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-8">
-        <div className="space-y-6">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
-                Select Delivery Address
-              </h3>
-              <button onClick={() => setModalOpen(true)} className="btn-outline text-xs py-1.5 px-3"><Plus className="w-3.5 h-3.5" /> Add New</button>
-            </div>
-            {addresses.length === 0 ? (
-              <div className="card p-6 text-center text-sm text-ink/50">No saved addresses yet. Add one to continue.</div>
-            ) : (
-              <div className="grid sm:grid-cols-2 gap-3">
-                {addresses.map((a) => (
-                  <AddressCard key={a.id} address={a} onSelect={(addr) => setSelected(addr.id)} selected={selected === a.id} onSetDefault={setDefaultAddress} />
-                ))}
+        <div className="space-y-4">
+          {/* Deliver to bar */}
+          {selectedAddress ? (
+            <div className="card p-4 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <MapPin className="w-4 h-4 text-primary-600 mt-0.5 shrink-0" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-wide text-ink/40">Deliver to</p>
+                  <p className="text-sm font-semibold truncate">{selectedAddress.fullName}, {selectedAddress.pincode}</p>
+                  <p className="text-xs text-ink/50 truncate">
+                    {[selectedAddress.flat, selectedAddress.area, selectedAddress.city].filter(Boolean).join(', ')}
+                  </p>
+                </div>
               </div>
-            )}
-          </div>
+              <button onClick={() => setAddressModalOpen(true)} className="btn-outline text-xs py-1.5 px-3 shrink-0">Change Address</button>
+            </div>
+          ) : (
+            <div className="card p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <MapPin className="w-4 h-4 text-ink/30 shrink-0" aria-hidden="true" />
+                <p className="text-sm text-ink/50">No delivery address selected</p>
+              </div>
+              <button onClick={() => setAddressModalOpen(true)} className="btn-primary text-xs py-1.5 px-3 shrink-0">Select Address</button>
+            </div>
+          )}
 
           <div>
-            <h3 className="font-bold mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
-              Payment Method
-            </h3>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-3">Payment Method</h3>
             <div className="grid sm:grid-cols-2 gap-3">
               {PAYMENT_METHODS.map((pm) => (
                 <label key={pm.id} className={`card p-4 flex items-center gap-3 cursor-pointer ${payment === pm.id ? 'ring-2 ring-primary-500' : ''}`}>
@@ -216,16 +254,15 @@ export default function Checkout() {
           </div>
 
           <div>
-            <h3 className="font-bold mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center shrink-0">3</span>
-              Order Items ({items.length})
-            </h3>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-3">{items.length} Item{items.length === 1 ? '' : 's'} Selected</h3>
             <div className="card divide-y divide-black/5">
               {items.map((i) => (
                 <div key={i.id + i.weight} className="p-3 flex items-center gap-3">
-                  <img src={i.image} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                  <Link to={`/products/${i.id}`} className="shrink-0">
+                    <img src={i.image} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                  </Link>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{i.name}</p>
+                    <Link to={`/products/${i.id}`} className="text-sm font-semibold truncate block hover:text-primary-600">{i.name}</Link>
                     <p className="text-xs text-ink/40">{i.weight}kg × {i.qty}</p>
                   </div>
                   <p className="text-sm font-bold">{formatINR(i.pricePerKg * i.weight * i.qty)}</p>
@@ -235,10 +272,7 @@ export default function Checkout() {
           </div>
 
           <div>
-            <h3 className="font-bold mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center shrink-0">4</span>
-              Order Notes <span className="text-xs font-normal text-ink/40">(Optional)</span>
-            </h3>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-3">Order Notes <span className="normal-case font-normal text-ink/40">(Optional)</span></h3>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -251,29 +285,43 @@ export default function Checkout() {
 
         <div className="space-y-4 h-fit sticky top-20">
           <div className="card p-5">
-            <h3 className="font-bold mb-3 text-sm">Have a Coupon?</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-3">Coupons</h3>
             <CouponInput />
           </div>
 
           <div className="card p-5">
-            <h3 className="font-bold mb-4">Price Summary</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-4">Price Details ({items.length} Item{items.length === 1 ? '' : 's'})</h3>
             <div className="space-y-2.5 text-sm">
               <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatINR(subtotal)}</span></div>
-              <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatINR(deliveryCharge)}</span></div>
-              <div className="flex justify-between"><span className="text-ink/50">Estimated Delivery</span><span className="font-semibold">{estimatedDelivery()}</span></div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-leaf-600"><span>Coupon ({coupon.code})</span><span className="font-semibold">-{formatINR(discountAmount)}</span></div>
+              )}
+              <div className="flex justify-between"><span className="text-ink/50">Delivery Charges</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatINR(deliveryCharge)}</span></div>
+              <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-semibold">{formatINR(tax)}</span></div>
             </div>
             <div className="border-t border-black/10 mt-4 pt-4 flex justify-between items-center">
-              <span className="font-bold">Total</span>
+              <span className="font-bold">Total Amount</span>
               <span className="font-extrabold text-xl text-primary-700">{formatINR(total)}</span>
             </div>
-            <p className="text-[11px] text-ink/35 mt-1">Inclusive of all applicable taxes.</p>
+            <p className="text-[11px] text-ink/40 mt-1">Estimated delivery by {estimatedDelivery()}</p>
             <button onClick={placeOrder} className="btn-primary w-full mt-5">Place Order</button>
           </div>
         </div>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add New Address" maxWidth="max-w-2xl">
-        <AddressForm onSubmit={handleAddAddress} onCancel={() => setModalOpen(false)} />
+      <DeliveryAddressModal
+        open={addressModalOpen}
+        onClose={() => setAddressModalOpen(false)}
+        addresses={addresses}
+        selected={selected}
+        onSelect={(id) => { setSelected(id); setAddressModalOpen(false) }}
+        onEdit={(addr) => { setAddressModalOpen(false); openEditAddress(addr) }}
+        onDelete={handleDeleteAddress}
+        onAddNew={() => { setAddressModalOpen(false); openAddAddress() }}
+      />
+
+      <Modal open={formModalOpen} onClose={() => setFormModalOpen(false)} title={editingAddress ? 'Edit Address' : 'Add New Address'} maxWidth="max-w-2xl">
+        <AddressForm initial={editingAddress} onSubmit={handleAddressFormSubmit} onCancel={() => setFormModalOpen(false)} submitLabel={editingAddress ? 'Update Address' : 'Save Address'} />
       </Modal>
     </div>
   )

@@ -14,8 +14,12 @@ export function formatDate(dateStr) {
   })
 }
 
-export function estimatedDelivery(daysFromNow = 4) {
-  const d = new Date()
+// `fromDate` defaults to now (checkout preview, before an order exists) but should
+// be passed an order's real placed-on date when estimating delivery for an order
+// that already exists - otherwise every order looks like it ships N days from
+// today regardless of when it was actually placed.
+export function estimatedDelivery(daysFromNow = 4, fromDate = new Date()) {
+  const d = new Date(fromDate)
   d.setDate(d.getDate() + daysFromNow)
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }

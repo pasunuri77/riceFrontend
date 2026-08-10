@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Search, Heart, ShoppingCart, User, Menu, X, LayoutDashboard, Scale } from 'lucide-react'
+import { Search, ShoppingCart, User, Menu, X, LayoutDashboard } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCart } from '../../context/CartContext'
-import { useWishlist } from '../../context/WishlistContext'
-import { useCompare } from '../../context/CompareContext'
 import { useAuth } from '../../context/AuthContext'
-import productApi from '../../api/productApi'
+import useHomeProducts from '../../hooks/useHomeProducts'
 import NotificationBell from '../ui/NotificationBell'
 import { safeImageUrl } from '../../utils/sanitize'
+import { useDropdown } from '../../hooks/useDropdown'
 
 const LINKS = [
   { to: '/', label: 'Home' },
@@ -22,23 +21,28 @@ export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [showResults, setShowResults] = useState(false)
-  const [products, setProducts] = useState([])
   const { count } = useCart()
-  const { wishlist } = useWishlist()
-  const { compareList } = useCompare()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const isAdmin = user?.role === 'admin'
+  const profileMenu = useDropdown('profile')
+  // Only ever searches the products actually available in the shop (the same
+  // set the Home/Shop pages show) - never the full backend catalog.
+  const { products } = useHomeProducts()
 
   useEffect(() => setOpen(false), [])
-  useEffect(() => { productApi.list().then(setProducts).catch(() => setProducts([])) }, [])
 
   const results = query.length > 1
     ? products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()) || p.brand.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
     : []
+  const noMatches = query.length > 1 && results.length === 0
 
   const submitSearch = (e) => {
     e.preventDefault()
-    navigate(`/products?search=${encodeURIComponent(query)}`)
+    // With a single-brand catalog, "search" really just means "take me to what's
+    // available" - go straight to the matched product if there's exactly one,
+    // otherwise land on the Shop page, which already shows the full available list.
+    navigate(results.length === 1 ? `/products/${results[0].id}` : '/products')
     setShowResults(false)
   }
 
@@ -66,7 +70,7 @@ export default function Navbar() {
         </nav>
 
         <form role="search" onSubmit={submitSearch} className="relative hidden md:block flex-1 max-w-md ml-auto">
-          <label htmlFor="navbar-search" className="sr-only">Search rice brands, categories</label>
+          <label htmlFor="navbar-search" className="sr-only">Search Sona Masoori Rice</label>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/35" aria-hidden="true" />
           <input
             id="navbar-search"
@@ -75,15 +79,15 @@ export default function Navbar() {
             onChange={(e) => { setQuery(e.target.value); setShowResults(true) }}
             onFocus={() => setShowResults(true)}
             onBlur={() => setTimeout(() => setShowResults(false), 150)}
-            placeholder="Search rice brands, categories..."
+            placeholder="Search Sona Masoori Rice..."
             role="combobox"
-            aria-expanded={showResults && results.length > 0}
+            aria-expanded={showResults && (results.length > 0 || noMatches)}
             aria-controls="navbar-search-results"
             aria-autocomplete="list"
             className="input-field pl-9"
           />
           <AnimatePresence>
-            {showResults && results.length > 0 && (
+            {showResults && (results.length > 0 || noMatches) && (
               <motion.div
                 id="navbar-search-results"
                 role="listbox"
@@ -92,77 +96,83 @@ export default function Navbar() {
                 exit={{ opacity: 0, y: 6 }}
                 className="absolute top-full mt-2 left-0 right-0 card p-2 max-h-96 overflow-y-auto"
               >
-                {results.map((p) => (
-                  <Link
-                    key={p.id}
-                    role="option"
-                    aria-selected="false"
-                    to={`/products/${p.id}`}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-primary-50"
-                  >
-                    <img src={safeImageUrl(p.image)} className="w-10 h-10 rounded-md object-cover" alt="" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{p.name}</p>
-                      <p className="text-xs text-ink/60">{p.brand}</p>
-                    </div>
-                  </Link>
-                ))}
+                {noMatches ? (
+                  <p className="text-xs text-ink/50 px-2 py-3">No match - we currently only stock Sona Masoori Rice.</p>
+                ) : (
+                  results.map((p) => (
+                    <Link
+                      key={p.id}
+                      role="option"
+                      aria-selected="false"
+                      to={`/products/${p.id}`}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-primary-50"
+                    >
+                      <img src={safeImageUrl(p.image)} className="w-10 h-10 rounded-md object-cover" alt="" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{p.name}</p>
+                        <p className="text-xs text-ink/60">{p.brand}</p>
+                      </div>
+                    </Link>
+                  ))
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </form>
 
         <div className="flex items-center gap-1 ml-auto md:ml-0">
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event('command-palette:open'))}
-            aria-label="Open quick search (Ctrl+K)"
-            title="Quick search (Ctrl+K)"
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-black/10 text-ink/40 hover:text-ink/70 hover:border-black/20 text-xs mr-1"
-          >
-            <kbd className="font-sans">Ctrl</kbd><kbd className="font-sans">K</kbd>
-          </button>
-          <Link to="/compare" aria-label={`Compare${compareList.length ? `, ${compareList.length} items` : ''}`} className="relative p-2 rounded-lg hover:bg-primary-50 hidden sm:inline-flex" title="Compare">
-            <Scale className="w-5 h-5 text-ink/70" aria-hidden="true" />
-            {compareList.length > 0 && (
-              <span aria-hidden="true" className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 text-white text-[10px] rounded-full flex items-center justify-center">{compareList.length}</span>
-            )}
-          </Link>
-          <Link to="/wishlist" aria-label={`Wishlist${wishlist.length ? `, ${wishlist.length} items` : ''}`} className="relative p-2 rounded-lg hover:bg-primary-50" title="Wishlist">
-            <Heart className="w-5 h-5 text-ink/70" aria-hidden="true" />
-            {wishlist.length > 0 && (
-              <span aria-hidden="true" className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 text-white text-[10px] rounded-full flex items-center justify-center">{wishlist.length}</span>
-            )}
-          </Link>
-          <Link to="/cart" aria-label={`Cart${count ? `, ${count} items` : ''}`} className="relative p-2 rounded-lg hover:bg-primary-50" title="Cart">
-            <ShoppingCart className="w-5 h-5 text-ink/70" aria-hidden="true" />
-            {count > 0 && (
-              <span aria-hidden="true" className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 text-white text-[10px] rounded-full flex items-center justify-center">{count}</span>
-            )}
-          </Link>
+          {/* Cart is a shopper-only action - an administrator account never has a
+              cart of their own, so it's omitted from the tree entirely for admins
+              rather than hidden with CSS. */}
+          {!isAdmin && (
+            <>
+              <Link to="/cart" aria-label={`Cart${count ? `, ${count} items` : ''}`} className="relative p-2 rounded-lg hover:bg-primary-50" title="Cart">
+                <ShoppingCart className="w-5 h-5 text-ink/70" aria-hidden="true" />
+                {count > 0 && (
+                  <span aria-hidden="true" className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 text-white text-[10px] rounded-full flex items-center justify-center">{count}</span>
+                )}
+              </Link>
+            </>
+          )}
 
           {user && <NotificationBell />}
           {user ? (
-            <div className="relative group hidden sm:block">
-              <button aria-haspopup="menu" aria-label={`Account menu for ${user.name}`} className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg hover:bg-primary-50">
+            <div ref={profileMenu.ref} className="relative hidden sm:block">
+              <button
+                onClick={profileMenu.toggle}
+                aria-haspopup="menu"
+                aria-expanded={profileMenu.isOpen}
+                aria-label={`Account menu for ${user.name}`}
+                className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg hover:bg-primary-50"
+              >
                 <div className="w-7 h-7 rounded-full bg-primary-500 text-white flex items-center justify-center text-xs font-bold uppercase">
                   {user.name?.[0]}
                 </div>
                 <span className="text-sm font-semibold capitalize">{user.name}</span>
               </button>
-              <div className="absolute right-0 top-full pt-2 hidden group-hover:block group-focus-within:block">
-                <div role="menu" className="card p-2 w-48">
-                  <Link role="menuitem" to={user.role === 'admin' ? '/admin' : '/dashboard'} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-50 text-sm">
-                    <LayoutDashboard className="w-4 h-4" aria-hidden="true" /> Dashboard
-                  </Link>
-                  <Link role="menuitem" to="/dashboard/profile" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-50 text-sm">
-                    <User className="w-4 h-4" aria-hidden="true" /> Profile
-                  </Link>
-                  <button role="menuitem" onClick={logout} className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 text-sm text-red-500">
-                    Logout
-                  </button>
-                </div>
-              </div>
+              <AnimatePresence>
+                {profileMenu.isOpen && (
+                  <motion.div
+                    role="menu"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 6 }}
+                    className="absolute right-0 top-full pt-2"
+                  >
+                    <div className="card p-2 w-48">
+                      <Link role="menuitem" to={isAdmin ? '/admin' : '/dashboard'} onClick={profileMenu.close} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-50 text-sm">
+                        <LayoutDashboard className="w-4 h-4" aria-hidden="true" /> Dashboard
+                      </Link>
+                      <Link role="menuitem" to={isAdmin ? '/admin/settings' : '/dashboard/profile'} onClick={profileMenu.close} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-50 text-sm">
+                        <User className="w-4 h-4" aria-hidden="true" /> Profile
+                      </Link>
+                      <button role="menuitem" onClick={() => { profileMenu.close(); logout() }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 text-sm text-red-500">
+                        Logout
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ) : (
             <div className="hidden sm:flex items-center gap-2 ml-1">

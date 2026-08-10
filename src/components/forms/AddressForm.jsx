@@ -6,14 +6,18 @@ import FormField from '../ui/FormField'
 import SubmitButton from '../ui/SubmitButton'
 import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 
-const TYPES = ['Home', 'Office', 'Shop', 'Warehouse', 'Other']
-
+// Address Details fields (and their labels/order/validation) are kept identical
+// to the Address Details section on the Register page - same 6 fields, same
+// requirements - so adding an address here and adding one at signup feel like
+// the same form. `building`/`landmark`/`village`/`district`/`type` aren't
+// collected in either place; `type` defaults to Home server-side when omitted,
+// and `country` stays fixed to India (matches Register's implicit default).
 const EMPTY = {
   addressFor: 'Personal', storeName: '', ownerName: '',
   fullName: '', mobile: '', altMobile: '',
-  flat: '', building: '', street: '', area: '', landmark: '', village: '',
-  city: '', district: '', state: '', country: 'India', pincode: '',
-  type: 'Home', instructions: '', isDefault: false,
+  flat: '', street: '', area: '',
+  city: '', state: '', country: 'India', pincode: '',
+  instructions: '', isDefault: false,
 }
 
 const schema = z
@@ -24,18 +28,13 @@ const schema = z
     fullName: z.string().min(1, 'Full name is required'),
     mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
     altMobile: z.union([z.string().length(0), z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number')]).optional(),
-    flat: z.string().min(1, 'Flat / Door No. is required'),
-    building: z.string().optional(),
-    street: z.string().min(1, 'Street is required'),
-    area: z.string().min(1, 'Area is required'),
-    landmark: z.string().optional(),
-    village: z.string().optional(),
+    pincode: z.string().regex(/^\d{6}$/, 'Please enter a valid 6-digit PIN code.'),
+    flat: z.string().refine((v) => v.trim().length > 0, 'House number is required'),
+    street: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
+    area: z.string().min(1, 'Locality is required'),
     city: z.string().min(1, 'City is required'),
-    district: z.string().min(1, 'District is required'),
     state: z.string().min(1, 'Please select a state'),
     country: z.string(),
-    pincode: z.string().regex(/^\d{6}$/, 'Enter a valid 6-digit pincode'),
-    type: z.string(),
     instructions: z.string().optional(),
     isDefault: z.boolean(),
   })
@@ -61,9 +60,17 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
   const addressFor = watch('addressFor')
   const { onChange: onMobileChange, ...mobileField } = register('mobile')
   const { onChange: onAltMobileChange, ...altMobileField } = register('altMobile')
+  const { onChange: onPincodeChange, ...pincodeField } = register('pincode')
+
+  // Same digits-only, length-capped pattern as Register's PIN Code field.
+  const sanitizePincodeInput = (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6)
+    onPincodeChange(e)
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+      <input type="hidden" {...register('country')} />
       <div>
         <p className="label-field mb-2">Is this address for personal use or a business?</p>
         <div className="flex gap-6">
@@ -119,48 +126,39 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
 
       <div className="border-t border-black/5 pt-5">
         <p className="font-semibold text-sm text-ink mb-3">Address Details</p>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <FormField label="Flat / Door No." error={errors.flat?.message}>
-            <input {...register('flat')} className="input-field" aria-invalid={!!errors.flat} />
+        <div className="space-y-4">
+          <FormField label="PIN Code" error={errors.pincode?.message}>
+            <input
+              {...pincodeField}
+              onChange={sanitizePincodeInput}
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="Enter 6-digit PIN code"
+              className="input-field"
+              aria-invalid={!!errors.pincode}
+            />
           </FormField>
-          <FormField label="Building Name">
-            <input {...register('building')} className="input-field" />
+          <FormField label="House Number / Tower / Block" error={errors.flat?.message} hint="House number helps with doorstep delivery">
+            <input {...register('flat')} placeholder="Enter house number, tower or block" className="input-field" aria-invalid={!!errors.flat} />
           </FormField>
-          <FormField label="Street" error={errors.street?.message}>
-            <input {...register('street')} className="input-field" aria-invalid={!!errors.street} />
+          <FormField label="Address (Locality, Building, Street)" error={errors.street?.message} hint="Please enter your society/apartment/building details">
+            <input {...register('street')} placeholder="Enter locality, building name, street" className="input-field" aria-invalid={!!errors.street} />
           </FormField>
-          <FormField label="Area" error={errors.area?.message}>
-            <input {...register('area')} className="input-field" aria-invalid={!!errors.area} />
+          <FormField label="Locality / Town" error={errors.area?.message}>
+            <input {...register('area')} placeholder="Enter locality or town" className="input-field" aria-invalid={!!errors.area} />
           </FormField>
-          <FormField label="Landmark">
-            <input {...register('landmark')} className="input-field" />
-          </FormField>
-          <FormField label="Village (Optional)">
-            <input {...register('village')} className="input-field" />
-          </FormField>
-          <FormField label="City" error={errors.city?.message}>
-            <input {...register('city')} className="input-field" aria-invalid={!!errors.city} />
-          </FormField>
-          <FormField label="District" error={errors.district?.message}>
-            <input {...register('district')} className="input-field" aria-invalid={!!errors.district} />
-          </FormField>
-          <FormField label="State" error={errors.state?.message}>
-            <select {...register('state')} className="input-field" aria-invalid={!!errors.state}>
-              <option value="">Select State</option>
-              {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </FormField>
-          <FormField label="Country">
-            <input {...register('country')} className="input-field" disabled />
-          </FormField>
-          <FormField label="Pincode" error={errors.pincode?.message}>
-            <input {...register('pincode')} inputMode="numeric" maxLength={6} className="input-field" aria-invalid={!!errors.pincode} />
-          </FormField>
-          <FormField label="Address Type">
-            <select {...register('type')} className="input-field">
-              {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </FormField>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <FormField label="City / District" error={errors.city?.message}>
+              <input {...register('city')} placeholder="Enter city or district" className="input-field" aria-invalid={!!errors.city} />
+            </FormField>
+            <FormField label="State" error={errors.state?.message}>
+              <select {...register('state')} className="input-field" aria-invalid={!!errors.state}>
+                <option value="">Select State</option>
+                {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </FormField>
+          </div>
         </div>
       </div>
 

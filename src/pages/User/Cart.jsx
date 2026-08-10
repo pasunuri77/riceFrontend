@@ -1,29 +1,34 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Minus, Plus, Trash2, ShoppingCart, ArrowRight, Truck, ShieldCheck, RotateCcw } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
-import ProductCard from '../../components/product/ProductCard'
 import FreeShippingProgress from '../../components/cart/FreeShippingProgress'
 import CouponInput from '../../components/cart/CouponInput'
 import { formatINR, estimatedDelivery } from '../../utils/format'
 import { safeImageUrl } from '../../utils/sanitize'
+import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
 import productApi from '../../api/productApi'
 
 export default function Cart() {
-  const { items, updateQty, removeFromCart, subtotal, deliveryCharge, total, freeDeliveryThreshold } = useCart()
+  const { user } = useAuth()
+  const location = useLocation()
+  const { items, updateQty, removeFromCart, subtotal, deliveryCharge, tax, discountAmount, coupon, total, freeDeliveryThreshold } = useCart()
   const [products, setProducts] = useState({})
-  const [allProducts, setAllProducts] = useState([])
 
   useEffect(() => {
     productApi.list()
-      .then((list) => {
-        setAllProducts(list)
-        setProducts(Object.fromEntries(list.map((p) => [p.id, p])))
-      })
-      .catch(() => { setProducts({}); setAllProducts([]) })
+      .then((list) => setProducts(Object.fromEntries(list.map((p) => [p.id, p]))))
+      .catch(() => setProducts({}))
   }, [])
+
+  // The cart holds real pricing/coupon/address-adjacent details tied to a
+  // shopper's account - like Checkout, an unauthenticated visitor should be
+  // sent to log in rather than seeing that content.
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
 
   // Same cap as the product page: can't hold more units in the cart than the current
   // stock allows for the selected pack size.
@@ -41,12 +46,6 @@ export default function Cart() {
     return sum + (product.mrp - product.pricePerKg) * i.weight * i.qty
   }, 0)
 
-  const cartProductIds = new Set(items.map((i) => i.id))
-  const recommended = useMemo(
-    () => allProducts.filter((p) => !cartProductIds.has(p.id) && p.stock > 0).slice(0, 4),
-    [allProducts, items]
-  )
-
   return (
     <div className="container-app py-8">
       <Breadcrumb items={[{ label: 'Cart' }]} />
@@ -59,17 +58,7 @@ export default function Cart() {
       )}
 
       {items.length === 0 ? (
-        <>
-          <EmptyState icon={ShoppingCart} title="Your cart is empty" subtitle="Looks like you haven't added any rice yet." actionLabel="Continue Shopping" actionTo="/products" />
-          {allProducts.length > 0 && (
-            <div className="mt-8">
-              <h2 className="section-title !text-xl mb-4">You Might Like</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
-                {allProducts.slice(0, 4).map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
-              </div>
-            </div>
-          )}
-        </>
+        <EmptyState icon={ShoppingCart} title="Your cart is empty" subtitle="Looks like you haven't added any rice yet." actionLabel="Continue Shopping" actionTo="/products" />
       ) : (
         <div className="grid lg:grid-cols-[1fr_340px] gap-8">
           <div className="space-y-3">
@@ -109,15 +98,6 @@ export default function Cart() {
               )
             })}
             <Link to="/products" className="text-sm font-semibold text-primary-600 inline-block mt-2">← Continue Shopping</Link>
-
-            {recommended.length > 0 && (
-              <div className="mt-10">
-                <h2 className="section-title !text-xl mb-4">You Might Also Like</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
-                  {recommended.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="space-y-4 h-fit sticky top-20">
@@ -135,7 +115,11 @@ export default function Cart() {
                 {totalSavings > 0 && (
                   <div className="flex justify-between text-leaf-600"><span>You Save</span><span className="font-semibold">-{formatINR(totalSavings)}</span></div>
                 )}
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-leaf-600"><span>Coupon ({coupon.code})</span><span className="font-semibold">-{formatINR(discountAmount)}</span></div>
+                )}
                 <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatINR(deliveryCharge)}</span></div>
+                <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-semibold">{formatINR(tax)}</span></div>
                 <div className="flex justify-between text-ink/50"><span>Estimated Delivery</span><span className="font-semibold text-ink">{estimatedDelivery()}</span></div>
               </div>
               <div className="border-t border-black/10 mt-4 pt-4 flex justify-between items-center">

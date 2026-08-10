@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
 import otpApi from '../../api/otp/otpApi'
+import addressApi from '../../api/addressApi'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
 import OtpInput from '../../components/ui/OtpInput'
@@ -72,6 +73,29 @@ export default function VerifyOtp() {
       if (purpose === 'register') {
         await otpApi.verifyRegistrationOtp(email, data.otp)
         await registerUser(formData)
+
+        // Registration itself has no address field on the backend - save the
+        // address the user entered via the real (already-authenticated) address
+        // API right after the account exists. Best-effort: the account is real
+        // either way, and the user can always add/fix the address later.
+        try {
+          await addressApi.create({
+            fullName: formData.fullName,
+            mobile: formData.mobile,
+            flat: formData.houseNumber,
+            street: formData.addressLine,
+            area: formData.locality,
+            city: formData.city,
+            state: formData.state,
+            country: 'India',
+            pincode: formData.pinCode,
+            type: 'Home',
+            isDefault: true,
+          })
+        } catch {
+          showToast('Account created, but we could not save your address - add it from your dashboard.', 'info')
+        }
+
         showToast('Account created successfully!', 'success')
         // A regular account only ever belongs in /dashboard/* - only honor `from`
         // if it actually points there (e.g. back to /checkout), same guard as Login.

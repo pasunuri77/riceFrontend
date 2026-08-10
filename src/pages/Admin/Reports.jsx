@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Download, IndianRupee, ClipboardList, Receipt } from 'lucide-react'
+import { IndianRupee, ClipboardList, Receipt } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import ChartCard from '../../components/dashboard/ChartCard'
 import DashboardCard from '../../components/dashboard/DashboardCard'
 import { formatINR } from '../../utils/format'
-import { useToast } from '../../context/ToastContext'
 import orderApi from '../../api/orderApi'
 import productApi from '../../api/productApi'
 import brandApi from '../../api/brandApi'
@@ -14,7 +13,6 @@ import brandApi from '../../api/brandApi'
 const COLORS = ['#e8912a', '#479437', '#c96f1e', '#357628', '#a1541a', '#8fca80']
 
 export default function AdminReports() {
-  const { showToast } = useToast()
   const [orders, setOrders] = useState([])
   const [products, setProducts] = useState([])
   const [brands, setBrands] = useState([])
@@ -55,11 +53,7 @@ export default function AdminReports() {
   return (
     <div>
       <Breadcrumb items={[{ label: 'Admin' }, { label: 'Reports' }]} />
-      <PageHeader
-        title="Reports & Analytics"
-        subtitle="Revenue, sales and customer insights"
-        action={<button onClick={() => showToast('Report exported (demo)', 'info')} className="btn-outline text-sm"><Download className="w-4 h-4" /> Export</button>}
-      />
+      <PageHeader title="Reports & Analytics" subtitle="Revenue, sales and customer insights" />
 
       <div className="grid sm:grid-cols-3 gap-4 mb-6">
         <DashboardCard icon={IndianRupee} label="Total Revenue" value={formatINR(totalRevenue)} tint="primary" index={0} />

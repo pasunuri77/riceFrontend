@@ -76,7 +76,6 @@ export function ToastProvider({ children }) {
   const showToast = useCallback((message, type = 'success', duration = DURATION) => {
     const id = Date.now() + Math.random()
     setToasts((t) => [...t, { id, message, type, duration }].slice(-MAX_VISIBLE))
-    window.dispatchEvent(new CustomEvent('app:notify', { detail: { message, type } }))
   }, [])
 
   const dismiss = (id) => setToasts((t) => t.filter((x) => x.id !== id))

@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Package, FileText, Truck, XCircle, MapPin, CreditCard } from 'lucide-react'
+import { Package, XCircle, MapPin, CreditCard, CalendarClock } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusPill from '../../components/ui/StatusPill'
 import EmptyState from '../../components/ui/EmptyState'
+import OrderTimeline from '../../components/ui/OrderTimeline'
 import { TextSkeleton } from '../../components/ui/Skeleton'
-import { formatINR, formatDate } from '../../utils/format'
+import { formatINR, formatDate, estimatedDelivery } from '../../utils/format'
 import { safeImageUrl } from '../../utils/sanitize'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
+import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
 
@@ -19,6 +21,7 @@ export default function OrderDetail() {
   const { id } = useParams()
   const { user } = useAuth()
   const { showToast } = useToast()
+  const { notify } = useNotifications()
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -50,6 +53,7 @@ export default function OrderDetail() {
       const updated = await orderApi.cancel(order.id)
       setOrder(updated)
       showToast('Order cancelled', 'success')
+      notify('ORDER_CANCELLED', { orderId: order.id })
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Order can no longer be cancelled', 'error')
     } finally {
@@ -91,16 +95,27 @@ export default function OrderDetail() {
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         <div className="space-y-4">
+          {/* Product Details */}
           <div className="card p-5">
-            <h3 className="font-bold mb-3">Items</h3>
+            <h3 className="font-bold mb-3">Product Details</h3>
             <div className="space-y-3">
               {(order.items?.length ? order.items : [{ name: itemNames(order), weight: '', qty: '' }]).map((item, i) => (
                 <div key={i} className="flex items-center gap-3 pb-3 border-b border-black/5 last:border-0 last:pb-0">
                   {i === 0 && (
-                    <img src={safeImageUrl(order.image)} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0 bg-primary-50" />
+                    order.productId ? (
+                      <Link to={`/products/${order.productId}`} className="shrink-0">
+                        <img src={safeImageUrl(order.image)} alt="" className="w-14 h-14 rounded-lg object-cover bg-primary-50" />
+                      </Link>
+                    ) : (
+                      <img src={safeImageUrl(order.image)} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0 bg-primary-50" />
+                    )
                   )}
                   <div className={`flex-1 min-w-0 ${i > 0 ? 'ml-[68px]' : ''}`}>
-                    <p className="text-sm font-semibold truncate">{item.name}</p>
+                    {i === 0 && order.productId ? (
+                      <Link to={`/products/${order.productId}`} className="text-sm font-semibold truncate block hover:text-primary-600">{item.name}</Link>
+                    ) : (
+                      <p className="text-sm font-semibold truncate">{item.name}</p>
+                    )}
                     {item.weight && <p className="text-xs text-ink/40">{item.weight}kg x {item.qty}</p>}
                   </div>
                 </div>
@@ -108,8 +123,27 @@ export default function OrderDetail() {
             </div>
           </div>
 
+          {/* Delivery Information */}
           <div className="card p-5">
-            <h3 className="font-bold mb-3 flex items-center gap-2"><MapPin className="w-4 h-4 text-primary-600" aria-hidden="true" /> Delivery Address</h3>
+            <h3 className="font-bold mb-3 flex items-center gap-2"><CalendarClock className="w-4 h-4 text-primary-600" aria-hidden="true" /> Delivery Information</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-ink/50">Ordered On</span><span className="font-semibold">{formatDate(order.date)}</span></div>
+              {order.deliveryStatus !== 'Cancelled' && (
+                <div className="flex justify-between"><span className="text-ink/50">Estimated Delivery</span><span className="font-semibold">{estimatedDelivery(4, order.date)}</span></div>
+              )}
+              <div className="flex justify-between items-center"><span className="text-ink/50">Status</span><StatusPill status={order.deliveryStatus} /></div>
+            </div>
+          </div>
+
+          {/* Order Timeline */}
+          <div className="card p-5">
+            <h3 className="font-bold mb-4">Order Timeline</h3>
+            <OrderTimeline status={order.deliveryStatus} />
+          </div>
+
+          {/* Shipping Address */}
+          <div className="card p-5">
+            <h3 className="font-bold mb-3 flex items-center gap-2"><MapPin className="w-4 h-4 text-primary-600" aria-hidden="true" /> Shipping Address</h3>
             <p className="text-sm text-ink/60">{order.address}</p>
           </div>
 
@@ -122,15 +156,27 @@ export default function OrderDetail() {
           </div>
         </div>
 
+        {/* Price Breakdown - only fields the backend actually stores per order
+            (amount + discountAmount). A full Subtotal/Tax/Delivery split isn't
+            shown because the order only ever saves the final blended amount,
+            not a snapshot of what made it up - see BACKEND_TODO. */}
         <div className="card p-5 h-fit sticky top-20">
-          <h3 className="font-bold mb-4">Order Summary</h3>
-          <div className="flex justify-between items-center border-t border-black/10 pt-4">
-            <span className="font-bold">Total</span>
+          <h3 className="font-bold mb-4">Price Breakdown</h3>
+          <div className="space-y-2.5 text-sm">
+            {order.discountAmount > 0 && (
+              <>
+                <div className="flex justify-between"><span className="text-ink/50">Order Total</span><span className="font-medium">{formatINR(order.amount + order.discountAmount)}</span></div>
+                <div className="flex justify-between text-leaf-600"><span>Coupon Discount {order.couponCode && `(${order.couponCode})`}</span><span className="font-medium">-{formatINR(order.discountAmount)}</span></div>
+              </>
+            )}
+          </div>
+          <div className="border-t border-black/10 my-3" />
+          <div className="flex justify-between items-center">
+            <span className="font-bold">Total Paid</span>
             <span className="font-extrabold text-xl text-primary-700">{formatINR(order.amount)}</span>
           </div>
+          <p className="text-[11px] text-ink/35 mt-1">Includes delivery charges and applicable taxes.</p>
           <div className="flex flex-col gap-2 mt-5">
-            <button onClick={() => showToast('Tracking order ' + order.id, 'info')} className="btn text-xs px-3 py-2 bg-primary-50 text-primary-700 w-full justify-center"><Truck className="w-3.5 h-3.5" aria-hidden="true" /> Track Order</button>
-            <button onClick={() => showToast('Invoice downloaded (demo)', 'info')} className="btn text-xs px-3 py-2 bg-black/5 text-ink/70 w-full justify-center"><FileText className="w-3.5 h-3.5" aria-hidden="true" /> Download Invoice</button>
             {['Pending', 'Processing'].includes(order.deliveryStatus) && (
               <button onClick={handleCancel} disabled={cancelling} className="btn text-xs px-3 py-2 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
                 <XCircle className="w-3.5 h-3.5" aria-hidden="true" /> {cancelling ? 'Cancelling...' : 'Cancel Order'}

@@ -1,41 +1,9 @@
 import { Link } from 'react-router-dom'
 import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from 'lucide-react'
-import { useState } from 'react'
-import { useToast } from '../../context/ToastContext'
 
 export default function Footer() {
-  const [email, setEmail] = useState('')
-  const { showToast } = useToast()
-
-  const subscribe = (e) => {
-    e.preventDefault()
-    if (!email) return
-    showToast('Subscribed to newsletter!', 'success')
-    setEmail('')
-  }
-
   return (
     <footer className="bg-ink text-white/80 mt-16 pb-20 lg:pb-0">
-      <div className="bg-primary-600">
-        <div className="container-app py-10 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-            <h3 className="text-white font-display font-bold text-xl">Join our Newsletter</h3>
-            <p className="text-white/80 text-sm mt-1">Get offers on premium rice brands straight to your inbox.</p>
-          </div>
-          <form onSubmit={subscribe} className="flex w-full md:w-auto gap-2">
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              required
-              placeholder="Enter your email"
-              className="rounded-lg px-4 py-2.5 text-sm text-ink w-full md:w-72 outline-none"
-            />
-            <button className="bg-ink text-white font-semibold px-5 rounded-lg text-sm hover:bg-black">Subscribe</button>
-          </form>
-        </div>
-      </div>
-
       <div className="container-app py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2 mb-3">
@@ -56,7 +24,7 @@ export default function Footer() {
             <li><Link to="/about" className="hover:text-primary-400">About Us</Link></li>
             <li><Link to="/contact" className="hover:text-primary-400">Contact Us</Link></li>
             <li><Link to="/faq" className="hover:text-primary-400">FAQ</Link></li>
-            <li><Link to="/products" className="hover:text-primary-400">Shop All Rice</Link></li>
+            <li><Link to="/products" className="hover:text-primary-400">Shop</Link></li>
           </ul>
         </div>
 

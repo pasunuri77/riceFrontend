@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../context/AuthContext'
 import NotificationBell from '../ui/NotificationBell'
 import PageTransition from '../ui/PageTransition'
+import { useDropdown } from '../../hooks/useDropdown'
 
 export default function DashboardShell({ navItems, brandLabel, requireRole, profileTo = '/dashboard/profile' }) {
   const [open, setOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
+  const profileMenu = useDropdown('profile')
   const { user, logout } = useAuth()
   const location = useLocation()
 
@@ -87,11 +88,11 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
           <Link to="/" className="text-sm text-ink/50 hover:text-primary-600 hidden sm:block">← Back to Store</Link>
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
-            <div className="relative" onKeyDown={(e) => { if (e.key === 'Escape') setProfileOpen(false) }}>
+            <div ref={profileMenu.ref} className="relative">
               <button
-                onClick={() => setProfileOpen((v) => !v)}
+                onClick={profileMenu.toggle}
                 aria-haspopup="menu"
-                aria-expanded={profileOpen}
+                aria-expanded={profileMenu.isOpen}
                 aria-label={`Account menu for ${user.name}`}
                 className="flex items-center gap-2 pl-2 border-l border-black/10"
               >
@@ -102,22 +103,19 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
                   <p className="text-sm font-semibold capitalize">{user.name}</p>
                   <p className="text-[11px] text-ink/60">{user.role === 'admin' ? 'Administrator' : 'User'}</p>
                 </div>
-                <ChevronDown className={`w-3.5 h-3.5 text-ink/40 hidden sm:block transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3.5 h-3.5 text-ink/40 hidden sm:block transition-transform ${profileMenu.isOpen ? 'rotate-180' : ''}`} />
               </button>
               <AnimatePresence>
-                {profileOpen && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setProfileOpen(false)} />
-                    <motion.div role="menu" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} className="absolute right-0 top-full mt-2 card w-52 p-2 z-40">
-                      <Link role="menuitem" to={profileTo} onClick={() => setProfileOpen(false)} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-primary-50 text-sm font-medium text-ink/70">
-                        <UserIcon className="w-4 h-4" /> View Profile
-                      </Link>
-                      <div className="my-1 border-t border-black/5" />
-                      <button role="menuitem" onClick={logout} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-red-50 text-sm font-medium text-red-500 w-full">
-                        <LogOut className="w-4 h-4" /> Sign Out
-                      </button>
-                    </motion.div>
-                  </>
+                {profileMenu.isOpen && (
+                  <motion.div role="menu" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} className="absolute right-0 top-full mt-2 card w-52 p-2 z-40">
+                    <Link role="menuitem" to={profileTo} onClick={profileMenu.close} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-primary-50 text-sm font-medium text-ink/70">
+                      <UserIcon className="w-4 h-4" /> View Profile
+                    </Link>
+                    <div className="my-1 border-t border-black/5" />
+                    <button role="menuitem" onClick={() => { profileMenu.close(); logout() }} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-red-50 text-sm font-medium text-red-500 w-full">
+                      <LogOut className="w-4 h-4" /> Sign Out
+                    </button>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>

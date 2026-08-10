@@ -12,7 +12,7 @@ import ColumnVisibilityMenu from '../../components/ui/ColumnVisibilityMenu'
 import ExportMenu from '../../components/ui/ExportMenu'
 import BulkActionsBar from '../../components/ui/BulkActionsBar'
 import Pagination from '../../components/ui/Pagination'
-import { formatINR, formatDate } from '../../utils/format'
+import { formatINR, formatDate, estimatedDelivery } from '../../utils/format'
 import { exportToCsv, exportToExcel } from '../../utils/exportTable'
 import { useToast } from '../../context/ToastContext'
 import orderApi from '../../api/orderApi'
@@ -29,7 +29,12 @@ const COLUMNS = [
   { key: 'rice', label: 'Rice' },
   { key: 'qty', label: 'Qty' },
   { key: 'amount', label: 'Amount', sortField: 'amount' },
-  { key: 'date', label: 'Date', sortField: 'date' },
+  { key: 'date', label: 'Ordered On', sortField: 'date' },
+  { key: 'estimatedDelivery', label: 'Estimated Delivery' },
+  // The backend has no `deliveredAt` timestamp yet, so this column always reads
+  // "--" for now - it's wired up honestly rather than faked, ready to populate
+  // the moment that field exists.
+  { key: 'deliveredOn', label: 'Delivered On' },
   { key: 'payment', label: 'Payment' },
   { key: 'delivery', label: 'Delivery' },
 ]
@@ -205,7 +210,9 @@ export default function AdminOrders() {
               {isVisible('rice') && <th scope="col" className="p-3.5">Rice</th>}
               {isVisible('qty') && <th scope="col" className="p-3.5">Qty</th>}
               {isVisible('amount') && <SortableHeader label="Amount" sortKey="amount" sort={sort} onSort={toggleSort} />}
-              {isVisible('date') && <SortableHeader label="Date" sortKey="date" sort={sort} onSort={toggleSort} />}
+              {isVisible('date') && <SortableHeader label="Ordered On" sortKey="date" sort={sort} onSort={toggleSort} />}
+              {isVisible('estimatedDelivery') && <th scope="col" className="p-3.5">Estimated Delivery</th>}
+              {isVisible('deliveredOn') && <th scope="col" className="p-3.5">Delivered On</th>}
               {isVisible('payment') && <th scope="col" className="p-3.5">Payment</th>}
               {isVisible('delivery') && <th scope="col" className="p-3.5">Delivery</th>}
               <th scope="col" className="p-3.5"></th>
@@ -229,6 +236,11 @@ export default function AdminOrders() {
                 {isVisible('qty') && <td className="p-3 text-ink/60">{o.quantity}</td>}
                 {isVisible('amount') && <td className="p-3 font-semibold">{formatINR(o.amount)}</td>}
                 {isVisible('date') && <td className="p-3 text-ink/50">{formatDate(o.date)}</td>}
+                {isVisible('estimatedDelivery') && (
+                  <td className="p-3 text-ink/50">{o.deliveryStatus === 'Cancelled' ? '--' : estimatedDelivery(4, o.date)}</td>
+                )}
+                {/* No `deliveredAt` field exists on the backend yet - this column is a placeholder awaiting that data, never a guessed value. */}
+                {isVisible('deliveredOn') && <td className="p-3 text-ink/50">--</td>}
                 {isVisible('payment') && <td className="p-3"><StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${o.id}:payment`]} onChange={(status) => updatePaymentStatus(o.id, status)} /></td>}
                 {isVisible('delivery') && <td className="p-3"><StatusSelect value={o.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${o.id}:delivery`]} onChange={(status) => updateDeliveryStatus(o.id, status)} /></td>}
                 <td className="p-3"><button onClick={() => setViewing(o)} aria-label={`View order ${o.id}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" aria-hidden="true" /></button></td>
@@ -241,12 +253,22 @@ export default function AdminOrders() {
       <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing?.id}>
         {viewing && (
           <div className="space-y-3 text-sm">
-            <img src={viewing.image} alt="" className="w-full h-40 object-cover rounded-xl mb-2" />
+            {viewing.productId ? (
+              <Link to={`/products/${viewing.productId}`}>
+                <img src={viewing.image} alt="" className="w-full h-40 object-cover rounded-xl mb-2 hover:opacity-90 transition" />
+              </Link>
+            ) : (
+              <img src={viewing.image} alt="" className="w-full h-40 object-cover rounded-xl mb-2" />
+            )}
             <div className="flex justify-between"><span className="text-ink/50">Customer</span><Link to={`/admin/customers?id=${viewing.customerId}`} className="font-semibold text-primary-700 hover:underline">{viewing.customerName}</Link></div>
             <div className="flex justify-between"><span className="text-ink/50">Rice</span><span className="font-semibold text-right max-w-[60%]">{itemsSummary(viewing)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Address</span><span className="font-semibold text-right max-w-[60%]">{viewing.address}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Amount</span><span className="font-semibold">{formatINR(viewing.amount)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Order Date</span><span className="font-semibold">{formatDate(viewing.date)}</span></div>
+            {viewing.deliveryStatus !== 'Cancelled' && (
+              <div className="flex justify-between"><span className="text-ink/50">Estimated Delivery</span><span className="font-semibold">{estimatedDelivery(4, viewing.date)}</span></div>
+            )}
+            <div className="flex justify-between"><span className="text-ink/50">Delivered On</span><span className="font-semibold">--</span></div>
             <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
             <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><StatusSelect value={viewing.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${viewing.id}:delivery`]} onChange={(status) => updateDeliveryStatus(viewing.id, status)} /></div>
           </div>

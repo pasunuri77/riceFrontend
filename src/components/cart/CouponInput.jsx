@@ -1,23 +1,31 @@
 import { useState } from 'react'
-import { Tag } from 'lucide-react'
-import { useToast } from '../../context/ToastContext'
+import { Tag, X } from 'lucide-react'
+import { useCart } from '../../context/CartContext'
 
-// UI-only: there's no coupon/promo-code endpoint on the backend, so this
-// deliberately never fakes a discount - it's an honest "not live yet" message
-// rather than pretending to apply a real code.
 export default function CouponInput() {
   const [code, setCode] = useState('')
-  const [applying, setApplying] = useState(false)
-  const { showToast } = useToast()
+  const { coupon, discountAmount, applyCoupon, removeCoupon, applyingCoupon } = useCart()
 
-  const onApply = (e) => {
+  const onApply = async (e) => {
     e.preventDefault()
     if (!code.trim()) return
-    setApplying(true)
-    setTimeout(() => {
-      showToast('Coupon codes are coming soon - stay tuned!', 'info')
-      setApplying(false)
-    }, 400)
+    const ok = await applyCoupon(code)
+    if (ok) setCode('')
+  }
+
+  if (coupon) {
+    return (
+      <div className="flex items-center justify-between gap-2 bg-leaf-50 border border-leaf-200 rounded-lg px-3 py-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <Tag className="w-4 h-4 text-leaf-600 shrink-0" aria-hidden="true" />
+          <span className="text-sm font-semibold text-leaf-700 truncate">{coupon.code}</span>
+          <span className="text-xs text-leaf-600 shrink-0">-₹{discountAmount}</span>
+        </div>
+        <button type="button" onClick={removeCoupon} aria-label="Remove coupon" className="text-leaf-600 hover:text-leaf-800 shrink-0">
+          <X className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -32,8 +40,8 @@ export default function CouponInput() {
           className="input-field pl-9 text-sm"
         />
       </div>
-      <button type="submit" disabled={applying || !code.trim()} className="btn-outline text-sm px-4 disabled:opacity-50">
-        {applying ? 'Applying...' : 'Apply'}
+      <button type="submit" disabled={applyingCoupon || !code.trim()} className="btn-outline text-sm px-4 disabled:opacity-50">
+        {applyingCoupon ? 'Applying...' : 'Apply'}
       </button>
     </form>
   )

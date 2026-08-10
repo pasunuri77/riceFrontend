@@ -5,8 +5,6 @@ import App from './App.jsx'
 import './index.css'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { CartProvider } from './context/CartContext.jsx'
-import { WishlistProvider } from './context/WishlistContext.jsx'
-import { CompareProvider } from './context/CompareContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
 import { NotificationProvider } from './context/NotificationContext.jsx'
 import ErrorBoundary from './components/system/ErrorBoundary.jsx'
@@ -16,17 +14,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <BrowserRouter>
         <ToastProvider>
-          <NotificationProvider>
-            <AuthProvider>
-              <WishlistProvider>
-                <CompareProvider>
-                  <CartProvider>
-                    <App />
-                  </CartProvider>
-                </CompareProvider>
-              </WishlistProvider>
-            </AuthProvider>
-          </NotificationProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <CartProvider>
+                <App />
+              </CartProvider>
+            </NotificationProvider>
+          </AuthProvider>
         </ToastProvider>
       </BrowserRouter>
     </ErrorBoundary>
