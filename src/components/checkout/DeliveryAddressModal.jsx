@@ -1,21 +1,24 @@
 import { useState } from 'react'
 import { Plus, Trash2, CheckCircle2, XCircle } from 'lucide-react'
 import Modal from '../ui/Modal'
-
-// There is no backend concept of "deliverable pincodes" (no service-area table,
-// no lookup endpoint - just a plain pincode string on each address). This can
-// only confirm the pincode is a real 6-digit Indian PIN, not that we actually
-// deliver there - a true serviceability check needs a backend field/endpoint.
-function checkPincodeFormat(pincode) {
-  if (!/^\d{6}$/.test(pincode)) return { ok: false, message: 'Enter a valid 6-digit pincode' }
-  return { ok: true, message: `Delivering to ${pincode}` }
-}
+import deliveryApi from '../../api/deliveryApi'
 
 export default function DeliveryAddressModal({ open, onClose, addresses, selected, onSelect, onEdit, onDelete, onAddNew }) {
   const [pincode, setPincode] = useState('')
   const [result, setResult] = useState(null)
+  const [checking, setChecking] = useState(false)
 
-  const runCheck = () => setResult(checkPincodeFormat(pincode))
+  const runCheck = () => {
+    if (!/^\d{6}$/.test(pincode)) {
+      setResult({ ok: false, message: 'Enter a valid 6-digit pincode' })
+      return
+    }
+    setChecking(true)
+    deliveryApi.check(pincode)
+      .then((res) => setResult({ ok: res.serviceable, message: res.serviceable ? `Delivering to ${pincode}` : `Not deliverable to ${pincode} yet` }))
+      .catch(() => setResult({ ok: false, message: 'Unable to check delivery right now' }))
+      .finally(() => setChecking(false))
+  }
 
   return (
     <Modal open={open} onClose={onClose} title="Select Delivery Address" maxWidth="max-w-md">
@@ -29,8 +32,8 @@ export default function DeliveryAddressModal({ open, onClose, addresses, selecte
             aria-label="Enter pincode to check delivery"
             className="input-field flex-1"
           />
-          <button onClick={runCheck} disabled={!pincode} className="btn-outline px-4 text-sm font-bold shrink-0 disabled:opacity-40">
-            Check
+          <button onClick={runCheck} disabled={!pincode || checking} className="btn-outline px-4 text-sm font-bold shrink-0 disabled:opacity-40">
+            {checking ? 'Checking...' : 'Check'}
           </button>
         </div>
         {result && (

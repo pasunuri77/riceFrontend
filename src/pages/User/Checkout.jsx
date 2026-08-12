@@ -16,6 +16,7 @@ import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
 import productApi from '../../api/productApi'
+import deliveryApi from '../../api/deliveryApi'
 import { ShoppingCart as CartIcon } from 'lucide-react'
 
 const PAYMENT_METHODS = [
@@ -69,21 +70,29 @@ export default function Checkout() {
   const openAddAddress = () => { setEditingAddress(null); setFormModalOpen(true) }
   const openEditAddress = (addr) => { setEditingAddress(addr); setFormModalOpen(true) }
 
-  const handleAddressFormSubmit = (data) => {
-    if (editingAddress) {
-      updateAddress(editingAddress.id, data)
-      showToast('Address updated', 'success')
-    } else {
-      addAddress(data)
-      showToast('Address added', 'success')
+  const handleAddressFormSubmit = async (data) => {
+    try {
+      if (editingAddress) {
+        await updateAddress(editingAddress.id, data)
+        showToast('Address updated', 'success')
+      } else {
+        await addAddress(data)
+        showToast('Address added', 'success')
+      }
+      setFormModalOpen(false)
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to save address', 'error')
     }
-    setFormModalOpen(false)
   }
 
-  const handleDeleteAddress = (id) => {
-    deleteAddress(id)
-    if (selected === id) setSelected('')
-    showToast('Address removed', 'success')
+  const handleDeleteAddress = async (id) => {
+    try {
+      await deleteAddress(id)
+      if (selected === id) setSelected('')
+      showToast('Address removed', 'success')
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to remove address', 'error')
+    }
   }
 
   const placeOrder = async () => {
@@ -111,6 +120,28 @@ export default function Checkout() {
     }
 
     const addr = addresses.find((a) => a.id === selected)
+
+    // Re-check delivery at the moment of booking, even for an already-saved
+    // address - it may have been saved before this check existed (e.g. via
+    // Profile, which never validated it), or coverage may have changed since
+    // it was saved. Checked per-product, not just the general pincode list,
+    // since a product can be individually restricted (ProductDeliveryCoverage).
+    if (addr?.pincode) {
+      try {
+        const uniqueProductIds = [...new Set(items.map((i) => i.id))]
+        const results = await Promise.all(
+          uniqueProductIds.map((id) => deliveryApi.check(addr.pincode, id).catch(() => ({ serviceable: true })))
+        )
+        if (results.some((r) => !r.serviceable)) {
+          showToast(`We don't currently deliver one or more items in your cart to ${addr.pincode}. Please choose a different address.`, 'error')
+          return
+        }
+      } catch {
+        // If the check itself fails entirely (network), don't block checkout on it -
+        // the real order request remains the source of truth.
+      }
+    }
+
     const addressLine = addr ? [addr.flat, addr.area, addr.city].filter(Boolean).join(', ') : ''
     setStage('processing')
     orderApi.create({

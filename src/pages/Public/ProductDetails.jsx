@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShoppingCart, Minus, Plus, Truck, ShieldCheck, RotateCcw, ZoomIn, PackageCheck, Undo2 } from 'lucide-react'
 import productApi from '../../api/productApi'
+import deliveryApi from '../../api/deliveryApi'
 import ProductCard from '../../components/product/ProductCard'
 import ProductImage from '../../components/product/ProductImage'
 import StockBadge, { OfferBadge } from '../../components/product/StockBadge'
@@ -30,6 +31,17 @@ export default function ProductDetails() {
 
   const [weight, setWeight] = useState(null)
   const [qty, setQty] = useState(1)
+
+  const [checkPincode, setCheckPincode] = useState('')
+  const [checkingDelivery, setCheckingDelivery] = useState(false)
+  const [deliveryCheck, setDeliveryCheck] = useState(null)
+  const runDeliveryCheck = () => {
+    setCheckingDelivery(true)
+    deliveryApi.check(checkPincode, id)
+      .then(setDeliveryCheck)
+      .catch(() => setDeliveryCheck(null))
+      .finally(() => setCheckingDelivery(false))
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -171,6 +183,31 @@ export default function ProductDetails() {
             <div className="flex flex-wrap gap-3">
               <button onClick={handleAddToCart} disabled={outOfStock} className="btn-primary flex-1"><ShoppingCart className="w-4 h-4" /> Add to Cart</button>
               <button onClick={buyNow} disabled={outOfStock} className="btn-secondary flex-1">Buy Now</button>
+            </div>
+
+            <div className="mt-5 border-t border-black/5 pt-5">
+              <p className="label-field mb-2">Check Delivery</p>
+              <div className="flex gap-2 max-w-xs">
+                <input
+                  value={checkPincode}
+                  onChange={(e) => { setCheckPincode(e.target.value.replace(/\D/g, '').slice(0, 6)); setDeliveryCheck(null) }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="Enter pincode"
+                  className="input-field text-sm"
+                />
+                <button onClick={runDeliveryCheck} disabled={checkingDelivery || !/^\d{6}$/.test(checkPincode)} className="btn-outline text-sm shrink-0 disabled:opacity-50">
+                  {checkingDelivery ? 'Checking...' : 'Check'}
+                </button>
+              </div>
+              {deliveryCheck && (
+                deliveryCheck.serviceable ? (
+                  <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-2"><PackageCheck className="w-3.5 h-3.5" /> Delivers to {deliveryCheck.pincode}</p>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-xs text-amber-600 font-medium mt-2"><Undo2 className="w-3.5 h-3.5" /> Not deliverable to {deliveryCheck.pincode} yet</p>
+                )
+              )}
             </div>
           </div>
 

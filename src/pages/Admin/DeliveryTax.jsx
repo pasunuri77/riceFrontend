@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Plus, X, Upload, Download } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import { ApiError } from '../../api/client'
@@ -22,6 +22,8 @@ export default function AdminDeliveryTax() {
   const [pincodesLoading, setPincodesLoading] = useState(true)
   const [newPincode, setNewPincode] = useState('')
   const [addingPincode, setAddingPincode] = useState(false)
+  const [csvUploading, setCsvUploading] = useState(false)
+  const csvInputRef = useRef(null)
   const { showToast } = useToast()
 
   const loadPincodes = () => deliveryApi.admin.list()
@@ -76,6 +78,36 @@ export default function AdminDeliveryTax() {
     } catch (err) {
       setPincodes(prev)
       showToast(err instanceof ApiError ? err.message : 'Failed to remove pincode', 'error')
+    }
+  }
+
+  const uploadCsv = async (file) => {
+    if (!file) return
+    setCsvUploading(true)
+    try {
+      // Same semantics as admin.add() - returns only the newly-added pincodes,
+      // not the full list, so this appends rather than replaces.
+      const added = await deliveryApi.admin.uploadCsv(file)
+      setPincodes((prev) => [...prev, ...added])
+      showToast(`Imported ${added.length} new pincode(s)`, 'success')
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to import pincodes CSV', 'error')
+    } finally {
+      setCsvUploading(false)
+      if (csvInputRef.current) csvInputRef.current.value = ''
+    }
+  }
+
+  const exportCsv = async () => {
+    try {
+      const url = await deliveryApi.admin.exportCsvUrl()
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'serviceable-pincodes.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      showToast('Failed to export pincodes', 'error')
     }
   }
 
@@ -142,6 +174,19 @@ export default function AdminDeliveryTax() {
           />
           <button type="submit" disabled={addingPincode} className="btn-primary text-sm disabled:opacity-60">
             <Plus className="w-4 h-4" /> Add
+          </button>
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => uploadCsv(e.target.files?.[0])}
+          />
+          <button type="button" onClick={() => csvInputRef.current?.click()} disabled={csvUploading} className="btn-outline text-sm disabled:opacity-60">
+            <Upload className="w-4 h-4" /> {csvUploading ? 'Importing...' : 'Import CSV'}
+          </button>
+          <button type="button" onClick={exportCsv} disabled={pincodes.length === 0} className="btn-outline text-sm disabled:opacity-60">
+            <Download className="w-4 h-4" /> Export CSV
           </button>
         </form>
 

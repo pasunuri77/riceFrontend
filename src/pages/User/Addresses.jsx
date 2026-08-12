@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal'
 import EmptyState from '../../components/ui/EmptyState'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
+import { ApiError } from '../../api/client'
 
 export default function Addresses() {
   const { addresses, addAddress, updateAddress, deleteAddress, setDefaultAddress } = useAuth()
@@ -18,15 +19,19 @@ export default function Addresses() {
   const openAdd = () => { setEditing(null); setModalOpen(true) }
   const openEdit = (addr) => { setEditing(addr); setModalOpen(true) }
 
-  const handleSubmit = (data) => {
-    if (editing) {
-      updateAddress(editing.id, data)
-      showToast('Address updated', 'success')
-    } else {
-      addAddress(data)
-      showToast('Address saved', 'success')
+  const handleSubmit = async (data) => {
+    try {
+      if (editing) {
+        await updateAddress(editing.id, data)
+        showToast('Address updated', 'success')
+      } else {
+        await addAddress(data)
+        showToast('Address saved', 'success')
+      }
+      setModalOpen(false)
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to save address', 'error')
     }
-    setModalOpen(false)
   }
 
   return (

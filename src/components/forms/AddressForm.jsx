@@ -72,9 +72,11 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
     onPincodeChange(e)
   }
 
-  // Informational only, never blocks saving the address - matches how this was
-  // always described (a serviceability hint, not a hard gate). Debounced so a
-  // real backend call only fires once the pincode is complete and settled.
+  // Blocks saving once we have a definitive "not serviceable" answer - but
+  // never blocks on 'checking' or a failed/unknown check (null), since we
+  // shouldn't punish the user for a slow or broken network call by refusing
+  // to save something they typed correctly. Debounced so the real backend
+  // call only fires once the pincode is complete and settled.
   const [serviceability, setServiceability] = useState(null) // null | 'checking' | { serviceable }
   useEffect(() => {
     if (!/^\d{6}$/.test(pincode || '')) {
@@ -165,7 +167,7 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
             ) : serviceability?.serviceable ? (
               <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> We deliver to this area</p>
             ) : serviceability && !serviceability.serviceable ? (
-              <p className="flex items-center gap-1.5 text-xs text-amber-600 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> We may not deliver here yet - you can still save this address</p>
+              <p className="flex items-center gap-1.5 text-xs text-red-500 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> We don't deliver here yet - this address can't be saved</p>
             ) : null}
           </FormField>
           <FormField label="House Number / Tower / Block" error={errors.flat?.message} hint="House number helps with doorstep delivery">
@@ -201,7 +203,7 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
       </label>
 
       <div className="flex gap-3 pt-2">
-        <SubmitButton loading={isSubmitting} className="btn-primary flex-1">{submitLabel}</SubmitButton>
+        <SubmitButton loading={isSubmitting} disabled={serviceability?.serviceable === false} className="btn-primary flex-1">{submitLabel}</SubmitButton>
         {onCancel && <button type="button" onClick={onCancel} className="btn-ghost border border-black/10">Cancel</button>}
       </div>
     </form>

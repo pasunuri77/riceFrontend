@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { Loader2 } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import FormField from '../../components/ui/FormField'
@@ -20,6 +21,7 @@ const defaultSettings = {
   phone: '',
   email: '',
   currency: 'INR',
+  logo: '',
 }
 
 const profileSchema = z.object({
@@ -34,8 +36,19 @@ export default function AdminSettings() {
   const [full, setFull] = useState(null) // full settings object, so saving here doesn't drop fields this page doesn't own (delivery/tax)
   const [loadingSettings, setLoadingSettings] = useState(true)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoInputRef = useRef(null)
   const { user, updateAdminProfile } = useAuth()
   const { showToast } = useToast()
+
+  const handleLogoFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setUploadingLogo(true)
+    settingsApi.uploadLogo(file)
+      .then((res) => setSettings((current) => ({ ...current, logo: res.url })))
+      .catch((err) => showToast(err instanceof ApiError ? err.message : 'Logo upload failed', 'error'))
+      .finally(() => setUploadingLogo(false))
+  }
 
   const {
     register: registerProfile,
@@ -143,8 +156,30 @@ export default function AdminSettings() {
         {tab === 'Store Information' && (
           <form onSubmit={saveSettings} className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-xl bg-primary-50 flex items-center justify-center text-xl font-bold text-primary-600">RB</div>
-              <button type="button" className="btn-outline text-sm">Upload Logo</button>
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                aria-label="Change store logo"
+                className="w-16 h-16 rounded-xl bg-primary-50 flex items-center justify-center text-xl font-bold text-primary-600 overflow-hidden shrink-0 hover:opacity-80 transition relative"
+              >
+                {uploadingLogo ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : settings.logo ? (
+                  <img src={settings.logo} alt="Store logo" className="w-full h-full object-cover" />
+                ) : (
+                  'RB'
+                )}
+              </button>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleLogoFile(e.target.files?.[0])}
+              />
+              <button type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo} className="btn-outline text-sm disabled:opacity-60">
+                {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
+              </button>
             </div>
             <div><label className="label-field">Store Name</label><input required value={settings.storeName} onChange={updateSettingsField('storeName')} placeholder="RiceBazaar" className="input-field" disabled={loadingSettings} /></div>
             <div className="grid sm:grid-cols-2 gap-4">
