@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShoppingBag, Package } from 'lucide-react'
 import useHomeProducts from '../../hooks/useHomeProducts'
@@ -30,11 +29,6 @@ export default function Home() {
               <a href="#sona-masoori-products" className="btn-primary">
                 <ShoppingBag className="w-4 h-4" aria-hidden="true" /> Shop Now
               </a>
-              {heroProduct && (
-                <Link to={`/products/${heroProduct.id}`} className="btn-outline">
-                  View Product
-                </Link>
-              )}
             </div>
           </motion.div>
 

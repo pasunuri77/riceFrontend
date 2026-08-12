@@ -5,7 +5,6 @@ import { ShoppingCart, Minus, Plus, Truck, ShieldCheck, RotateCcw, ZoomIn, Packa
 import productApi from '../../api/productApi'
 import ProductCard from '../../components/product/ProductCard'
 import ProductImage from '../../components/product/ProductImage'
-import RatingStars from '../../components/product/RatingStars'
 import StockBadge, { OfferBadge } from '../../components/product/StockBadge'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
@@ -16,6 +15,8 @@ import { safeImageUrl } from '../../utils/sanitize'
 import { useCart } from '../../context/CartContext'
 import { PackageSearch } from 'lucide-react'
 import { TextSkeleton } from '../../components/ui/Skeleton'
+
+const STOCK_FIELD = { 1: 'stock1Kg', 5: 'stock5Kg', 10: 'stock10Kg' }
 
 export default function ProductDetails() {
   const { id } = useParams()
@@ -39,6 +40,7 @@ export default function ProductDetails() {
       setLoading(false)
       if (p) {
         productApi.listRelated(p.category, p.id).then(setRelated).catch(() => setRelated([]))
+        productApi.logEvent(p.id, 'view')
       }
     }).catch(() => {
       setProduct(null)
@@ -68,20 +70,24 @@ export default function ProductDetails() {
     return <EmptyState icon={PackageSearch} title="Product not found" subtitle="This rice product may have been removed." actionLabel="Back to Shop" actionTo="/products" />
   }
 
-  // Rice ships as pre-packed bags, not loose kg - the backend only tracks one
-  // combined kg stock pool today (no independent per-bag-size inventory), so
-  // "bags available" for the selected pack size is derived from that shared
-  // pool rather than a real independent count. See BACKEND_TODO for what a
-  // true per-variant inventory model would need.
-  const availableBags = Math.max(0, Math.floor(product.stock / weight))
+  // Rice ships as pre-packed bags, not loose kg - each bag size now has its own
+  // real, independent stock column on the backend (stock1Kg/stock5Kg/stock10Kg),
+  // so this is the actual count for the selected pack size, not derived from a
+  // shared pool.
+  const availableBags = Math.max(0, product[STOCK_FIELD[weight]] ?? 0)
   const maxQty = Math.max(1, availableBags)
   const pricePerBag = product.pricePerKg * weight
   const mrpPerBag = product.mrp * weight
   const total = pricePerBag * qty
   const outOfStock = availableBags <= 0
 
-  const buyNow = () => {
+  const handleAddToCart = () => {
     addToCart(product, weight, qty)
+    productApi.logEvent(product.id, 'add-to-cart')
+  }
+
+  const buyNow = () => {
+    handleAddToCart()
     navigate('/cart')
   }
 
@@ -110,7 +116,6 @@ export default function ProductDetails() {
           <div className="flex gap-2 mb-2">{product.badges.map((b) => <OfferBadge key={b} label={b} />)}</div>
           <p className="text-primary-600 font-bold text-sm uppercase tracking-wide">{product.brand}</p>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-ink mt-1">{product.name}</h1>
-          <div className="mt-2"><RatingStars rating={product.rating} reviews={product.reviews} size="w-4 h-4" /></div>
 
           <div className="flex items-center gap-3 mt-4">
             <span className="text-3xl font-extrabold font-display text-ink">{formatINR(pricePerBag)}</span>
@@ -164,7 +169,7 @@ export default function ProductDetails() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => addToCart(product, weight, qty)} disabled={outOfStock} className="btn-primary flex-1"><ShoppingCart className="w-4 h-4" /> Add to Cart</button>
+              <button onClick={handleAddToCart} disabled={outOfStock} className="btn-primary flex-1"><ShoppingCart className="w-4 h-4" /> Add to Cart</button>
               <button onClick={buyNow} disabled={outOfStock} className="btn-secondary flex-1">Buy Now</button>
             </div>
           </div>
@@ -209,7 +214,7 @@ export default function ProductDetails() {
           <p className="text-[11px] text-ink/40">Total</p>
           <p className="font-extrabold text-primary-700 truncate">{formatINR(total)}</p>
         </div>
-        <button onClick={() => addToCart(product, weight, qty)} disabled={outOfStock} className="btn-primary flex-1 justify-center">
+        <button onClick={handleAddToCart} disabled={outOfStock} className="btn-primary flex-1 justify-center">
           <ShoppingCart className="w-4 h-4" aria-hidden="true" /> {outOfStock ? 'Out of Stock' : 'Add to Cart'}
         </button>
       </div>

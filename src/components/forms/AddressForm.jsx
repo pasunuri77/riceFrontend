@@ -1,10 +1,13 @@
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { INDIAN_STATES } from '../../data/states'
 import FormField from '../ui/FormField'
 import SubmitButton from '../ui/SubmitButton'
 import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
+import deliveryApi from '../../api/deliveryApi'
 
 // Address Details fields (and their labels/order/validation) are kept identical
 // to the Address Details section on the Register page - same 6 fields, same
@@ -61,12 +64,31 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
   const { onChange: onMobileChange, ...mobileField } = register('mobile')
   const { onChange: onAltMobileChange, ...altMobileField } = register('altMobile')
   const { onChange: onPincodeChange, ...pincodeField } = register('pincode')
+  const pincode = watch('pincode')
 
   // Same digits-only, length-capped pattern as Register's PIN Code field.
   const sanitizePincodeInput = (e) => {
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6)
     onPincodeChange(e)
   }
+
+  // Informational only, never blocks saving the address - matches how this was
+  // always described (a serviceability hint, not a hard gate). Debounced so a
+  // real backend call only fires once the pincode is complete and settled.
+  const [serviceability, setServiceability] = useState(null) // null | 'checking' | { serviceable }
+  useEffect(() => {
+    if (!/^\d{6}$/.test(pincode || '')) {
+      setServiceability(null)
+      return undefined
+    }
+    setServiceability('checking')
+    const t = setTimeout(() => {
+      deliveryApi.check(pincode)
+        .then((res) => setServiceability(res))
+        .catch(() => setServiceability(null))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [pincode])
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
@@ -138,6 +160,13 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
               className="input-field"
               aria-invalid={!!errors.pincode}
             />
+            {serviceability === 'checking' ? (
+              <p className="flex items-center gap-1.5 text-xs text-ink/40 mt-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking delivery availability...</p>
+            ) : serviceability?.serviceable ? (
+              <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> We deliver to this area</p>
+            ) : serviceability && !serviceability.serviceable ? (
+              <p className="flex items-center gap-1.5 text-xs text-amber-600 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> We may not deliver here yet - you can still save this address</p>
+            ) : null}
           </FormField>
           <FormField label="House Number / Tower / Block" error={errors.flat?.message} hint="House number helps with doorstep delivery">
             <input {...register('flat')} placeholder="Enter house number, tower or block" className="input-field" aria-invalid={!!errors.flat} />

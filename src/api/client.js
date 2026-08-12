@@ -105,3 +105,39 @@ export const http = {
   patch: (path, body) => request(path, { method: 'PATCH', body }),
   delete: (path) => request(path, { method: 'DELETE' }),
 }
+
+// Separate from `request()` because file uploads use multipart/form-data, not
+// JSON - the browser must set its own Content-Type (with the multipart
+// boundary), so we can't reuse the same fixed 'application/json' header or
+// JSON.stringify the body. Mirrors request()'s auth/error handling otherwise.
+export async function uploadFile(path, file) {
+  const headers = {}
+  const token = getToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  let res
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData })
+  } catch (networkErr) {
+    throw new ApiError('Unable to reach the server. Check your connection and try again.', 0, null)
+  }
+
+  const isJson = res.headers.get('content-type')?.includes('application/json')
+  const data = isJson ? await res.json() : null
+
+  if (!res.ok) {
+    if (token && (res.status === 401 || res.status === 500)) {
+      setToken(null)
+      window.dispatchEvent(new Event('auth:invalid'))
+    }
+    const message = res.status >= 500
+      ? 'Something went wrong on our end. Please try again shortly.'
+      : (data?.message || res.statusText || 'Upload failed')
+    throw new ApiError(message, res.status, data)
+  }
+
+  return data
+}

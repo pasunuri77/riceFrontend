@@ -1,4 +1,4 @@
-import { http } from './client'
+import { http, uploadFile } from './client'
 
 /** Maps to Spring Boot: GET/POST/PUT/DELETE /api/products (admin write endpoints require auth) */
 const productApi = {
@@ -15,6 +15,13 @@ const productApi = {
   update: (id, payload) => http.put(`/api/products/${id}`, payload),
 
   remove: (id) => http.delete(`/api/products/${id}`),
+
+  // Fire-and-forget: a failed event log shouldn't ever break browsing/cart flows.
+  logEvent: (id, type) => http.post(`/api/products/${id}/events`, { type }).catch(() => {}),
+
+  getAnalytics: (id) => http.get(`/api/admin/products/${id}/analytics`),
+
+  uploadImage: (file) => uploadFile('/api/admin/products/upload-image', file),
 }
 
 export default productApi
