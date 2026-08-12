@@ -15,7 +15,7 @@ import orderApi from '../../api/orderApi'
 const FILTERS = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered']
 
 const itemNames = (o) => (o.items?.length ? o.items.map((i) => i.name).join(', ') : o.riceName)
-const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${i.weight}kg x${i.qty}`).join(', ') : o.quantity)
+const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${i.weight}kg Bag x${i.qty}`).join(', ') : o.quantity)
 
 export default function Orders() {
   const [ordersData, setOrdersData] = useState([])

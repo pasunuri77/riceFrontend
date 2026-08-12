@@ -19,7 +19,7 @@ import customerApi from '../../api/customerApi'
 import orderApi from '../../api/orderApi'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 
-const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg x${i.qty})`).join(', ') : o.riceName)
+const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg Bag x${i.qty})`).join(', ') : o.riceName)
 
 const PAGE_SIZE = 8
 const MODAL_STAT_SCALE = ['text-lg', 'text-base', 'text-sm']

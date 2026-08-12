@@ -40,6 +40,7 @@ const AdminCustomers = lazy(() => import('./pages/Admin/Customers'))
 const AdminOrders = lazy(() => import('./pages/Admin/Orders'))
 const AdminCoupons = lazy(() => import('./pages/Admin/Coupons'))
 const AdminReports = lazy(() => import('./pages/Admin/Reports'))
+const AdminDeliveryTax = lazy(() => import('./pages/Admin/DeliveryTax'))
 const AdminSettings = lazy(() => import('./pages/Admin/Settings'))
 
 const NotFound = lazy(() => import('./pages/System/NotFound'))
@@ -114,6 +115,7 @@ export default function App() {
             <Route path="orders" element={<AdminOrders />} />
             <Route path="coupons" element={<AdminCoupons />} />
             <Route path="reports" element={<AdminReports />} />
+            <Route path="delivery-tax" element={<AdminDeliveryTax />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

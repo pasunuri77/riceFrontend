@@ -12,14 +12,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 
-const TABS = ['Admin Profile', 'Store Information', 'Delivery & Tax', 'Business Hours']
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-
-const profileSchema = z.object({
-  fullName: z.string().min(1, 'Full name is required'),
-  email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
-})
+const TABS = ['Admin Profile', 'Store Information']
 
 const defaultSettings = {
   storeName: 'RiceBazaar',
@@ -27,32 +20,18 @@ const defaultSettings = {
   phone: '',
   email: '',
   currency: 'INR',
-  deliveryCharge: 0,
-  freeDeliveryThreshold: 0,
-  taxPercentage: 0,
-  businessHours: DAYS.reduce((hours, day) => ({
-    ...hours,
-    [day]: { open: '09:00', close: '18:00', closed: false },
-  }), {}),
 }
 
-function normalizeSettings(data) {
-  return {
-    ...defaultSettings,
-    ...data,
-    deliveryCharge: Number(data?.deliveryCharge ?? defaultSettings.deliveryCharge),
-    freeDeliveryThreshold: Number(data?.freeDeliveryThreshold ?? defaultSettings.freeDeliveryThreshold),
-    taxPercentage: Number(data?.taxPercentage ?? defaultSettings.taxPercentage),
-    businessHours: {
-      ...defaultSettings.businessHours,
-      ...(data?.businessHours || {}),
-    },
-  }
-}
+const profileSchema = z.object({
+  fullName: z.string().min(1, 'Full name is required'),
+  email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
+  mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
+})
 
 export default function AdminSettings() {
   const [tab, setTab] = useState('Admin Profile')
   const [settings, setSettings] = useState(defaultSettings)
+  const [full, setFull] = useState(null) // full settings object, so saving here doesn't drop fields this page doesn't own (delivery/tax)
   const [loadingSettings, setLoadingSettings] = useState(true)
   const [savingSettings, setSavingSettings] = useState(false)
   const { user, updateAdminProfile } = useAuth()
@@ -81,29 +60,16 @@ export default function AdminSettings() {
 
   useEffect(() => {
     settingsApi.getAdmin()
-      .then((data) => setSettings(normalizeSettings(data)))
+      .then((data) => {
+        setFull(data)
+        setSettings({ ...defaultSettings, ...data })
+      })
       .catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to load store settings', 'error'))
       .finally(() => setLoadingSettings(false))
   }, [showToast])
 
   const updateSettingsField = (key) => (e) => {
-    const numericFields = ['deliveryCharge', 'freeDeliveryThreshold', 'taxPercentage']
-    const value = numericFields.includes(key) ? Number(e.target.value) : e.target.value
-    setSettings((current) => ({ ...current, [key]: value }))
-  }
-
-  const updateBusinessHour = (day, key) => (e) => {
-    const value = key === 'closed' ? e.target.checked : e.target.value
-    setSettings((current) => ({
-      ...current,
-      businessHours: {
-        ...current.businessHours,
-        [day]: {
-          ...current.businessHours[day],
-          [key]: value,
-        },
-      },
-    }))
+    setSettings((current) => ({ ...current, [key]: e.target.value }))
   }
 
   const saveProfile = async (data) => {
@@ -119,9 +85,9 @@ export default function AdminSettings() {
     e.preventDefault()
     setSavingSettings(true)
     try {
-      const updated = await settingsApi.update(settings)
-      setSettings(normalizeSettings(updated))
-      window.dispatchEvent(new Event('store-settings:saved'))
+      const updated = await settingsApi.update({ ...full, ...settings })
+      setFull(updated)
+      setSettings({ ...defaultSettings, ...updated })
       showToast('Store settings saved', 'success')
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to save store settings', 'error')
@@ -202,38 +168,6 @@ export default function AdminSettings() {
               <div><label className="label-field">Email</label><input value={settings.email} onChange={updateSettingsField('email')} placeholder="Enter support email" type="email" className="input-field" disabled={loadingSettings} /></div>
             </div>
             <button className="btn-primary" disabled={savingSettings || loadingSettings}>{savingSettings ? 'Saving...' : 'Save Changes'}</button>
-          </form>
-        )}
-
-        {tab === 'Delivery & Tax' && (
-          <form onSubmit={saveSettings} className="space-y-4">
-            <div><label className="label-field">Delivery Charges (₹)</label><input min="0" type="number" value={settings.deliveryCharge} onChange={updateSettingsField('deliveryCharge')} placeholder="0" className="input-field" disabled={loadingSettings} /></div>
-            <div><label className="label-field">Free Delivery Above (₹)</label><input min="0" type="number" value={settings.freeDeliveryThreshold} onChange={updateSettingsField('freeDeliveryThreshold')} placeholder="0" className="input-field" disabled={loadingSettings} /></div>
-            <div><label className="label-field">Tax Percentage (%)</label><input min="0" type="number" value={settings.taxPercentage} onChange={updateSettingsField('taxPercentage')} placeholder="0" className="input-field" disabled={loadingSettings} /></div>
-            <button className="btn-primary" disabled={savingSettings || loadingSettings}>{savingSettings ? 'Saving...' : 'Save Changes'}</button>
-          </form>
-        )}
-
-        {tab === 'Business Hours' && (
-          <form onSubmit={saveSettings} className="space-y-2">
-            {DAYS.map((d) => {
-              const hours = settings.businessHours[d] || defaultSettings.businessHours[d]
-              return (
-                <div key={d} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-2 border-b border-black/5 last:border-0">
-                  <span className="text-sm font-medium w-28">{d}</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="flex items-center gap-2 text-xs text-ink/60">
-                      <input type="checkbox" checked={Boolean(hours.closed)} onChange={updateBusinessHour(d, 'closed')} disabled={loadingSettings} />
-                      Closed
-                    </label>
-                    <input type="time" value={hours.open || ''} onChange={updateBusinessHour(d, 'open')} className="input-field !w-32 py-1.5" disabled={loadingSettings || hours.closed} />
-                    <span className="text-ink/40 text-xs">to</span>
-                    <input type="time" value={hours.close || ''} onChange={updateBusinessHour(d, 'close')} className="input-field !w-32 py-1.5" disabled={loadingSettings || hours.closed} />
-                  </div>
-                </div>
-              )
-            })}
-            <button className="btn-primary mt-4" disabled={savingSettings || loadingSettings}>{savingSettings ? 'Saving...' : 'Save Hours'}</button>
           </form>
         )}
       </div>

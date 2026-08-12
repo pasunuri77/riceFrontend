@@ -3,17 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bell, CheckCheck, Trash2, X, AlertCircle,
-  Package, PackageCheck, PackagePlus, Truck, CheckCircle2, XCircle,
-  CreditCard, AlertTriangle, RotateCcw, Tag, Percent, User, ShieldCheck,
-  LogIn, ClipboardList, TrendingUp, Users, Star,
+  Package, PackageCheck, Truck, CheckCircle2, XCircle,
+  CreditCard, AlertTriangle, RotateCcw, User, ClipboardList, Users,
 } from 'lucide-react'
 import { useNotifications } from '../../context/NotificationContext'
 import { useDropdown } from '../../hooks/useDropdown'
 
 const ICONS = {
-  Package, PackageCheck, PackagePlus, Truck, CheckCircle2, XCircle,
-  CreditCard, AlertTriangle, RotateCcw, Tag, Percent, User, ShieldCheck,
-  LogIn, ClipboardList, TrendingUp, Users, Star,
+  Package, PackageCheck, Truck, CheckCircle2, XCircle,
+  CreditCard, AlertTriangle, RotateCcw, User, ClipboardList, Users,
 }
 
 // Left accent + icon tint by priority - Critical/High notifications need to read as

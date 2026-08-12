@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Search, Home, ShoppingBag, ShoppingCart, User, LayoutDashboard, Package, Users, ClipboardList, Tag, BarChart3, Settings, CornerDownLeft } from 'lucide-react'
+import { Search, Home, ShoppingBag, ShoppingCart, User, LayoutDashboard, Package, Users, ClipboardList, Tag, BarChart3, Settings, Truck, CornerDownLeft } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import useHomeProducts from '../../hooks/useHomeProducts'
 
@@ -25,6 +25,7 @@ const ADMIN_COMMANDS = [
   { id: 'admin-orders', label: 'Manage Orders', to: '/admin/orders', icon: ClipboardList },
   { id: 'admin-coupons', label: 'Manage Coupons', to: '/admin/coupons', icon: Tag },
   { id: 'admin-reports', label: 'Reports', to: '/admin/reports', icon: BarChart3 },
+  { id: 'admin-delivery-tax', label: 'Delivery & Tax', to: '/admin/delivery-tax', icon: Truck },
   { id: 'admin-settings', label: 'Store Settings', to: '/admin/settings', icon: Settings },
 ]
 

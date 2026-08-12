@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,28 +21,22 @@ import { RowSkeleton } from '../../components/ui/Skeleton'
 import { formatINR } from '../../utils/format'
 import { getStockStatus } from '../../utils/stock'
 import { useToast } from '../../context/ToastContext'
-import { useNotifications } from '../../context/NotificationContext'
 import { FEATURED_BRAND } from '../../hooks/useHomeProducts'
 import productApi from '../../api/productApi'
-import categoryApi from '../../api/categoryApi'
-import { ORIGIN_STATES } from '../../data/states'
 
 const PAGE_SIZE = 8
 const DESCRIPTION_MAX = 500
 
-const emptyForm = (categoriesData) => ({
-  name: '', brand: FEATURED_BRAND, category: categoriesData[0]?.name || '', description: '',
-  origin: ORIGIN_STATES[0], grainLength: '', pricePerKg: '', stock: '', minOrder: 1, maxOrder: 25,
-  weightOptions: '1,5,10,25', image: '', status: 'Active', badges: [],
-})
+// Rice is sold as pre-packed bags, not loose kg - these are the only bag sizes
+// admin can offer. `stock` stays a single shared kg pool on the backend (no
+// per-bag-size inventory exists there - see BACKEND_TODO), so the preview
+// below just shows how many bags of each selected size that pool works out to.
+const WEIGHT_OPTIONS = [1, 5, 10]
 
-// The homepage's "Today's Offers" section (and the Best Seller/Organic labels
-// everywhere else) are driven entirely by this real, admin-editable `badges`
-// list on the product - checking "Limited Offer" here is what puts a product
-// in Today's Offers. There's no separate priority/ordering field yet (see
-// BACKEND_TODO), so Today's Offers currently just shows whichever matching
-// products the API returns, capped to 4.
-const BADGE_OPTIONS = ['Best Seller', 'New Arrival', 'Limited Offer', 'Organic']
+const emptyForm = () => ({
+  name: '', description: '', pricePerKg: '', bags1: '', bags5: '', bags10: '',
+  weightOptions: WEIGHT_OPTIONS, image: '', status: 'Active',
+})
 
 const COLUMNS = [
   { key: 'name', label: 'Rice Name', sortField: 'name' },
@@ -54,33 +48,21 @@ const COLUMNS = [
   { key: 'status', label: 'Status' },
 ]
 
-const productSchema = z
-  .object({
-    name: z.string().min(1, 'Rice name is required'),
-    brand: z.string().min(1, 'Brand is required'),
-    category: z.string().min(1, 'Category is required'),
-    description: z.string().max(DESCRIPTION_MAX, `Description must be under ${DESCRIPTION_MAX} characters`).optional(),
-    origin: z.string().min(1, 'Origin state is required'),
-    grainLength: z.string().optional(),
-    pricePerKg: z.coerce.number({ invalid_type_error: 'Enter a valid price' }).positive('Price must be greater than 0'),
-    stock: z.coerce.number({ invalid_type_error: 'Enter a valid stock quantity' }).int('Stock must be a whole number').min(0, 'Stock cannot be negative'),
-    minOrder: z.coerce.number({ invalid_type_error: 'Enter a valid quantity' }).int().positive('Minimum order must be at least 1'),
-    maxOrder: z.coerce.number({ invalid_type_error: 'Enter a valid quantity' }).int().positive('Maximum order must be at least 1'),
-    weightOptions: z.string().min(1, 'Enter at least one weight option'),
-    image: z.string().optional(),
-    status: z.string(),
-    badges: z.array(z.string()).default([]),
-  })
-  .refine((data) => data.maxOrder >= data.minOrder, {
-    message: 'Maximum order must be greater than or equal to minimum order',
-    path: ['maxOrder'],
-  })
+const productSchema = z.object({
+  name: z.string().min(1, 'Rice name is required'),
+  description: z.string().max(DESCRIPTION_MAX, `Description must be under ${DESCRIPTION_MAX} characters`).optional(),
+  pricePerKg: z.coerce.number({ invalid_type_error: 'Enter a valid price' }).positive('Price must be greater than 0'),
+  bags1: z.coerce.number({ invalid_type_error: 'Enter a valid bag count' }).int('Must be a whole number').min(0, 'Cannot be negative').optional(),
+  bags5: z.coerce.number({ invalid_type_error: 'Enter a valid bag count' }).int('Must be a whole number').min(0, 'Cannot be negative').optional(),
+  bags10: z.coerce.number({ invalid_type_error: 'Enter a valid bag count' }).int('Must be a whole number').min(0, 'Cannot be negative').optional(),
+  weightOptions: z.array(z.number()).min(1, 'Select at least one bag size'),
+  image: z.string().optional(),
+  status: z.string(),
+})
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([])
-  const [categoriesData, setCategoriesData] = useState([])
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sort, setSort] = useState({ key: null, dir: 'asc' })
   const [page, setPage] = useState(1)
@@ -93,7 +75,6 @@ export default function AdminProducts() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const { showToast } = useToast()
-  const { notify } = useNotifications()
 
   const {
     register,
@@ -105,14 +86,36 @@ export default function AdminProducts() {
   } = useForm({
     resolver: zodResolver(productSchema),
     mode: 'onTouched',
-    defaultValues: emptyForm([]),
+    defaultValues: emptyForm(),
   })
 
   const description = watch('description')
   const image = watch('image')
-  const badges = watch('badges') || []
-  const toggleBadge = (label) => {
-    setValue('badges', badges.includes(label) ? badges.filter((b) => b !== label) : [...badges, label], { shouldDirty: true })
+  const weightOptions = watch('weightOptions') || []
+  const toggleWeight = (w) => {
+    setValue(
+      'weightOptions',
+      weightOptions.includes(w) ? weightOptions.filter((x) => x !== w) : [...weightOptions, w].sort((a, b) => a - b),
+      { shouldDirty: true, shouldValidate: true }
+    )
+  }
+
+  // The backend only stores ONE shared stock number in kg per product - there's
+  // no independent per-bag-size inventory column to save three separate counts
+  // into (see BACKEND_TODO). Rather than picking one box as "the real one" and
+  // graying out the rest, every box stays editable: whichever one you type into
+  // becomes the source of truth for that instant, and the other two are
+  // recalculated from that same shared pool via a ref (not a watched field, so
+  // typing doesn't re-render the form or fight your cursor). At submit time the
+  // ref's value - not any single box's possibly-stale display value - is what
+  // actually gets sent as `stock`, so there's no drift from rounding.
+  const stockKgRef = useRef(0)
+  const setFromBags = (weight, rawValue) => {
+    const kg = Math.max(0, Number(rawValue) || 0) * weight
+    stockKgRef.current = kg
+    WEIGHT_OPTIONS.forEach((w) => {
+      if (w !== weight) setValue(`bags${w}`, Math.floor(kg / w))
+    })
   }
 
   // The storefront only carries FEATURED_BRAND right now - the admin catalogue is
@@ -127,15 +130,11 @@ export default function AdminProducts() {
     .catch(() => setProducts([]))
 
   useEffect(() => {
-    Promise.all([
-      loadProducts(),
-      categoryApi.list().then(setCategoriesData).catch(() => setCategoriesData([])),
-    ]).finally(() => setLoading(false))
+    loadProducts().finally(() => setLoading(false))
   }, [])
 
   const filtered = useMemo(() => {
     let list = products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.brand.toLowerCase().includes(search.toLowerCase()))
-    if (categoryFilter) list = list.filter((p) => p.category === categoryFilter)
     if (statusFilter) list = list.filter((p) => p.status === statusFilter)
     if (sort.key) {
       const field = COLUMNS.find((c) => c.key === sort.key)?.sortField
@@ -148,7 +147,7 @@ export default function AdminProducts() {
       })
     }
     return list
-  }, [products, search, categoryFilter, statusFilter, sort])
+  }, [products, search, statusFilter, sort])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -164,20 +163,32 @@ export default function AdminProducts() {
   })
   const clearSelection = () => setSelected(new Set())
 
-  const openAdd = () => { setEditing(null); reset(emptyForm(categoriesData)); setModalOpen(true) }
+  const openAdd = () => {
+    setEditing(null)
+    stockKgRef.current = 0
+    reset(emptyForm())
+    setModalOpen(true)
+  }
   const openEdit = (p) => {
     setEditing(p)
-    reset({ ...p, weightOptions: p.weightOptions.join(',') })
+    const options = p.weightOptions?.length ? p.weightOptions : WEIGHT_OPTIONS
+    const stock = p.stock || 0
+    stockKgRef.current = stock
+    reset({
+      ...p,
+      weightOptions: options,
+      bags1: Math.floor(stock / 1),
+      bags5: Math.floor(stock / 5),
+      bags10: Math.floor(stock / 10),
+    })
     setModalOpen(true)
   }
 
   const confirmDeleteOne = () => {
     setDeleting(true)
-    const deletedName = confirmDelete.name
     productApi.remove(confirmDelete.id).then(() => {
       loadProducts()
       showToast('Product deleted', 'success')
-      notify('ADMIN_PRODUCT_DELETED', { productName: deletedName })
       setConfirmDelete(null)
     }).catch(() => showToast('Failed to delete product', 'error'))
       .finally(() => setDeleting(false))
@@ -193,27 +204,31 @@ export default function AdminProducts() {
         setConfirmBulkDelete(false)
         if (failed > 0) showToast(`${results.length - failed} deleted, ${failed} failed`, 'error')
         else showToast(`${results.length} product(s) deleted`, 'success')
-        const succeeded = results.length - failed
-        if (succeeded > 0) notify('ADMIN_PRODUCT_DELETED', { productName: `${succeeded} products` })
       })
       .finally(() => setBulkDeleting(false))
   }
 
-  const onSubmitProduct = (data) => {
+  const onSubmitProduct = ({ bags1, bags5, bags10, ...data }) => {
     const payload = {
       ...data,
+      stock: stockKgRef.current,
       mrp: data.pricePerKg * 1.12,
-      weightOptions: data.weightOptions.split(',').map((w) => Number(w.trim())).filter(Boolean),
       image: data.image || '',
-      rating: editing?.rating || 0,
-      reviews: editing?.reviews || 0,
-      badges: data.badges || [],
+      // brand is the one exception left outside the form: it's not a display
+      // label, it's the real join key useHomeProducts.js filters the entire
+      // storefront by - a product saved without it would succeed but then be
+      // invisible everywhere, including this page's own product list. Every
+      // other ProductRequest field this form doesn't collect (category,
+      // origin, grainLength, minOrder, maxOrder, badges) is intentionally
+      // left unsent - the backend has no partial-update semantics (apply()
+      // always overwrites with whatever's in the request), so omitted here
+      // means null on save, matching what the form actually manages.
+      brand: FEATURED_BRAND,
     }
     const request = editing ? productApi.update(editing.id, payload) : productApi.create(payload)
     return request.then(() => {
       loadProducts()
       showToast(editing ? 'Product updated' : 'Product added', 'success')
-      notify(editing ? 'ADMIN_PRODUCT_UPDATED' : 'ADMIN_PRODUCT_ADDED', { productName: data.name })
       setModalOpen(false)
     }).catch(() => showToast(editing ? 'Failed to update product' : 'Failed to add product', 'error'))
   }
@@ -231,10 +246,6 @@ export default function AdminProducts() {
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search products..." className="max-w-sm" />
-        <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1) }} className="input-field !w-auto text-sm">
-          <option value="">All Categories</option>
-          {categoriesData.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-        </select>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="input-field !w-auto text-sm">
           <option value="">All Statuses</option>
           <option>Active</option>
@@ -304,49 +315,49 @@ export default function AdminProducts() {
           <FormField label="Rice Name" error={errors.name?.message}>
             <input {...register('name')} autoFocus className="input-field" aria-invalid={!!errors.name} />
           </FormField>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <FormField label="Brand" hint="The storefront currently carries one brand only.">
-              <select {...register('brand')} className="input-field">
-                <option value={FEATURED_BRAND}>{FEATURED_BRAND}</option>
-              </select>
-            </FormField>
-            <FormField label="Rice Category" error={errors.category?.message}>
-              <select {...register('category')} className="input-field" aria-invalid={!!errors.category}>
-                {categoriesData.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-              </select>
-            </FormField>
-          </div>
           <FormField label="Description" error={errors.description?.message} maxLength={DESCRIPTION_MAX} currentLength={description?.length}>
             <textarea {...register('description')} rows={2} className="input-field" aria-invalid={!!errors.description} />
           </FormField>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <FormField label="Origin State" error={errors.origin?.message}>
-              <select {...register('origin')} className="input-field" aria-invalid={!!errors.origin}>
-                {ORIGIN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </FormField>
-            <FormField label="Grain Length">
-              <input {...register('grainLength')} className="input-field" />
-            </FormField>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <FormField label="Base Price/KG (₹)" error={errors.pricePerKg?.message}>
-              <input {...register('pricePerKg')} type="number" step="0.01" className="input-field" aria-invalid={!!errors.pricePerKg} />
-            </FormField>
-            <FormField label="Available Stock (kg)" error={errors.stock?.message}>
-              <input {...register('stock')} type="number" className="input-field" aria-invalid={!!errors.stock} />
-            </FormField>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <FormField label="Minimum Order Qty" error={errors.minOrder?.message}>
-              <input {...register('minOrder')} type="number" className="input-field" aria-invalid={!!errors.minOrder} />
-            </FormField>
-            <FormField label="Maximum Order Qty" error={errors.maxOrder?.message}>
-              <input {...register('maxOrder')} type="number" className="input-field" aria-invalid={!!errors.maxOrder} />
-            </FormField>
-          </div>
-          <FormField label="Weight Options (comma separated, kg)" error={errors.weightOptions?.message}>
-            <input {...register('weightOptions')} className="input-field" aria-invalid={!!errors.weightOptions} />
+          <FormField label="Base Price/KG (₹)" error={errors.pricePerKg?.message}>
+            <input {...register('pricePerKg')} type="number" step="0.01" className="input-field" aria-invalid={!!errors.pricePerKg} />
+          </FormField>
+          <FormField label="Bag Sizes Sold" error={errors.weightOptions?.message}>
+            <div className="flex flex-wrap gap-2">
+              {WEIGHT_OPTIONS.map((w) => {
+                const active = weightOptions.includes(w)
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => toggleWeight(w)}
+                    aria-pressed={active}
+                    className={`badge cursor-pointer transition ${active ? 'bg-primary-500 text-white' : 'bg-black/5 text-ink/60 hover:bg-black/10'}`}
+                  >
+                    {w} kg Bag
+                  </button>
+                )
+              })}
+            </div>
+          </FormField>
+          <FormField
+            label="Available Stock (bags)"
+            hint="All sizes share one stock pool - edit any box and the others update to match the same underlying stock."
+          >
+            <div className="grid sm:grid-cols-3 gap-3">
+              {[...weightOptions].sort((a, b) => a - b).map((w) => (
+                <div key={w}>
+                  <input
+                    {...register(`bags${w}`, { onChange: (e) => setFromBags(w, e.target.value) })}
+                    type="number"
+                    className="input-field"
+                    aria-invalid={!!errors[`bags${w}`]}
+                    aria-label={`${w} kg bags available`}
+                  />
+                  {errors[`bags${w}`] && <p className="text-xs text-red-500 mt-1 font-medium">{errors[`bags${w}`].message}</p>}
+                  <p className="text-[11px] text-ink/40 mt-1">{w} kg bags</p>
+                </div>
+              ))}
+            </div>
           </FormField>
           <FormField label="Rice Image">
             <ImageDropzone value={image || ''} onChange={(url) => setValue('image', url, { shouldValidate: true })} />
@@ -355,25 +366,6 @@ export default function AdminProducts() {
             <select {...register('status')} className="input-field">
               <option>Active</option><option>Inactive</option>
             </select>
-          </FormField>
-
-          <FormField label="Promotional Badges" hint="Shown on this product's storefront card. Limited Offer also puts it in the homepage's Today's Offers section.">
-            <div className="flex flex-wrap gap-2">
-              {BADGE_OPTIONS.map((label) => {
-                const active = badges.includes(label)
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => toggleBadge(label)}
-                    aria-pressed={active}
-                    className={`badge cursor-pointer transition ${active ? 'bg-primary-500 text-white' : 'bg-black/5 text-ink/60 hover:bg-black/10'}`}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
           </FormField>
 
           <div className="rounded-xl border border-dashed border-black/10 p-4 text-xs text-ink/40">

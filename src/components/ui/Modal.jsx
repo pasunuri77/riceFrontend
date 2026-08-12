@@ -9,6 +9,13 @@ export default function Modal({ open, onClose, title, children, maxWidth = 'max-
   const titleId = useId()
   const dialogRef = useRef(null)
   const lastFocused = useRef(null)
+  // Call sites pass a fresh `() => ...` closure every render, so onClose's identity
+  // is not a reliable effect dependency - route through a ref instead of re-running
+  // (and re-stealing focus onto the first focusable element) whenever a parent
+  // re-render happens to produce a new onClose reference, e.g. from typing in a
+  // watched form field.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose })
 
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden'
@@ -26,7 +33,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = 'max-
 
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== 'Tab' || !node) return
@@ -48,7 +55,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = 'max-
       document.removeEventListener('keydown', onKeyDown)
       lastFocused.current?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (typeof document === 'undefined') return null
 

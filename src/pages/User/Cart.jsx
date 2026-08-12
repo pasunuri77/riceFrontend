@@ -71,8 +71,8 @@ export default function Cart() {
                   </Link>
                   <div className="flex-1 min-w-0">
                     <Link to={`/products/${i.id}`} className="text-sm font-semibold truncate block hover:text-primary-600">{i.name}</Link>
-                    <p className="text-xs text-ink/40">{i.brand} • {i.weight} kg pack</p>
-                    <p className="text-sm font-bold text-primary-700 mt-1">{formatINR(i.pricePerKg * i.weight)} <span className="text-xs text-ink/40 font-normal">/ unit</span></p>
+                    <p className="text-xs text-ink/40">{i.brand} • {i.weight} kg Bag</p>
+                    <p className="text-sm font-bold text-primary-700 mt-1">{formatINR(i.pricePerKg * i.weight)} <span className="text-xs text-ink/40 font-normal">/ bag</span></p>
                   </div>
                   <div className="flex items-center border border-black/10 rounded-lg">
                     <button

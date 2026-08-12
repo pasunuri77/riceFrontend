@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, Users, ClipboardList, BarChart3, Settings, Tag } from 'lucide-react'
+import { LayoutDashboard, Package, Users, ClipboardList, BarChart3, Settings, Tag, Truck } from 'lucide-react'
 import DashboardShell from './DashboardShell'
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { to: '/admin/orders', icon: ClipboardList, label: 'Orders' },
   { to: '/admin/coupons', icon: Tag, label: 'Coupons' },
   { to: '/admin/reports', icon: BarChart3, label: 'Reports' },
+  { to: '/admin/delivery-tax', icon: Truck, label: 'Delivery & Tax' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ]
 

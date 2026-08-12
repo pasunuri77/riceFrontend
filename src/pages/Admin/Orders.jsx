@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Eye, Truck } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
@@ -18,7 +18,7 @@ import { useToast } from '../../context/ToastContext'
 import orderApi from '../../api/orderApi'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 
-const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg x${i.qty})`).join(', ') : o.riceName)
+const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg Bag x${i.qty})`).join(', ') : o.riceName)
 
 const PAYMENT_STATUSES = ['Pending', 'Paid']
 const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
@@ -68,10 +68,22 @@ export default function AdminOrders() {
   const [visibleCols, setVisibleCols] = useState({})
   const [bulkStatus, setBulkStatus] = useState(DELIVERY_STATUSES[0])
   const [bulkUpdating, setBulkUpdating] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
     orderApi.listAll().then(setOrdersData).catch(() => setOrdersData([])).finally(() => setLoading(false))
   }, [])
+
+  // Lets a notification (or any other link) deep-link straight into a specific
+  // order's detail modal, e.g. /admin/orders?view=<id>, the same pattern already
+  // used for customers via ?id=.
+  useEffect(() => {
+    const id = searchParams.get('view')
+    if (!id || ordersData.length === 0) return
+    const match = ordersData.find((o) => o.id === id)
+    if (match) setViewing(match)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, ordersData])
 
   const filtered = useMemo(() => {
     let list = ordersData.filter((o) => `${o.id} ${o.customerName} ${o.riceName}`.toLowerCase().includes(search.toLowerCase()))

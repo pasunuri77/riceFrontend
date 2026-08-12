@@ -116,7 +116,7 @@ export default function OrderDetail() {
                     ) : (
                       <p className="text-sm font-semibold truncate">{item.name}</p>
                     )}
-                    {item.weight && <p className="text-xs text-ink/40">{item.weight}kg x {item.qty}</p>}
+                    {item.weight && <p className="text-xs text-ink/40">{item.weight}kg Bag • Qty: {item.qty} bag{item.qty === 1 ? '' : 's'}</p>}
                   </div>
                 </div>
               ))}

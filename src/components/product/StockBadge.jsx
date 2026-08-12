@@ -6,8 +6,8 @@ const STOCK_STYLES = {
   in: { label: 'In Stock', className: 'bg-leaf-100 text-leaf-700' },
 }
 
-export default function StockBadge({ stock }) {
-  const { label, className } = STOCK_STYLES[getStockStatus(stock)]
+export default function StockBadge({ stock, threshold }) {
+  const { label, className } = STOCK_STYLES[getStockStatus(stock, threshold)]
   return <span className={`badge ${className}`}>{label}</span>
 }
 

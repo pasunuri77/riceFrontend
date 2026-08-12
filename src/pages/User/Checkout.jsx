@@ -263,7 +263,7 @@ export default function Checkout() {
                   </Link>
                   <div className="flex-1 min-w-0">
                     <Link to={`/products/${i.id}`} className="text-sm font-semibold truncate block hover:text-primary-600">{i.name}</Link>
-                    <p className="text-xs text-ink/40">{i.weight}kg × {i.qty}</p>
+                    <p className="text-xs text-ink/40">{i.weight}kg Bag • Qty: {i.qty} bag{i.qty === 1 ? '' : 's'}</p>
                   </div>
                   <p className="text-sm font-bold">{formatINR(i.pricePerKg * i.weight * i.qty)}</p>
                 </div>

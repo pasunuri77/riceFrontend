@@ -1,17 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useAuth } from './AuthContext'
 import orderApi from '../api/orderApi'
-import productApi from '../api/productApi'
 import customerApi from '../api/customerApi'
 import { buildNotification } from '../utils/notificationTypes'
-import { LOW_STOCK_THRESHOLD } from '../utils/stock'
 
 const NotificationContext = createContext(null)
 
 const MAX_ITEMS = 60
 const PAGE_SIZE = 8
-const LARGE_ORDER_THRESHOLD = 10000
-const ADMIN_POLL_MS = 45000
+const POLL_MS = 45000
 
 const storageKey = (userId) => `rb_notifications_${userId}`
 
@@ -32,9 +29,9 @@ function persistItems(key, items) {
   }
 }
 
-// Diff a live list of ids against what this admin has already seen, so a fresh
-// poll only reports genuinely NEW rows, never everything that already existed
-// before the admin ever opened the notification bell.
+// Diff a live list of ids against what's already been seen, so a fresh poll only
+// reports genuinely NEW rows, never everything that already existed before the
+// bell was ever opened.
 function diffNewIds(key, currentIds) {
   const raw = localStorage.getItem(key)
   const isFirstRun = raw === null
@@ -45,25 +42,26 @@ function diffNewIds(key, currentIds) {
   return { isFirstRun, newIds }
 }
 
-// Diff stock levels against last-known values, so this only fires the instant
-// a product *crosses* into low/out-of-stock rather than repeating every poll
-// while it stays there.
-function diffStockCrossings(key, products) {
+// Diff each order's delivery status against its last-known value, so this only
+// fires on the instant a status actually *changes* rather than repeating every
+// poll while it sits in the same state. Shared by both the admin poll (watching
+// for cancellations) and the customer poll (watching for processing/shipped/
+// delivered) - same shape, different filter on which transitions matter.
+function diffOrderStatusChanges(key, orders) {
   const raw = localStorage.getItem(key)
   const isFirstRun = raw === null
   const prevMap = isFirstRun ? {} : JSON.parse(raw)
-  const crossings = []
+  const changes = []
   const nextMap = {}
-  products.forEach((p) => {
-    nextMap[p.id] = p.stock
-    const prevStock = prevMap[p.id]
-    if (!isFirstRun && prevStock !== undefined) {
-      if (p.stock === 0 && prevStock > 0) crossings.push({ product: p, kind: 'out' })
-      else if (p.stock > 0 && p.stock < LOW_STOCK_THRESHOLD && prevStock >= LOW_STOCK_THRESHOLD) crossings.push({ product: p, kind: 'low' })
+  orders.forEach((o) => {
+    nextMap[o.id] = o.deliveryStatus
+    const prevStatus = prevMap[o.id]
+    if (!isFirstRun && prevStatus !== undefined && prevStatus !== o.deliveryStatus) {
+      changes.push({ order: o, prevStatus, newStatus: o.deliveryStatus })
     }
   })
   localStorage.setItem(key, JSON.stringify(nextMap))
-  return { isFirstRun, crossings }
+  return { isFirstRun, changes }
 }
 
 export function NotificationProvider({ children }) {
@@ -72,7 +70,6 @@ export function NotificationProvider({ children }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const prevUserId = useRef(undefined)
 
   // Reload from this specific user's slice of storage whenever who's logged in
   // changes - a customer must never see an admin's notifications or vice versa,
@@ -96,62 +93,63 @@ export function NotificationProvider({ children }) {
     setItems((current) => [buildNotification(typeKey, params, { userId: user.id, role: user.role }), ...current].slice(0, MAX_ITEMS))
   }, [user])
 
-  // Any null->user (or userA->userB) transition is a genuine sign-in - fire the
-  // security notification. Guarded so it never fires on page-load hydration of
-  // an already-persisted session (that would spam "New login" on every refresh).
+  // Operational notifications that can't reach this session any other way without
+  // a backend push channel: poll the same list endpoints the app already uses,
+  // and surface only what's genuinely new/changed since last check. Stand-in for
+  // real-time WebSocket/SSE push, which would need a backend change to do properly.
   useEffect(() => {
-    const currentId = user?.id ?? null
-    if (prevUserId.current !== undefined && prevUserId.current !== currentId && user) {
-      notify(user.role === 'admin' ? 'ADMIN_LOGIN' : 'ACCOUNT_LOGIN', {})
-    }
-    prevUserId.current = currentId
-  }, [user?.id, notify])
-
-  // Operational notifications an admin can't get any other way without a backend
-  // push channel: poll the same list endpoints the admin pages already use, and
-  // surface what's new since last check. This is a stand-in for real-time
-  // WebSocket/SSE push, which would need a backend change to do properly.
-  useEffect(() => {
-    if (!user || user.role !== 'admin') return undefined
+    if (!user) return undefined
     let cancelled = false
+    const isAdmin = user.role === 'admin'
 
     const poll = async () => {
       try {
-        const [orders, customers, products] = await Promise.all([
-          orderApi.listAll(), customerApi.list(), productApi.list(),
-        ])
-        if (cancelled) return
+        if (isAdmin) {
+          const [orders, customers] = await Promise.all([orderApi.listAll(), customerApi.list()])
+          if (cancelled) return
 
-        const { isFirstRun: firstOrders, newIds: newOrderIds } = diffNewIds(`rb_seen_orders_${user.id}`, orders.map((o) => o.id))
-        if (!firstOrders) {
-          newOrderIds.forEach((id) => {
-            const order = orders.find((o) => o.id === id)
-            if (!order) return
-            notify('ADMIN_NEW_ORDER', { customerName: order.customerName })
-            if (order.amount >= LARGE_ORDER_THRESHOLD) notify('ADMIN_LARGE_ORDER', { amount: order.amount })
-          })
+          const { isFirstRun: firstOrders, newIds } = diffNewIds(`rb_seen_orders_${user.id}`, orders.map((o) => o.id))
+          if (!firstOrders) {
+            newIds.forEach((id) => {
+              const order = orders.find((o) => o.id === id)
+              if (order) notify('ADMIN_NEW_ORDER', { orderId: order.id, customerName: order.customerName })
+            })
+          }
+
+          const { isFirstRun: firstStatus, changes } = diffOrderStatusChanges(`rb_seen_order_status_${user.id}`, orders)
+          if (!firstStatus) {
+            changes.forEach(({ order, newStatus }) => {
+              if (newStatus === 'Cancelled') notify('ADMIN_ORDER_CANCELLED', { orderId: order.id, customerName: order.customerName })
+            })
+          }
+
+          const { isFirstRun: firstCustomers, newIds: newCustomerIds } = diffNewIds(`rb_seen_customers_${user.id}`, customers.map((c) => c.id))
+          if (!firstCustomers) {
+            newCustomerIds.forEach((id) => {
+              const customer = customers.find((c) => c.id === id)
+              notify('ADMIN_NEW_CUSTOMER', { customerId: id, name: customer?.name })
+            })
+          }
+        } else {
+          const orders = await orderApi.listMine()
+          if (cancelled) return
+
+          const { isFirstRun, changes } = diffOrderStatusChanges(`rb_seen_order_status_${user.id}`, orders)
+          if (!isFirstRun) {
+            changes.forEach(({ order, newStatus }) => {
+              if (newStatus === 'Processing') notify('ORDER_CONFIRMED', { orderId: order.id })
+              else if (newStatus === 'Shipped') notify('ORDER_SHIPPED', { orderId: order.id })
+              else if (newStatus === 'Delivered') notify('ORDER_DELIVERED', { orderId: order.id })
+            })
+          }
         }
-
-        const { isFirstRun: firstCustomers, newIds: newCustomerIds } = diffNewIds(`rb_seen_customers_${user.id}`, customers.map((c) => c.id))
-        if (!firstCustomers) {
-          newCustomerIds.forEach((id) => {
-            const customer = customers.find((c) => c.id === id)
-            notify('ADMIN_NEW_CUSTOMER', { name: customer?.name })
-          })
-        }
-
-        const { crossings } = diffStockCrossings(`rb_seen_stock_${user.id}`, products)
-        crossings.forEach(({ product, kind }) => {
-          if (kind === 'out') notify('ADMIN_OUT_OF_STOCK', { productName: product.name })
-          else notify('ADMIN_LOW_STOCK', { productName: product.name, threshold: LOW_STOCK_THRESHOLD })
-        })
       } catch {
         /* transient poll failure - just try again next interval */
       }
     }
 
     poll()
-    const interval = setInterval(poll, ADMIN_POLL_MS)
+    const interval = setInterval(poll, POLL_MS)
     return () => { cancelled = true; clearInterval(interval) }
   }, [user?.id, user?.role, notify])
 

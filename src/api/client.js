@@ -69,7 +69,15 @@ async function request(path, { method = 'GET', body } = {}, attempt = 0) {
     // A 403 is different: the session is still valid, the caller just lacks permission
     // for this one action - forcing a full logout there would kill a legitimate
     // session over a single denied request, so we leave the token alone.
-    if (token && res.status === 401) {
+    //
+    // A 500 is included here too as a defensive workaround: the backend's
+    // JwtAuthFilter currently throws an uncaught UsernameNotFoundException when a
+    // token's account no longer exists (e.g. deleted, or switching to a fresh
+    // database), which surfaces as a 500 instead of the 401 it should be. Treating
+    // "500 while holding a token" the same as "401 while holding a token" recovers
+    // the same way. The real fix is a try/catch around that lookup on the backend
+    // (see BACKEND_TODO) - this is a frontend safety net, not a replacement for it.
+    if (token && (res.status === 401 || res.status === 500)) {
       setToken(null)
       window.dispatchEvent(new Event('auth:invalid'))
     }

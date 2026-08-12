@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import useLocalStorage from '../hooks/useLocalStorage'
 import { useToast } from './ToastContext'
+import { useAuth } from './AuthContext'
 import settingsApi from '../api/settingsApi'
 import couponApi from '../api/couponApi'
 import { ApiError } from '../api/client'
@@ -25,6 +26,22 @@ export function CartProvider({ children }) {
   const [applyingCoupon, setApplyingCoupon] = useState(false)
   const { showToast } = useToast()
   const { pathname } = useLocation()
+  const { user } = useAuth()
+  const prevUserId = useRef(undefined)
+
+  // A logged-out visitor (or a different account signing in on the same browser)
+  // must never see the previous account's cart - clear it on any observed sign-out
+  // or account switch. Guarded so it never fires on page-load hydration of an
+  // already-persisted session.
+  useEffect(() => {
+    const currentId = user?.id ?? null
+    if (prevUserId.current !== undefined && prevUserId.current !== currentId) {
+      setItems([])
+      setCoupon(null)
+    }
+    prevUserId.current = currentId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const refreshStoreSettings = useCallback(() => {
     return settingsApi.get()
