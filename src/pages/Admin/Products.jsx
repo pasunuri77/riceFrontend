@@ -2,7 +2,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import Modal from '../../components/ui/Modal'
@@ -23,8 +23,6 @@ import { getStockStatus, BAG_LOW_STOCK_THRESHOLD } from '../../utils/stock'
 import { useToast } from '../../context/ToastContext'
 import { FEATURED_BRAND } from '../../hooks/useHomeProducts'
 import productApi from '../../api/productApi'
-import deliveryApi from '../../api/deliveryApi'
-import { ApiError } from '../../api/client'
 
 const PAGE_SIZE = 8
 const DESCRIPTION_MAX = 500
@@ -79,10 +77,6 @@ export default function AdminProducts() {
   const [deleting, setDeleting] = useState(false)
   const [analytics, setAnalytics] = useState(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
-  const [coveragePincodes, setCoveragePincodes] = useState([])
-  const [coverageLoading, setCoverageLoading] = useState(false)
-  const [newCoveragePincode, setNewCoveragePincode] = useState('')
-  const [addingCoverage, setAddingCoverage] = useState(false)
   const { showToast } = useToast()
 
   useEffect(() => {
@@ -93,49 +87,6 @@ export default function AdminProducts() {
       .catch(() => setAnalytics(null))
       .finally(() => setAnalyticsLoading(false))
   }, [editing])
-
-  // Per-product delivery coverage: if a product has zero pincodes configured,
-  // DeliveryService.isProductServiceable treats that as "no restriction" and
-  // allows every serviceable pincode - so an empty list here is a real,
-  // meaningful "unrestricted" state, not just "not loaded yet".
-  useEffect(() => {
-    if (!editing) { setCoveragePincodes([]); return }
-    setCoverageLoading(true)
-    deliveryApi.admin.product.list(editing.id)
-      .then(setCoveragePincodes)
-      .catch(() => setCoveragePincodes([]))
-      .finally(() => setCoverageLoading(false))
-  }, [editing])
-
-  const addCoveragePincode = async (e) => {
-    e.preventDefault()
-    if (!/^\d{6}$/.test(newCoveragePincode)) {
-      showToast('Enter a valid 6-digit pincode', 'error')
-      return
-    }
-    setAddingCoverage(true)
-    try {
-      const updated = await deliveryApi.admin.product.add(editing.id, [newCoveragePincode])
-      setCoveragePincodes(updated)
-      setNewCoveragePincode('')
-      showToast('Pincode added to this product', 'success')
-    } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Failed to add pincode', 'error')
-    } finally {
-      setAddingCoverage(false)
-    }
-  }
-
-  const removeCoveragePincode = async (pincode) => {
-    const prev = coveragePincodes
-    setCoveragePincodes((current) => current.filter((p) => p !== pincode))
-    try {
-      await deliveryApi.admin.product.remove(editing.id, pincode)
-    } catch (err) {
-      setCoveragePincodes(prev)
-      showToast(err instanceof ApiError ? err.message : 'Failed to remove pincode', 'error')
-    }
-  }
 
   const {
     register,
@@ -443,45 +394,6 @@ export default function AdminProducts() {
                     <p className="font-extrabold font-display">{analytics?.counts?.purchase ?? 0}</p>
                     <p className="text-[11px] text-ink/50 mt-0.5">Purchased</p>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {editing && (
-            <div className="rounded-xl border border-black/10 p-4">
-              <p className="font-semibold text-sm text-ink/70 mb-1">Delivery Coverage</p>
-              <p className="text-xs text-ink/40 mb-3">
-                {coveragePincodes.length === 0 && !coverageLoading
-                  ? 'No pincodes restricted for this product - it delivers to every serviceable pincode by default.'
-                  : 'Only these pincodes can order this specific product, on top of the store-wide serviceable list.'}
-              </p>
-              <form onSubmit={addCoveragePincode} className="flex gap-2 mb-3">
-                <input
-                  value={newCoveragePincode}
-                  onChange={(e) => setNewCoveragePincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="6-digit pincode"
-                  className="input-field !w-40 text-sm"
-                />
-                <button type="submit" disabled={addingCoverage} className="btn-outline text-xs px-3 disabled:opacity-60">
-                  <Plus className="w-3.5 h-3.5" /> Add
-                </button>
-              </form>
-              {coverageLoading ? (
-                <p className="text-xs text-ink/40">Loading...</p>
-              ) : coveragePincodes.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {coveragePincodes.map((p) => (
-                    <span key={p} className="badge bg-black/5 text-ink/70 text-[11px] flex items-center gap-1.5">
-                      {p}
-                      <button type="button" onClick={() => removeCoveragePincode(p)} aria-label={`Remove pincode ${p}`} className="hover:text-red-500">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
                 </div>
               )}
             </div>

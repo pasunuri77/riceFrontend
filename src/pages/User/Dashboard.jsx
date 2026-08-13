@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, Clock, CheckCircle2, MapPin, RotateCcw, Truck, UserCog, ArrowRight } from 'lucide-react'
+import { Package, Clock, CheckCircle2, MapPin, ArrowRight } from 'lucide-react'
 import DashboardCard from '../../components/dashboard/DashboardCard'
 import StatusPill from '../../components/ui/StatusPill'
 import PageHeader from '../../components/ui/PageHeader'
@@ -8,13 +8,6 @@ import { TextSkeleton } from '../../components/ui/Skeleton'
 import { useAuth } from '../../context/AuthContext'
 import { formatINR, formatDate } from '../../utils/format'
 import orderApi from '../../api/orderApi'
-
-const QUICK_ACTIONS = [
-  { icon: RotateCcw, label: 'Buy Again', to: '/products' },
-  { icon: Truck, label: 'Track Orders', to: '/dashboard/orders' },
-  { icon: MapPin, label: 'Manage Addresses', to: '/dashboard/addresses' },
-  { icon: UserCog, label: 'Update Profile', to: '/dashboard/profile' },
-]
 
 export default function Dashboard() {
   const { user, addresses } = useAuth()
@@ -38,15 +31,6 @@ export default function Dashboard() {
         <DashboardCard icon={Clock} label="Pending Orders" value={pending} tint="amber" index={1} loading={loading} />
         <DashboardCard icon={CheckCircle2} label="Delivered Orders" value={delivered} tint="leaf" index={2} loading={loading} />
         <DashboardCard icon={MapPin} label="Saved Addresses" value={addresses?.length || 0} tint="blue" index={3} />
-      </div>
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {QUICK_ACTIONS.map((qa) => (
-          <Link key={qa.label} to={qa.to} className="card p-4 flex items-center gap-3 hover:shadow-cardHover hover:-translate-y-0.5 transition-all">
-            <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center"><qa.icon className="w-5 h-5" /></div>
-            <span className="text-sm font-semibold">{qa.label}</span>
-          </Link>
-        ))}
       </div>
 
       <div className="card p-5">

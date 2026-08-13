@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Bell, CheckCheck, Trash2, X, AlertCircle,
+  Bell, AlertCircle,
   Package, PackageCheck, Truck, CheckCircle2, XCircle,
   CreditCard, AlertTriangle, RotateCcw, User, ClipboardList, Users,
 } from 'lucide-react'
@@ -23,21 +23,19 @@ const PRIORITY_STYLES = {
   low: { border: 'border-l-transparent', iconBg: 'bg-black/5 text-ink/50', badge: 'bg-ink/30' },
 }
 
-function timeAgo(iso) {
+// Exact date/time rather than a relative "3 hours ago" - for order status
+// updates (shipped/delivered), knowing precisely when it happened matters
+// more than a fuzzy relative label.
+function exactDate(iso) {
   const date = new Date(iso)
-  const diff = Date.now() - date.getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`
-  const days = Math.floor(hrs / 24)
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
+  return date.toLocaleString(undefined, {
+    day: 'numeric', month: 'short',
+    year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  })
 }
 
-function NotificationRow({ n, onOpen, onRemove, rowRef, onKeyDown }) {
+function NotificationRow({ n, onOpen, rowRef, onKeyDown }) {
   const Icon = ICONS[n.icon] || Bell
   const style = PRIORITY_STYLES[n.priority] || PRIORITY_STYLES.low
 
@@ -49,7 +47,7 @@ function NotificationRow({ n, onOpen, onRemove, rowRef, onKeyDown }) {
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onClick={() => onOpen(n)}
-      className={`group relative flex gap-3 px-4 py-3 border-b border-l-4 border-black/5 last:border-b-0 cursor-pointer outline-none focus-visible:bg-primary-50/70 ${style.border} ${n.isRead ? '' : 'bg-primary-50/40'}`}
+      className={`flex gap-3 px-4 py-3 border-b border-l-4 border-black/5 last:border-b-0 cursor-pointer outline-none focus-visible:bg-primary-50/70 ${style.border} ${n.isRead ? '' : 'bg-primary-50/40'}`}
     >
       <span className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${style.iconBg}`} aria-hidden="true">
         <Icon className="w-4 h-4" />
@@ -60,16 +58,8 @@ function NotificationRow({ n, onOpen, onRemove, rowRef, onKeyDown }) {
           {!n.isRead && <span aria-label="Unread" className={`mt-1 w-2 h-2 rounded-full shrink-0 ${style.badge}`} />}
         </div>
         <p className="text-xs text-ink/60 mt-0.5 line-clamp-2">{n.message}</p>
-        <p className="text-[11px] text-ink/40 mt-1">{timeAgo(n.createdAt)}</p>
+        <p className="text-[11px] text-ink/40 mt-1">{exactDate(n.createdAt)}</p>
       </div>
-      <button
-        onClick={(e) => { e.stopPropagation(); onRemove(n.id) }}
-        aria-label="Delete notification"
-        title="Delete"
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 self-start p-1 rounded hover:bg-red-50 text-ink/30 hover:text-red-500 transition-opacity"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
     </div>
   )
 }
@@ -81,7 +71,7 @@ export default function NotificationBell() {
   const rowRefs = useRef([])
 
   if (!notifications) return null
-  const { items, allCount, unreadCount, loading, error, hasMore, loadMore, retry, markRead, markAllRead, remove, clearAll } = notifications
+  const { items, unreadCount, loading, error, hasMore, loadMore, retry, markRead } = notifications
 
   const openNotification = (n) => {
     markRead(n.id)
@@ -141,14 +131,6 @@ export default function NotificationBell() {
               <p className="font-semibold text-sm">
                 Notifications {unreadCount > 0 && <span className="text-primary-600">({unreadCount})</span>}
               </p>
-              <div className="flex items-center gap-1">
-                <button onClick={markAllRead} disabled={unreadCount === 0} aria-label="Mark all as read" title="Mark all read" className="p-1.5 rounded-lg hover:bg-primary-50 text-ink/50 disabled:opacity-30 disabled:pointer-events-none">
-                  <CheckCheck className="w-4 h-4" />
-                </button>
-                <button onClick={clearAll} disabled={allCount === 0} aria-label="Clear all notifications" title="Clear all" className="p-1.5 rounded-lg hover:bg-red-50 text-ink/50 hover:text-red-500 disabled:opacity-30 disabled:pointer-events-none">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
             </div>
 
             <div role="listbox" aria-label="Notification list" className="max-h-96 overflow-y-auto">
@@ -182,7 +164,6 @@ export default function NotificationBell() {
                       key={n.id}
                       n={n}
                       onOpen={openNotification}
-                      onRemove={remove}
                       rowRef={(el) => { rowRefs.current[i] = el }}
                       onKeyDown={(e) => handleRowKeyDown(e, i)}
                     />

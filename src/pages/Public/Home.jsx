@@ -4,13 +4,9 @@ import useHomeProducts from '../../hooks/useHomeProducts'
 import ProductCard from '../../components/product/ProductCard'
 import { ProductCardSkeleton } from '../../components/ui/Skeleton'
 import EmptyState from '../../components/ui/EmptyState'
-import { safeImageUrl } from '../../utils/sanitize'
-
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=900&h=900&fit=crop&q=80'
 
 export default function Home() {
   const { products: sonaMasoori, loading } = useHomeProducts()
-  const heroProduct = sonaMasoori[0]
 
   return (
     <div>
@@ -33,9 +29,12 @@ export default function Home() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}>
-            <div className="aspect-square rounded-full bg-gradient-to-br from-primary-200 to-leaf-200 p-8 max-w-md mx-auto">
+            {/* Static decorative banner photo - intentionally not tied to any
+                specific product's image, so a mistake on one product listing
+                (wrong upload, missing photo) can never affect the homepage. */}
+            <div className="aspect-square rounded-full bg-gradient-to-br from-primary-200 to-leaf-200 p-8 max-w-md mx-auto overflow-hidden">
               <img
-                src={safeImageUrl(heroProduct?.image) || FALLBACK_IMAGE}
+                src="https://images.unsplash.com/photo-1586201375761-83865001e31c?w=900&h=900&fit=crop&q=80"
                 alt="Sona Masoori Rice"
                 className="w-full h-full object-cover rounded-full shadow-cardHover"
               />

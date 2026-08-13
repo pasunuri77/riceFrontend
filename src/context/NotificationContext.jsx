@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from './AuthContext'
 import orderApi from '../api/orderApi'
 import customerApi from '../api/customerApi'
@@ -70,6 +70,17 @@ export function NotificationProvider({ children }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  // Guards against a real bug: `items` starts as [] every mount, and this effect
+  // and the load effect below both run against that same stale [] before the
+  // load effect's setItems() takes effect on the next render. Without this guard,
+  // the persist effect below would immediately overwrite real stored notifications
+  // with [] the instant a logged-in user loads/refreshes the page, self-correcting
+  // a moment later on the next render - but if anything interrupts between those
+  // two renders (tab closing, slow device), the empty write is what actually
+  // sticks. Set synchronously (refs, unlike state, are visible immediately to
+  // the very next effect in the same pass) right after loading, and consumed
+  // once so it only ever skips the one persist call that would follow a load.
+  const justLoadedRef = useRef(null)
 
   // Reload from this specific user's slice of storage whenever who's logged in
   // changes - a customer must never see an admin's notifications or vice versa,
@@ -80,12 +91,18 @@ export function NotificationProvider({ children }) {
     const loaded = loadItems(storageKey(user.id))
     setError(loaded === null)
     setItems(loaded || [])
+    justLoadedRef.current = user.id
     setVisibleCount(PAGE_SIZE)
     setLoading(false)
   }, [user?.id])
 
   useEffect(() => {
-    if (user) persistItems(storageKey(user.id), items)
+    if (!user) return
+    if (justLoadedRef.current === user.id) {
+      justLoadedRef.current = null
+      return
+    }
+    persistItems(storageKey(user.id), items)
   }, [items, user?.id])
 
   const notify = useCallback((typeKey, params) => {

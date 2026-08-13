@@ -21,7 +21,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [showResults, setShowResults] = useState(false)
-  const { count } = useCart()
+  const { count, storeLogo } = useCart()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const isAdmin = user?.role === 'admin'
@@ -50,7 +50,11 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-black/5">
       <div className="container-app flex items-center gap-4 h-16">
         <Link to="/" className="flex items-center gap-2 shrink-0">
-          <span className="text-2xl">🌾</span>
+          {safeImageUrl(storeLogo) ? (
+            <img src={safeImageUrl(storeLogo)} alt="RiceBazaar" className="w-8 h-8 rounded-lg object-cover" />
+          ) : (
+            <span className="text-2xl">🌾</span>
+          )}
           <span className="font-display font-extrabold text-lg text-primary-700">RiceBazaar</span>
         </Link>
 

@@ -142,7 +142,13 @@ export default function Checkout() {
       }
     }
 
-    const addressLine = addr ? [addr.flat, addr.area, addr.city].filter(Boolean).join(', ') : ''
+    // Full address, not just flat/area/city - this becomes a permanent snapshot
+    // on the order (Order.addressSnapshot), so it needs to be complete at the
+    // moment of booking; the address itself can be edited/deleted afterward.
+    const addressLine = addr
+      ? [addr.flat, addr.building, addr.street, addr.area, addr.landmark, addr.city, addr.district, addr.state, addr.pincode]
+          .filter(Boolean).join(', ')
+      : ''
     setStage('processing')
     orderApi.create({
       address: addressLine,

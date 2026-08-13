@@ -180,6 +180,11 @@ export default function AdminSettings() {
               <button type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo} className="btn-outline text-sm disabled:opacity-60">
                 {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
               </button>
+              {settings.logo && (
+                <button type="button" onClick={() => setSettings((current) => ({ ...current, logo: '' }))} disabled={uploadingLogo} className="btn-outline text-sm disabled:opacity-60">
+                  Remove Logo
+                </button>
+              )}
             </div>
             <div><label className="label-field">Store Name</label><input required value={settings.storeName} onChange={updateSettingsField('storeName')} placeholder="RiceBazaar" className="input-field" disabled={loadingSettings} /></div>
             <div className="grid sm:grid-cols-2 gap-4">

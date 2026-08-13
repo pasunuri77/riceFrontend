@@ -12,6 +12,7 @@ const defaultStoreSettings = {
   deliveryCharge: 0,
   freeDeliveryThreshold: 0,
   taxPercentage: 0,
+  logo: '',
 }
 
 function normalizeMoney(value) {
@@ -50,6 +51,7 @@ export function CartProvider({ children }) {
           deliveryCharge: normalizeMoney(settings?.deliveryCharge),
           freeDeliveryThreshold: normalizeMoney(settings?.freeDeliveryThreshold),
           taxPercentage: normalizeMoney(settings?.taxPercentage),
+          logo: settings?.logo || '',
         })
       })
       .catch(() => {
@@ -178,6 +180,7 @@ export function CartProvider({ children }) {
         subtotal, deliveryCharge, tax, total, count,
         freeDeliveryThreshold: storeSettings.freeDeliveryThreshold,
         taxPercentage: storeSettings.taxPercentage,
+        storeLogo: storeSettings.logo,
         coupon, discountAmount, applyCoupon, removeCoupon, applyingCoupon,
       }}
     >

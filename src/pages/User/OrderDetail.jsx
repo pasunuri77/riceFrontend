@@ -156,26 +156,27 @@ export default function OrderDetail() {
           </div>
         </div>
 
-        {/* Price Breakdown - only fields the backend actually stores per order
-            (amount + discountAmount). A full Subtotal/Tax/Delivery split isn't
-            shown because the order only ever saves the final blended amount,
-            not a snapshot of what made it up - see BACKEND_TODO. */}
+        {/* Price Breakdown - real per-order snapshot fields (subtotal/tax/
+            deliveryCharge/discountAmount/offerDiscount), not just the final
+            blended amount. */}
         <div className="card p-5 h-fit sticky top-20">
           <h3 className="font-bold mb-4">Price Breakdown</h3>
           <div className="space-y-2.5 text-sm">
-            {order.discountAmount > 0 && (
-              <>
-                <div className="flex justify-between"><span className="text-ink/50">Order Total</span><span className="font-medium">{formatINR(order.amount + order.discountAmount)}</span></div>
-                <div className="flex justify-between text-leaf-600"><span>Coupon Discount {order.couponCode && `(${order.couponCode})`}</span><span className="font-medium">-{formatINR(order.discountAmount)}</span></div>
-              </>
+            <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-medium">{formatINR(order.subtotal)}</span></div>
+            {order.offerDiscount > 0 && (
+              <div className="flex justify-between text-leaf-600"><span>Offer Discount</span><span className="font-medium">-{formatINR(order.offerDiscount)}</span></div>
             )}
+            {order.discountAmount > 0 && (
+              <div className="flex justify-between text-leaf-600"><span>Coupon Discount {order.couponCode && `(${order.couponCode})`}</span><span className="font-medium">-{formatINR(order.discountAmount)}</span></div>
+            )}
+            <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-medium">{order.deliveryCharge > 0 ? formatINR(order.deliveryCharge) : 'Free'}</span></div>
+            <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-medium">{formatINR(order.tax)}</span></div>
           </div>
           <div className="border-t border-black/10 my-3" />
           <div className="flex justify-between items-center">
             <span className="font-bold">Total Paid</span>
             <span className="font-extrabold text-xl text-primary-700">{formatINR(order.amount)}</span>
           </div>
-          <p className="text-[11px] text-ink/35 mt-1">Includes delivery charges and applicable taxes.</p>
           <div className="flex flex-col gap-2 mt-5">
             {['Pending', 'Processing'].includes(order.deliveryStatus) && (
               <button onClick={handleCancel} disabled={cancelling} className="btn text-xs px-3 py-2 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
