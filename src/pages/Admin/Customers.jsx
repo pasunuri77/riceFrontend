@@ -12,14 +12,15 @@ import SortableHeader from '../../components/ui/SortableHeader'
 import ColumnVisibilityMenu from '../../components/ui/ColumnVisibilityMenu'
 import ExportMenu from '../../components/ui/ExportMenu'
 import BulkActionsBar from '../../components/ui/BulkActionsBar'
-import { formatINR, formatDate, fitTextSizeClass } from '../../utils/format'
+import { formatUSD, formatDate, fitTextSizeClass } from '../../utils/format'
+import { bagWeightLb } from '../../utils/stock'
 import { exportToCsv, exportToExcel } from '../../utils/exportTable'
 import { useToast } from '../../context/ToastContext'
 import customerApi from '../../api/customerApi'
 import orderApi from '../../api/orderApi'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 
-const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg Bag x${i.qty})`).join(', ') : o.riceName)
+const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${bagWeightLb(i.weight)}lb Bag x${i.qty})`).join(', ') : o.riceName)
 
 const PAGE_SIZE = 8
 const MODAL_STAT_SCALE = ['text-lg', 'text-base', 'text-sm']
@@ -210,7 +211,7 @@ export default function AdminCustomers() {
                 )}
                 {isVisible('mobile') && <td className="p-3 text-ink/60">{c.mobile}</td>}
                 {isVisible('orders') && <td className="p-3 font-semibold">{c.orders}</td>}
-                {isVisible('totalSpent') && <td className="p-3 font-semibold">{formatINR(c.totalSpent)}</td>}
+                {isVisible('totalSpent') && <td className="p-3 font-semibold">{formatUSD(c.totalSpent)}</td>}
                 {isVisible('joined') && <td className="p-3 text-ink/50">{formatDate(c.joined)}</td>}
                 {isVisible('status') && <td className="p-3"><StatusPill status={c.status} /></td>}
                 <td className="p-3">
@@ -248,7 +249,7 @@ export default function AdminCustomers() {
 
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-primary-50 rounded-xl p-3"><p className={`${fitTextSizeClass(viewing.orders, MODAL_STAT_SCALE)} font-extrabold font-display whitespace-nowrap`}>{viewing.orders}</p><p className="text-[11px] text-ink/50 mt-0.5">Orders</p></div>
-              <div className="bg-primary-50 rounded-xl p-3"><p className={`${fitTextSizeClass(formatINR(viewing.totalSpent), MODAL_STAT_SCALE)} font-extrabold font-display whitespace-nowrap`}>{formatINR(viewing.totalSpent)}</p><p className="text-[11px] text-ink/50 mt-0.5">Total Spent</p></div>
+              <div className="bg-primary-50 rounded-xl p-3"><p className={`${fitTextSizeClass(formatUSD(viewing.totalSpent), MODAL_STAT_SCALE)} font-extrabold font-display whitespace-nowrap`}>{formatUSD(viewing.totalSpent)}</p><p className="text-[11px] text-ink/50 mt-0.5">Total Spent</p></div>
               <div className="bg-primary-50 rounded-xl p-3"><p className={`${fitTextSizeClass(formatDate(viewing.joined), MODAL_STAT_SCALE)} font-extrabold font-display whitespace-nowrap`}>{formatDate(viewing.joined)}</p><p className="text-[11px] text-ink/50 mt-0.5">Joined</p></div>
             </div>
 
@@ -269,7 +270,7 @@ export default function AdminCustomers() {
                         <p className="text-xs text-ink/40">{o.id} • {formatDate(o.date)}</p>
                       </div>
                       <div className="text-right shrink-0 ml-3">
-                        <p className="font-bold">{formatINR(o.amount)}</p>
+                        <p className="font-bold">{formatUSD(o.amount)}</p>
                         <StatusPill status={o.deliveryStatus} />
                       </div>
                     </div>

@@ -7,7 +7,8 @@ import StatusPill from '../../components/ui/StatusPill'
 import EmptyState from '../../components/ui/EmptyState'
 import OrderTimeline from '../../components/ui/OrderTimeline'
 import { TextSkeleton } from '../../components/ui/Skeleton'
-import { formatINR, formatDate, estimatedDelivery } from '../../utils/format'
+import { formatUSD, formatDate, estimatedDelivery } from '../../utils/format'
+import { bagWeightLb } from '../../utils/stock'
 import { safeImageUrl } from '../../utils/sanitize'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
@@ -116,7 +117,7 @@ export default function OrderDetail() {
                     ) : (
                       <p className="text-sm font-semibold truncate">{item.name}</p>
                     )}
-                    {item.weight && <p className="text-xs text-ink/40">{item.weight}kg Bag • Qty: {item.qty} bag{item.qty === 1 ? '' : 's'}</p>}
+                    {item.weight && <p className="text-xs text-ink/40">{bagWeightLb(item.weight)}lb Bag • Qty: {item.qty} bag{item.qty === 1 ? '' : 's'}</p>}
                   </div>
                 </div>
               ))}
@@ -164,20 +165,20 @@ export default function OrderDetail() {
         <div className="card p-5 h-fit sticky top-20">
           <h3 className="font-bold mb-4">Price Breakdown</h3>
           <div className="space-y-2.5 text-sm">
-            <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-medium">{formatINR(order.subtotal)}</span></div>
+            <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-medium">{formatUSD(order.subtotal)}</span></div>
             {order.offerDiscount > 0 && (
-              <div className="flex justify-between text-leaf-600"><span>Offer Discount</span><span className="font-medium">-{formatINR(order.offerDiscount)}</span></div>
+              <div className="flex justify-between text-leaf-600"><span>Offer Discount</span><span className="font-medium">-{formatUSD(order.offerDiscount)}</span></div>
             )}
             {order.discountAmount > 0 && (
-              <div className="flex justify-between text-leaf-600"><span>Coupon Discount {order.couponCode && `(${order.couponCode})`}</span><span className="font-medium">-{formatINR(order.discountAmount)}</span></div>
+              <div className="flex justify-between text-leaf-600"><span>Coupon Discount {order.couponCode && `(${order.couponCode})`}</span><span className="font-medium">-{formatUSD(order.discountAmount)}</span></div>
             )}
-            <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-medium">{order.deliveryCharge > 0 ? formatINR(order.deliveryCharge) : 'Free'}</span></div>
-            <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-medium">{formatINR(order.tax)}</span></div>
+            <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-medium">{order.deliveryCharge > 0 ? formatUSD(order.deliveryCharge) : 'Free'}</span></div>
+            <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-medium">{formatUSD(order.tax)}</span></div>
           </div>
           <div className="border-t border-black/10 my-3" />
           <div className="flex justify-between items-center">
             <span className="font-bold">Total Paid</span>
-            <span className="font-extrabold text-xl text-primary-700">{formatINR(order.amount)}</span>
+            <span className="font-extrabold text-xl text-primary-700">{formatUSD(order.amount)}</span>
           </div>
           <div className="flex flex-col gap-2 mt-5">
             {['Pending', 'Processing'].includes(order.deliveryStatus) && (

@@ -12,13 +12,14 @@ import ColumnVisibilityMenu from '../../components/ui/ColumnVisibilityMenu'
 import ExportMenu from '../../components/ui/ExportMenu'
 import BulkActionsBar from '../../components/ui/BulkActionsBar'
 import Pagination from '../../components/ui/Pagination'
-import { formatINR, formatDate, estimatedDelivery } from '../../utils/format'
+import { formatUSD, formatDate, estimatedDelivery } from '../../utils/format'
+import { bagWeightLb } from '../../utils/stock'
 import { exportToCsv, exportToExcel } from '../../utils/exportTable'
 import { useToast } from '../../context/ToastContext'
 import orderApi from '../../api/orderApi'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 
-const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${i.weight}kg Bag x${i.qty})`).join(', ') : o.riceName)
+const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${bagWeightLb(i.weight)}lb Bag x${i.qty})`).join(', ') : o.riceName)
 
 const PAYMENT_STATUSES = ['Pending', 'Paid']
 const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
@@ -246,7 +247,7 @@ export default function AdminOrders() {
                 )}
                 {isVisible('rice') && <td className="p-3 max-w-[220px] break-words">{itemsSummary(o)}</td>}
                 {isVisible('qty') && <td className="p-3 text-ink/60">{o.quantity}</td>}
-                {isVisible('amount') && <td className="p-3 font-semibold">{formatINR(o.amount)}</td>}
+                {isVisible('amount') && <td className="p-3 font-semibold">{formatUSD(o.amount)}</td>}
                 {isVisible('date') && <td className="p-3 text-ink/50">{formatDate(o.date)}</td>}
                 {isVisible('estimatedDelivery') && (
                   <td className="p-3 text-ink/50">{o.deliveryStatus === 'Cancelled' ? '--' : estimatedDelivery(4, o.date)}</td>
@@ -274,7 +275,7 @@ export default function AdminOrders() {
             <div className="flex justify-between"><span className="text-ink/50">Customer</span><Link to={`/admin/customers?id=${viewing.customerId}`} className="font-semibold text-primary-700 hover:underline">{viewing.customerName}</Link></div>
             <div className="flex justify-between"><span className="text-ink/50">Rice</span><span className="font-semibold text-right max-w-[60%]">{itemsSummary(viewing)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Address</span><span className="font-semibold text-right max-w-[60%]">{viewing.address}</span></div>
-            <div className="flex justify-between"><span className="text-ink/50">Amount</span><span className="font-semibold">{formatINR(viewing.amount)}</span></div>
+            <div className="flex justify-between"><span className="text-ink/50">Amount</span><span className="font-semibold">{formatUSD(viewing.amount)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Order Date</span><span className="font-semibold">{formatDate(viewing.date)}</span></div>
             {viewing.deliveryStatus === 'Delivered' ? (
               <div className="flex justify-between"><span className="text-ink/50">Delivered On</span><span className="font-semibold">{viewing.deliveredAt ? formatDate(viewing.deliveredAt) : '--'}</span></div>

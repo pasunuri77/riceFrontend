@@ -47,7 +47,7 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-white/10 py-5 text-center text-xs text-white/40">
-        © {new Date().getFullYear()} RiceBazaar. All rights reserved. Prices shown are in Indian Rupees (₹).
+        © {new Date().getFullYear()} RiceBazaar. All rights reserved. Prices shown are in US Dollars ($).
       </div>
     </footer>
   )

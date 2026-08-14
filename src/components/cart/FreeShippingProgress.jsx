@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { Truck, PartyPopper } from 'lucide-react'
-import { formatINR } from '../../utils/format'
+import { formatUSD } from '../../utils/format'
 
 export default function FreeShippingProgress({ subtotal, threshold }) {
   if (!threshold || threshold <= 0) return null
@@ -16,7 +16,7 @@ export default function FreeShippingProgress({ subtotal, threshold }) {
         {reached ? (
           <span className="text-leaf-700">You've unlocked free delivery!</span>
         ) : (
-          <span>Add <span className="text-primary-700">{formatINR(remaining)}</span> more for free delivery</span>
+          <span>Add <span className="text-primary-700">{formatUSD(remaining)}</span> more for free delivery</span>
         )}
       </div>
       <div className="h-2 rounded-full bg-black/5 overflow-hidden">

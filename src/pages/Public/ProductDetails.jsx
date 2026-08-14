@@ -3,21 +3,18 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShoppingCart, Minus, Plus, Truck, ShieldCheck, RotateCcw, ZoomIn, PackageCheck, Undo2 } from 'lucide-react'
 import productApi from '../../api/productApi'
-import deliveryApi from '../../api/deliveryApi'
 import ProductCard from '../../components/product/ProductCard'
 import ProductImage from '../../components/product/ProductImage'
 import StockBadge, { OfferBadge } from '../../components/product/StockBadge'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
 import Modal from '../../components/ui/Modal'
-import { formatINR, estimatedDelivery } from '../../utils/format'
-import { BAG_LOW_STOCK_THRESHOLD } from '../../utils/stock'
+import { formatUSD, estimatedDelivery } from '../../utils/format'
+import { BAG_LOW_STOCK_THRESHOLD, stockFieldForWeight, bagSizeLabel } from '../../utils/stock'
 import { safeImageUrl } from '../../utils/sanitize'
 import { useCart } from '../../context/CartContext'
 import { PackageSearch } from 'lucide-react'
 import { TextSkeleton } from '../../components/ui/Skeleton'
-
-const STOCK_FIELD = { 1: 'stock1Kg', 5: 'stock5Kg', 10: 'stock10Kg' }
 
 export default function ProductDetails() {
   const { id } = useParams()
@@ -31,17 +28,6 @@ export default function ProductDetails() {
 
   const [weight, setWeight] = useState(null)
   const [qty, setQty] = useState(1)
-
-  const [checkPincode, setCheckPincode] = useState('')
-  const [checkingDelivery, setCheckingDelivery] = useState(false)
-  const [deliveryCheck, setDeliveryCheck] = useState(null)
-  const runDeliveryCheck = () => {
-    setCheckingDelivery(true)
-    deliveryApi.check(checkPincode, id)
-      .then(setDeliveryCheck)
-      .catch(() => setDeliveryCheck(null))
-      .finally(() => setCheckingDelivery(false))
-  }
 
   useEffect(() => {
     setLoading(true)
@@ -82,14 +68,15 @@ export default function ProductDetails() {
     return <EmptyState icon={PackageSearch} title="Product not found" subtitle="This rice product may have been removed." actionLabel="Back to Shop" actionTo="/products" />
   }
 
-  // Rice ships as pre-packed bags, not loose kg - each bag size now has its own
+  // Rice ships as pre-packed bags, not loose lb - each bag size has its own
   // real, independent stock column on the backend (stock1Kg/stock5Kg/stock10Kg),
   // so this is the actual count for the selected pack size, not derived from a
-  // shared pool.
-  const availableBags = Math.max(0, product[STOCK_FIELD[weight]] ?? 0)
+  // shared pool. Which column a given weight maps to is resolved by position
+  // (stockFieldForWeight), not the literal number, so it works for both older
+  // kg-based products (1/5/10) and newer lb-based ones (2/10/20).
+  const availableBags = Math.max(0, product[stockFieldForWeight(product.weightOptions, weight)] ?? 0)
   const maxQty = Math.max(1, availableBags)
   const pricePerBag = product.pricePerKg * weight
-  const mrpPerBag = product.mrp * weight
   const total = pricePerBag * qty
   const outOfStock = availableBags <= 0
 
@@ -129,13 +116,9 @@ export default function ProductDetails() {
           <p className="text-primary-600 font-bold text-sm uppercase tracking-wide">{product.brand}</p>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-ink mt-1">{product.name}</h1>
 
-          <div className="flex items-center gap-3 mt-4">
-            <span className="text-3xl font-extrabold font-display text-ink">{formatINR(pricePerBag)}</span>
-            <span className="text-ink/40">/ bag</span>
-            {mrpPerBag > pricePerBag && <span className="text-lg text-ink/35 line-through">{formatINR(mrpPerBag)}</span>}
-            {mrpPerBag > pricePerBag && (
-              <span className="badge bg-leaf-100 text-leaf-700">{Math.round((1 - pricePerBag / mrpPerBag) * 100)}% OFF</span>
-            )}
+          <div className="flex items-center gap-1.5 mt-4">
+            <span className="text-3xl font-extrabold font-display text-ink">{formatUSD(pricePerBag)}</span>
+            <span className="text-3xl font-extrabold font-display text-primary-600">/{bagSizeLabel(product.weightOptions, weight)}</span>
           </div>
 
           <p className="text-ink/60 text-sm mt-4 leading-relaxed">{product.description}</p>
@@ -150,13 +133,13 @@ export default function ProductDetails() {
                     setWeight(w)
                     // Each pack size has its own available-bags count, so carrying over
                     // a quantity chosen for a different pack (e.g. maxed out at 499 for
-                    // 1kg bags) makes it look like it's stuck reusing the old number
+                    // 2lb bags) makes it look like it's stuck reusing the old number
                     // instead of respecting the new selection. Reset to 1 instead.
                     setQty(1)
                   }}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold border ${weight === w ? 'bg-primary-500 text-white border-primary-500' : 'border-black/10 hover:border-primary-300'}`}
                 >
-                  {w} kg Bag
+                  {bagSizeLabel(product.weightOptions, w)} Bag
                 </button>
               ))}
             </div>
@@ -176,38 +159,13 @@ export default function ProductDetails() {
               </div>
               <div className="card px-4 py-2.5 bg-primary-50 border-0">
                 <p className="text-[11px] text-ink/50">Total Price</p>
-                <p className="font-bold text-primary-700">{formatINR(total)}</p>
+                <p className="font-bold text-primary-700">{formatUSD(total)}</p>
               </div>
             </div>
 
             <div className="flex flex-wrap gap-3">
               <button onClick={handleAddToCart} disabled={outOfStock} className="btn-primary flex-1"><ShoppingCart className="w-4 h-4" /> Add to Cart</button>
               <button onClick={buyNow} disabled={outOfStock} className="btn-secondary flex-1">Buy Now</button>
-            </div>
-
-            <div className="mt-5 border-t border-black/5 pt-5">
-              <p className="label-field mb-2">Check Delivery</p>
-              <div className="flex gap-2 max-w-xs">
-                <input
-                  value={checkPincode}
-                  onChange={(e) => { setCheckPincode(e.target.value.replace(/\D/g, '').slice(0, 6)); setDeliveryCheck(null) }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="Enter pincode"
-                  className="input-field text-sm"
-                />
-                <button onClick={runDeliveryCheck} disabled={checkingDelivery || !/^\d{6}$/.test(checkPincode)} className="btn-outline text-sm shrink-0 disabled:opacity-50">
-                  {checkingDelivery ? 'Checking...' : 'Check'}
-                </button>
-              </div>
-              {deliveryCheck && (
-                deliveryCheck.serviceable ? (
-                  <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-2"><PackageCheck className="w-3.5 h-3.5" /> Delivers to {deliveryCheck.pincode}</p>
-                ) : (
-                  <p className="flex items-center gap-1.5 text-xs text-amber-600 font-medium mt-2"><Undo2 className="w-3.5 h-3.5" /> Not deliverable to {deliveryCheck.pincode} yet</p>
-                )
-              )}
             </div>
           </div>
 
@@ -223,7 +181,7 @@ export default function ProductDetails() {
       <div className="mt-14 grid sm:grid-cols-2 gap-5 text-sm">
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-2 font-bold"><PackageCheck className="w-4 h-4 text-primary-600" aria-hidden="true" /> Shipping Policy</div>
-          <p className="text-ink/60 leading-relaxed">Orders are dispatched within 1-2 business days and delivered pan-India, typically within 3-7 business days depending on your location. Estimated delivery is shown at checkout.</p>
+          <p className="text-ink/60 leading-relaxed">Orders are dispatched within 1-2 business days and delivered nationwide, typically within 3-7 business days depending on your location. Estimated delivery is shown at checkout.</p>
         </div>
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-2 font-bold"><Undo2 className="w-4 h-4 text-primary-600" aria-hidden="true" /> Return Policy</div>
@@ -249,7 +207,7 @@ export default function ProductDetails() {
       <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-white border-t border-black/10 px-4 py-3 flex items-center gap-3 shadow-cardHover">
         <div className="min-w-0">
           <p className="text-[11px] text-ink/40">Total</p>
-          <p className="font-extrabold text-primary-700 truncate">{formatINR(total)}</p>
+          <p className="font-extrabold text-primary-700 truncate">{formatUSD(total)}</p>
         </div>
         <button onClick={handleAddToCart} disabled={outOfStock} className="btn-primary flex-1 justify-center">
           <ShoppingCart className="w-4 h-4" aria-hidden="true" /> {outOfStock ? 'Out of Stock' : 'Add to Cart'}

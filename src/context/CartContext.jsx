@@ -140,7 +140,7 @@ export function CartProvider({ children }) {
         return false
       }
       setCoupon({ code: code.trim().toUpperCase(), discountAmount: normalizeMoney(result.discountAmount) })
-      showToast(`Coupon applied! You saved ${normalizeMoney(result.discountAmount) ? `₹${result.discountAmount}` : ''}`.trim(), 'success')
+      showToast(`Coupon applied! You saved ${normalizeMoney(result.discountAmount) ? `$${result.discountAmount}` : ''}`.trim(), 'success')
       return true
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Unable to validate coupon right now', 'error')

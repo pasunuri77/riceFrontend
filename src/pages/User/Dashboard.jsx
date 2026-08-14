@@ -6,7 +6,7 @@ import StatusPill from '../../components/ui/StatusPill'
 import PageHeader from '../../components/ui/PageHeader'
 import { TextSkeleton } from '../../components/ui/Skeleton'
 import { useAuth } from '../../context/AuthContext'
-import { formatINR, formatDate } from '../../utils/format'
+import { formatUSD, formatDate } from '../../utils/format'
 import orderApi from '../../api/orderApi'
 
 export default function Dashboard() {
@@ -58,7 +58,7 @@ export default function Dashboard() {
                 <p className="text-xs text-ink/40">{o.id} • {formatDate(o.date)}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-bold">{formatINR(o.amount)}</p>
+                <p className="text-sm font-bold">{formatUSD(o.amount)}</p>
                 <StatusPill status={o.deliveryStatus} />
               </div>
             </div>

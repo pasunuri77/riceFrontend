@@ -61,7 +61,7 @@ export default function AdminCoupons() {
     setEditing(c)
     // The backend returns `type` lowercased ("percent") even though it requires
     // uppercase ("PERCENT") on write - normalize on read so the dropdown and the
-    // "% vs ₹" display match, rather than silently landing on the wrong option.
+    // "% vs $" display match, rather than silently landing on the wrong option.
     reset({ code: c.code, type: (c.type || '').toUpperCase(), value: c.value, minOrder: c.minOrder, expiresAt: toDateInput(c.expiresAt), active: c.active })
     setModalOpen(true)
   }
@@ -126,8 +126,8 @@ export default function AdminCoupons() {
             {coupons.map((c) => (
               <tr key={c.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
                 <td className="p-3 font-mono font-bold text-primary-700">{c.code}</td>
-                <td className="p-3">{(c.type || '').toUpperCase() === 'PERCENT' ? `${c.value}% OFF` : `₹${c.value} OFF`}</td>
-                <td className="p-3 text-ink/60">₹{c.minOrder ?? 0}</td>
+                <td className="p-3">{(c.type || '').toUpperCase() === 'PERCENT' ? `${c.value}% OFF` : `$${c.value} OFF`}</td>
+                <td className="p-3 text-ink/60">${c.minOrder ?? 0}</td>
                 <td className="p-3 text-ink/60">{c.expiresAt ? formatDate(c.expiresAt) : 'No expiry'}</td>
                 <td className="p-3"><span className={`badge ${c.active ? 'bg-leaf-100 text-leaf-700' : 'bg-black/10 text-ink/50'}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
                 <td className="p-3">
@@ -151,14 +151,14 @@ export default function AdminCoupons() {
             <FormField label="Discount Type">
               <select {...register('type')} className="input-field">
                 <option value="PERCENT">Percentage (%)</option>
-                <option value="FLAT">Flat Amount (₹)</option>
+                <option value="FLAT">Flat Amount ($)</option>
               </select>
             </FormField>
             <FormField label="Value" error={errors.value?.message}>
               <input {...register('value')} type="number" step="0.01" className="input-field" aria-invalid={!!errors.value} />
             </FormField>
           </div>
-          <FormField label="Minimum Order Value (₹)">
+          <FormField label="Minimum Order Value ($)">
             <input {...register('minOrder')} type="number" className="input-field" />
           </FormField>
           <FormField label="Expiry Date" error={errors.expiresAt?.message}>

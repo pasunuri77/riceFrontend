@@ -8,7 +8,8 @@ import DeliveryAddressModal from '../../components/checkout/DeliveryAddressModal
 import EmptyState from '../../components/ui/EmptyState'
 import DeliveryTimeline from '../../components/ui/DeliveryTimeline'
 import CouponInput from '../../components/cart/CouponInput'
-import { formatINR, estimatedDelivery } from '../../utils/format'
+import { formatUSD, estimatedDelivery } from '../../utils/format'
+import { bagWeightLb } from '../../utils/stock'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
 import { useToast } from '../../context/ToastContext'
@@ -300,9 +301,9 @@ export default function Checkout() {
                   </Link>
                   <div className="flex-1 min-w-0">
                     <Link to={`/products/${i.id}`} className="text-sm font-semibold truncate block hover:text-primary-600">{i.name}</Link>
-                    <p className="text-xs text-ink/40">{i.weight}kg Bag • Qty: {i.qty} bag{i.qty === 1 ? '' : 's'}</p>
+                    <p className="text-xs text-ink/40">{bagWeightLb(i.weight)}lb Bag • Qty: {i.qty} bag{i.qty === 1 ? '' : 's'}</p>
                   </div>
-                  <p className="text-sm font-bold">{formatINR(i.pricePerKg * i.weight * i.qty)}</p>
+                  <p className="text-sm font-bold">{formatUSD(i.pricePerKg * i.weight * i.qty)}</p>
                 </div>
               ))}
             </div>
@@ -329,16 +330,16 @@ export default function Checkout() {
           <div className="card p-5">
             <h3 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-4">Price Details ({items.length} Item{items.length === 1 ? '' : 's'})</h3>
             <div className="space-y-2.5 text-sm">
-              <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatINR(subtotal)}</span></div>
+              <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatUSD(subtotal)}</span></div>
               {discountAmount > 0 && (
-                <div className="flex justify-between text-leaf-600"><span>Coupon ({coupon.code})</span><span className="font-semibold">-{formatINR(discountAmount)}</span></div>
+                <div className="flex justify-between text-leaf-600"><span>Coupon ({coupon.code})</span><span className="font-semibold">-{formatUSD(discountAmount)}</span></div>
               )}
-              <div className="flex justify-between"><span className="text-ink/50">Delivery Charges</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatINR(deliveryCharge)}</span></div>
-              <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-semibold">{formatINR(tax)}</span></div>
+              <div className="flex justify-between"><span className="text-ink/50">Delivery Charges</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatUSD(deliveryCharge)}</span></div>
+              <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-semibold">{formatUSD(tax)}</span></div>
             </div>
             <div className="border-t border-black/10 mt-4 pt-4 flex justify-between items-center">
               <span className="font-bold">Total Amount</span>
-              <span className="font-extrabold text-xl text-primary-700">{formatINR(total)}</span>
+              <span className="font-extrabold text-xl text-primary-700">{formatUSD(total)}</span>
             </div>
             <p className="text-[11px] text-ink/40 mt-1">Estimated delivery by {estimatedDelivery()}</p>
             <button onClick={placeOrder} className="btn-primary w-full mt-5">Place Order</button>

@@ -6,7 +6,8 @@ import Breadcrumb from '../../components/ui/Breadcrumb'
 import StatusPill from '../../components/ui/StatusPill'
 import EmptyState from '../../components/ui/EmptyState'
 import { TextSkeleton } from '../../components/ui/Skeleton'
-import { formatINR, formatDate, estimatedDelivery } from '../../utils/format'
+import { formatUSD, formatDate, estimatedDelivery } from '../../utils/format'
+import { bagWeightLb } from '../../utils/stock'
 import { useToast } from '../../context/ToastContext'
 import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
@@ -15,7 +16,7 @@ import orderApi from '../../api/orderApi'
 const FILTERS = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered']
 
 const itemNames = (o) => (o.items?.length ? o.items.map((i) => i.name).join(', ') : o.riceName)
-const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${i.weight}kg Bag x${i.qty}`).join(', ') : o.quantity)
+const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${bagWeightLb(i.weight)}lb Bag x${i.qty}`).join(', ') : o.quantity)
 
 export default function Orders() {
   const [ordersData, setOrdersData] = useState([])
@@ -112,7 +113,7 @@ export default function Orders() {
                 </div>
               </div>
               <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 sm:text-right sm:min-w-[140px]">
-                <p className="font-bold text-lg">{formatINR(o.amount)}</p>
+                <p className="font-bold text-lg">{formatUSD(o.amount)}</p>
                 <div className="flex sm:flex-col gap-2 w-full">
                   <Link to={`/dashboard/orders/${o.id}`} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Eye className="w-3.5 h-3.5" /> View Details</Link>
                   {['Pending', 'Processing'].includes(o.deliveryStatus) && (

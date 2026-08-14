@@ -16,3 +16,44 @@ export function getStockStatus(stock, threshold = LOW_STOCK_THRESHOLD) {
   if (stock < threshold) return 'low'
   return 'in'
 }
+
+// Backend stock columns are 3 fixed slots (small/medium/large bag), named
+// stock1Kg/stock5Kg/stock10Kg from before the lb switch. Which weight value
+// lands in which slot has changed over time (kg-based products still stored
+// as 1/5/10, lb-based products as 2/10/20) - matching by *position* within the
+// product's own sorted weightOptions, rather than by the literal weight
+// number, keeps both old and new product records working correctly.
+const STOCK_FIELDS_BY_POSITION = ['stock1Kg', 'stock5Kg', 'stock10Kg']
+
+export function stockFieldForWeight(weightOptions, weight) {
+  const index = [...(weightOptions || [])].sort((a, b) => a - b).indexOf(weight)
+  return STOCK_FIELDS_BY_POSITION[index]
+}
+
+// Same position-based approach as stockFieldForWeight, but for the bag-size
+// text shown to shoppers/admin: older products still store weightOptions as
+// 1/5/10 (kg-era values), newer ones as 2/10/20 (lb). The 3 slots are always
+// small/medium/large regardless of which literal numbers a product has, so
+// this always displays the current 2/10/20 lb sizing without needing every
+// existing product record to be edited first.
+const BAG_LABELS_BY_POSITION = ['2 lb', '10 lb', '20 lb']
+
+export function bagSizeLabel(weightOptions, weight) {
+  const index = [...(weightOptions || [])].sort((a, b) => a - b).indexOf(weight)
+  return BAG_LABELS_BY_POSITION[index] ?? `${weight} lb`
+}
+
+// Cart/order line items only ever stored the single chosen weight number, not
+// the product's full weightOptions array, so there's no sibling context to
+// resolve a position from (see bagSizeLabel above). For those call sites this
+// direct value map is the best available fix for today's data, since every
+// cart/order currently in the system predates the lb-sized options existing
+// at all - they're all legacy 1/5/10 kg values. NOTE: this becomes ambiguous
+// again once genuine new-scale 10lb orders exist (10 already meant "10kg/20lb"
+// under the old scale) - if that matters, store the resolved lb label on the
+// cart/order item itself at add-to-cart time instead of re-deriving it later.
+const LEGACY_WEIGHT_TO_LB = { 1: 2, 5: 10, 10: 20 }
+
+export function bagWeightLb(weight) {
+  return LEGACY_WEIGHT_TO_LB[weight] ?? weight
+}

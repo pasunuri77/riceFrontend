@@ -5,7 +5,8 @@ import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
 import FreeShippingProgress from '../../components/cart/FreeShippingProgress'
 import CouponInput from '../../components/cart/CouponInput'
-import { formatINR, estimatedDelivery } from '../../utils/format'
+import { formatUSD, estimatedDelivery } from '../../utils/format'
+import { bagWeightLb } from '../../utils/stock'
 import { safeImageUrl } from '../../utils/sanitize'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
@@ -38,14 +39,6 @@ export default function Cart() {
     return Math.max(1, Math.floor(product.stock / item.weight))
   }
 
-  // Real savings, computed from each item's actual MRP on the fetched product data -
-  // not a fabricated discount.
-  const totalSavings = items.reduce((sum, i) => {
-    const product = products[i.id]
-    if (!product?.mrp || product.mrp <= product.pricePerKg) return sum
-    return sum + (product.mrp - product.pricePerKg) * i.weight * i.qty
-  }, 0)
-
   return (
     <div className="container-app py-8">
       <Breadcrumb items={[{ label: 'Cart' }]} />
@@ -71,8 +64,8 @@ export default function Cart() {
                   </Link>
                   <div className="flex-1 min-w-0">
                     <Link to={`/products/${i.id}`} className="text-sm font-semibold truncate block hover:text-primary-600">{i.name}</Link>
-                    <p className="text-xs text-ink/40">{i.brand} • {i.weight} kg Bag</p>
-                    <p className="text-sm font-bold text-primary-700 mt-1">{formatINR(i.pricePerKg * i.weight)} <span className="text-xs text-ink/40 font-normal">/ bag</span></p>
+                    <p className="text-xs text-ink/40">{i.brand} • {bagWeightLb(i.weight)} lb Bag</p>
+                    <p className="text-sm font-bold text-primary-700 mt-1">{formatUSD(i.pricePerKg * i.weight)} <span className="text-xs text-ink/40 font-normal">/ bag</span></p>
                   </div>
                   <div className="flex items-center border border-black/10 rounded-lg">
                     <button
@@ -92,7 +85,7 @@ export default function Cart() {
                       <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </div>
-                  <p className="font-bold w-20 text-right hidden sm:block">{formatINR(i.pricePerKg * i.weight * i.qty)}</p>
+                  <p className="font-bold w-20 text-right hidden sm:block">{formatUSD(i.pricePerKg * i.weight * i.qty)}</p>
                   <button onClick={() => removeFromCart(i.id, i.weight)} aria-label={`Remove ${i.name} from cart`} className="text-ink/30 hover:text-red-500 hover:scale-110 transition-all duration-150"><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
                 </div>
               )
@@ -111,20 +104,17 @@ export default function Cart() {
             <div className="card p-5">
               <h3 className="font-bold mb-4">Order Summary</h3>
               <div className="space-y-2.5 text-sm">
-                <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatINR(subtotal)}</span></div>
-                {totalSavings > 0 && (
-                  <div className="flex justify-between text-leaf-600"><span>You Save</span><span className="font-semibold">-{formatINR(totalSavings)}</span></div>
-                )}
+                <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatUSD(subtotal)}</span></div>
                 {discountAmount > 0 && (
-                  <div className="flex justify-between text-leaf-600"><span>Coupon ({coupon.code})</span><span className="font-semibold">-{formatINR(discountAmount)}</span></div>
+                  <div className="flex justify-between text-leaf-600"><span>Coupon ({coupon.code})</span><span className="font-semibold">-{formatUSD(discountAmount)}</span></div>
                 )}
-                <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatINR(deliveryCharge)}</span></div>
-                <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-semibold">{formatINR(tax)}</span></div>
+                <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-semibold">{deliveryCharge === 0 ? 'FREE' : formatUSD(deliveryCharge)}</span></div>
+                <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-semibold">{formatUSD(tax)}</span></div>
                 <div className="flex justify-between text-ink/50"><span>Estimated Delivery</span><span className="font-semibold text-ink">{estimatedDelivery()}</span></div>
               </div>
               <div className="border-t border-black/10 mt-4 pt-4 flex justify-between items-center">
                 <span className="font-bold">Total</span>
-                <span className="font-extrabold text-xl text-primary-700">{formatINR(total)}</span>
+                <span className="font-extrabold text-xl text-primary-700">{formatUSD(total)}</span>
               </div>
               <Link to="/checkout" className="btn-primary w-full mt-5">Checkout <ArrowRight className="w-4 h-4" /></Link>
               <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-black/5 text-center">

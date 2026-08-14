@@ -18,8 +18,8 @@ import TableShell from '../../components/ui/TableShell'
 import SortableHeader from '../../components/ui/SortableHeader'
 import BulkActionsBar from '../../components/ui/BulkActionsBar'
 import { RowSkeleton } from '../../components/ui/Skeleton'
-import { formatINR } from '../../utils/format'
-import { getStockStatus, BAG_LOW_STOCK_THRESHOLD } from '../../utils/stock'
+import { formatUSD } from '../../utils/format'
+import { getStockStatus, stockFieldForWeight, bagSizeLabel, BAG_LOW_STOCK_THRESHOLD } from '../../utils/stock'
 import { useToast } from '../../context/ToastContext'
 import { FEATURED_BRAND } from '../../hooks/useHomeProducts'
 import productApi from '../../api/productApi'
@@ -27,12 +27,14 @@ import productApi from '../../api/productApi'
 const PAGE_SIZE = 8
 const DESCRIPTION_MAX = 500
 
-// Rice is sold as pre-packed bags, not loose kg - these are the only bag sizes
-// admin can offer. Each size now has its own real, independent stock column on
-// the backend (Product.stock1Kg / stock5Kg / stock10Kg) - no shared pool, no
-// derivation between them.
-const WEIGHT_OPTIONS = [1, 5, 10]
-const STOCK_FIELD = { 1: 'stock1Kg', 5: 'stock5Kg', 10: 'stock10Kg' }
+// Rice is sold as pre-packed bags, not loose lb - these are the only bag sizes
+// admin can offer for new selections. Each size still has its own real,
+// independent stock column on the backend (Product.stock1Kg / stock5Kg /
+// stock10Kg - field names predate the lb switch) - which field a given weight
+// maps to is resolved by position via stockFieldForWeight(), not by the
+// literal number, so older products (still storing weightOptions as 1/5/10)
+// keep working - no shared pool, no derivation between them.
+const WEIGHT_OPTIONS = [2, 10, 20]
 
 const emptyForm = () => ({
   name: '', description: '', pricePerKg: '', stock1Kg: '', stock5Kg: '', stock10Kg: '',
@@ -44,7 +46,7 @@ const emptyForm = () => ({
 // itself (see earlier change), so they no longer appear here either.
 const COLUMNS = [
   { key: 'name', label: 'Rice Name', sortField: 'name' },
-  { key: 'price', label: 'Price/KG', sortField: 'pricePerKg' },
+  { key: 'price', label: 'Price/LB', sortField: 'pricePerKg' },
   { key: 'stock', label: 'Available Stock', sortField: 'stock' },
   { key: 'status', label: 'Status' },
 ]
@@ -266,7 +268,7 @@ export default function AdminProducts() {
               </th>
               <th scope="col" className="p-3.5">Image</th>
               <SortableHeader label="Rice Name" sortKey="name" sort={sort} onSort={toggleSort} />
-              <SortableHeader label="Price/KG" sortKey="price" sort={sort} onSort={toggleSort} />
+              <SortableHeader label="Price/LB" sortKey="price" sort={sort} onSort={toggleSort} />
               <SortableHeader label="Available Stock" sortKey="stock" sort={sort} onSort={toggleSort} />
               <th scope="col" className="p-3.5">Status</th>
               <th scope="col" className="p-3.5">Actions</th>
@@ -282,16 +284,16 @@ export default function AdminProducts() {
                 <td className="p-3"><input type="checkbox" aria-label={`Select ${p.name}`} className="accent-primary-500 w-4 h-4" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
                 <td className="p-3"><img src={safeImageUrl(p.image)} alt="" className="w-11 h-11 rounded-lg object-cover" /></td>
                 <td className="p-3 font-semibold max-w-[220px] truncate">{p.name}</td>
-                <td className="p-3 font-semibold">{formatINR(p.pricePerKg)}</td>
+                <td className="p-3 font-semibold">{formatUSD(p.pricePerKg)}</td>
                 <td className="p-3">
                   {p.weightOptions?.length ? (
                     <div className="flex flex-col gap-1">
                       {[...p.weightOptions].sort((a, b) => a - b).map((w) => {
-                        const bags = p[STOCK_FIELD[w]] ?? 0
+                        const bags = p[stockFieldForWeight(p.weightOptions, w)] ?? 0
                         const status = getStockStatus(bags, BAG_LOW_STOCK_THRESHOLD)
                         return (
                           <div key={w} className="flex items-center gap-1.5 text-xs">
-                            <span className="text-ink/40 w-9 shrink-0">{w}kg</span>
+                            <span className="text-ink/40 w-12 shrink-0">{bagSizeLabel(p.weightOptions, w)}</span>
                             <span className="badge bg-black/5 text-ink/70 text-[10px]">{bags} bags</span>
                             {status === 'low' && <span className="badge bg-amber-100 text-amber-700 text-[10px]">Low</span>}
                             {status === 'out' && <span className="badge bg-red-100 text-red-600 text-[10px]">Out</span>}
@@ -322,7 +324,7 @@ export default function AdminProducts() {
           <FormField label="Description" error={errors.description?.message} maxLength={DESCRIPTION_MAX} currentLength={description?.length}>
             <textarea {...register('description')} rows={2} className="input-field" aria-invalid={!!errors.description} />
           </FormField>
-          <FormField label="Base Price/KG (₹)" error={errors.pricePerKg?.message}>
+          <FormField label="Base Price/LB ($)" error={errors.pricePerKg?.message}>
             <input {...register('pricePerKg')} type="number" step="0.01" className="input-field" aria-invalid={!!errors.pricePerKg} />
           </FormField>
           <FormField label="Bag Sizes Sold" error={errors.weightOptions?.message}>
@@ -337,7 +339,7 @@ export default function AdminProducts() {
                     aria-pressed={active}
                     className={`badge cursor-pointer transition ${active ? 'bg-primary-500 text-white' : 'bg-black/5 text-ink/60 hover:bg-black/10'}`}
                   >
-                    {w} kg Bag
+                    {w} lb Bag
                   </button>
                 )
               })}
@@ -349,7 +351,7 @@ export default function AdminProducts() {
           >
             <div className="grid sm:grid-cols-3 gap-3">
               {[...weightOptions].sort((a, b) => a - b).map((w) => {
-                const field = STOCK_FIELD[w]
+                const field = stockFieldForWeight(weightOptions, w)
                 return (
                   <div key={w}>
                     <input
@@ -357,10 +359,10 @@ export default function AdminProducts() {
                       type="number"
                       className="input-field"
                       aria-invalid={!!errors[field]}
-                      aria-label={`${w} kg bags available`}
+                      aria-label={`${bagSizeLabel(weightOptions, w)} bags available`}
                     />
                     {errors[field] && <p className="text-xs text-red-500 mt-1 font-medium">{errors[field].message}</p>}
-                    <p className="text-[11px] text-ink/40 mt-1">{w} kg bags</p>
+                    <p className="text-[11px] text-ink/40 mt-1">{bagSizeLabel(weightOptions, w)} bags</p>
                   </div>
                 )
               })}

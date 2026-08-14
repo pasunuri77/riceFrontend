@@ -1,13 +1,12 @@
-export function formatINR(amount) {
-  return new Intl.NumberFormat('en-IN', {
+export function formatUSD(amount) {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
+    currency: 'USD',
   }).format(amount)
 }
 
 export function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString('en-IN', {
+  return new Date(dateStr).toLocaleDateString('en-US', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -21,7 +20,7 @@ export function formatDate(dateStr) {
 export function estimatedDelivery(daysFromNow = 4, fromDate = new Date()) {
   const d = new Date(fromDate)
   d.setDate(d.getDate() + daysFromNow)
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 // Picks a font-size class from `scale` (ordered largest to smallest, e.g.

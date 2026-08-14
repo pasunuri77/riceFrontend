@@ -19,7 +19,7 @@ export default function CouponInput() {
         <div className="flex items-center gap-2 min-w-0">
           <Tag className="w-4 h-4 text-leaf-600 shrink-0" aria-hidden="true" />
           <span className="text-sm font-semibold text-leaf-700 truncate">{coupon.code}</span>
-          <span className="text-xs text-leaf-600 shrink-0">-₹{discountAmount}</span>
+          <span className="text-xs text-leaf-600 shrink-0">-${discountAmount}</span>
         </div>
         <button type="button" onClick={removeCoupon} aria-label="Remove coupon" className="text-leaf-600 hover:text-leaf-800 shrink-0">
           <X className="w-4 h-4" aria-hidden="true" />

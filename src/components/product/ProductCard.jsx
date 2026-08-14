@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { ShoppingCart } from 'lucide-react'
 import RatingStars from './RatingStars'
 import StockBadge, { OfferBadge } from './StockBadge'
-import { formatINR } from '../../utils/format'
+import { formatUSD } from '../../utils/format'
 import ProductImage from './ProductImage'
 import { useCart } from '../../context/CartContext'
 
@@ -41,9 +41,9 @@ function ProductCard({ product, index = 0 }) {
         </Link>
         <div className="mt-1.5"><RatingStars rating={product.rating} reviews={product.reviews} /></div>
         <div className="mt-2 flex items-center gap-2">
-          <span className="font-bold text-ink">{formatINR(product.pricePerKg)}<span className="text-xs text-ink/40 font-normal">/kg</span></span>
+          <span className="font-bold text-ink">{formatUSD(product.pricePerKg)}<span className="text-xs text-ink/40 font-normal">/lb</span></span>
           {product.mrp > product.pricePerKg && (
-            <span className="text-xs text-ink/35 line-through">{formatINR(product.mrp)}</span>
+            <span className="text-xs text-ink/35 line-through">{formatUSD(product.mrp)}</span>
           )}
         </div>
         <div className="mt-1.5"><StockBadge stock={product.stock} /></div>

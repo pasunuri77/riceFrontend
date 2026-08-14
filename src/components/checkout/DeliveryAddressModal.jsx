@@ -9,8 +9,8 @@ export default function DeliveryAddressModal({ open, onClose, addresses, selecte
   const [checking, setChecking] = useState(false)
 
   const runCheck = () => {
-    if (!/^\d{6}$/.test(pincode)) {
-      setResult({ ok: false, message: 'Enter a valid 6-digit pincode' })
+    if (!/^\d{5}$/.test(pincode)) {
+      setResult({ ok: false, message: 'Enter a valid 5-digit ZIP code' })
       return
     }
     setChecking(true)
@@ -26,10 +26,10 @@ export default function DeliveryAddressModal({ open, onClose, addresses, selecte
         <div className="flex gap-2">
           <input
             value={pincode}
-            onChange={(e) => { setPincode(e.target.value.replace(/\D/g, '').slice(0, 6)); setResult(null) }}
-            placeholder="Enter Pincode"
+            onChange={(e) => { setPincode(e.target.value.replace(/\D/g, '').slice(0, 5)); setResult(null) }}
+            placeholder="Enter ZIP code"
             inputMode="numeric"
-            aria-label="Enter pincode to check delivery"
+            aria-label="Enter ZIP code to check delivery"
             className="input-field flex-1"
           />
           <button onClick={runCheck} disabled={!pincode || checking} className="btn-outline px-4 text-sm font-bold shrink-0 disabled:opacity-40">

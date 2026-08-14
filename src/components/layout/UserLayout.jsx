@@ -4,7 +4,7 @@ import DashboardShell from './DashboardShell'
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/dashboard/orders', icon: Package, label: 'My Orders' },
-  { to: '/dashboard/addresses', icon: MapPin, label: 'Addresses' },
+  { to: '/dashboard/addresses', icon: MapPin, label: 'My Addresses' },
   { to: '/dashboard/cart', icon: ShoppingCart, label: 'Cart' },
   { to: '/dashboard/profile', icon: User, label: 'Profile' },
 ]

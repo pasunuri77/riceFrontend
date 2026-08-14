@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { IndianRupee, Users, ClipboardList, Clock, CheckCircle2, PieChart as PieChartIcon, BarChart3, ArrowRight, Receipt } from 'lucide-react'
+import { DollarSign, Users, ClipboardList, Clock, CheckCircle2, PieChart as PieChartIcon, BarChart3, ArrowRight, Receipt } from 'lucide-react'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import DashboardCard from '../../components/dashboard/DashboardCard'
 import ChartCard from '../../components/dashboard/ChartCard'
@@ -8,7 +8,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import StatusPill from '../../components/ui/StatusPill'
 import { TextSkeleton } from '../../components/ui/Skeleton'
-import { formatINR, formatDate } from '../../utils/format'
+import { formatUSD, formatDate } from '../../utils/format'
 import productApi from '../../api/productApi'
 import orderApi from '../../api/orderApi'
 import customerApi from '../../api/customerApi'
@@ -63,7 +63,7 @@ export default function AdminDashboard() {
       <PageHeader title="Admin Dashboard" subtitle="Overview of your store's performance" />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-        <DashboardCard icon={IndianRupee} label="Total Revenue" value={formatINR(totalRevenue)} tint="primary" index={0} loading={loading} />
+        <DashboardCard icon={DollarSign} label="Total Revenue" value={formatUSD(totalRevenue)} tint="primary" index={0} loading={loading} />
         <DashboardCard icon={Users} label="Total Customers" value={customers.length} tint="blue" index={1} loading={loading} />
         <DashboardCard icon={ClipboardList} label="Total Orders" value={orders.length} tint="primary" index={2} loading={loading} />
         <DashboardCard icon={Clock} label="Pending Orders" value={pendingOrders} tint="amber" index={3} loading={loading} />
@@ -139,7 +139,7 @@ export default function AdminDashboard() {
                     <p className="text-xs text-ink/40">{o.id} • {o.customerName} • {formatDate(o.date)}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold">{formatINR(o.amount)}</p>
+                    <p className="text-sm font-bold">{formatUSD(o.amount)}</p>
                     <StatusPill status={o.deliveryStatus} />
                   </div>
                 </div>

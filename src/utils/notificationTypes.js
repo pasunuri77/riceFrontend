@@ -58,7 +58,7 @@ export const NOTIFICATION_TYPES = {
   PAYMENT_SUCCESS: {
     role: 'customer', category: CATEGORIES.PAYMENTS, priority: PRIORITIES.MEDIUM, icon: 'CreditCard',
     title: 'Payment Successful',
-    message: ({ amount }) => `Payment of ₹${amount} completed successfully.`,
+    message: ({ amount }) => `Payment of $${amount} completed successfully.`,
     actionUrl: ({ orderId }) => orderUrl(orderId),
   },
   PAYMENT_FAILED: {

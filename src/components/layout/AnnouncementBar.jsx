@@ -2,10 +2,10 @@ import { Tag, Truck, ShieldCheck, BadgeCheck, Receipt, RotateCcw } from 'lucide-
 import useActiveCoupons from '../../hooks/useActiveCoupons'
 
 const TRUST_ITEMS = [
-  { icon: Truck, text: 'Free Delivery above ₹10,000' },
-  { icon: ShieldCheck, text: 'FSSAI Certified Quality' },
+  { icon: Truck, text: 'Free Delivery above $100' },
+  { icon: ShieldCheck, text: 'USDA Certified Quality' },
   { icon: BadgeCheck, text: 'ISO Certified Standards' },
-  { icon: Receipt, text: 'GST Billing on Every Order' },
+  { icon: Receipt, text: 'Sales Tax Billing on Every Order' },
   { icon: RotateCcw, text: 'Easy Returns' },
 ]
 
@@ -17,7 +17,7 @@ export default function AnnouncementBar() {
 
   const couponItems = liveCoupons.map((c) => ({
     icon: Tag,
-    text: (c.type || '').toUpperCase() === 'PERCENT' ? `Use code ${c.code} for ${c.value}% OFF` : `Use code ${c.code} for ₹${c.value} OFF`,
+    text: (c.type || '').toUpperCase() === 'PERCENT' ? `Use code ${c.code} for ${c.value}% OFF` : `Use code ${c.code} for $${c.value} OFF`,
   }))
 
   const items = [...couponItems, ...TRUST_ITEMS]

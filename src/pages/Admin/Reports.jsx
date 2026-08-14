@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { IndianRupee, ClipboardList, Receipt } from 'lucide-react'
+import { DollarSign, ClipboardList, Receipt } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import ChartCard from '../../components/dashboard/ChartCard'
 import DashboardCard from '../../components/dashboard/DashboardCard'
-import { formatINR } from '../../utils/format'
+import { formatUSD } from '../../utils/format'
 import orderApi from '../../api/orderApi'
 import productApi from '../../api/productApi'
 import brandApi from '../../api/brandApi'
@@ -56,9 +56,9 @@ export default function AdminReports() {
       <PageHeader title="Reports & Analytics" subtitle="Revenue, sales and customer insights" />
 
       <div className="grid sm:grid-cols-3 gap-4 mb-6">
-        <DashboardCard icon={IndianRupee} label="Total Revenue" value={formatINR(totalRevenue)} tint="primary" index={0} />
+        <DashboardCard icon={DollarSign} label="Total Revenue" value={formatUSD(totalRevenue)} tint="primary" index={0} />
         <DashboardCard icon={ClipboardList} label="Total Orders" value={orders.length} tint="leaf" index={1} />
-        <DashboardCard icon={Receipt} label="Avg. Order Value" value={formatINR(avgOrderValue)} tint="amber" index={2} />
+        <DashboardCard icon={Receipt} label="Avg. Order Value" value={formatUSD(avgOrderValue)} tint="amber" index={2} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5 mb-6">
