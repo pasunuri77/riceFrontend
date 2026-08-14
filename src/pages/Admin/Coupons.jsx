@@ -127,7 +127,7 @@ export default function AdminCoupons() {
               <tr key={c.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
                 <td className="p-3 font-mono font-bold text-primary-700">{c.code}</td>
                 <td className="p-3">{(c.type || '').toUpperCase() === 'PERCENT' ? `${c.value}% OFF` : `₹${c.value} OFF`}</td>
-                <td className="p-3 text-ink/60">{c.minOrder > 0 ? `₹${c.minOrder}` : '-'}</td>
+                <td className="p-3 text-ink/60">₹{c.minOrder ?? 0}</td>
                 <td className="p-3 text-ink/60">{c.expiresAt ? formatDate(c.expiresAt) : 'No expiry'}</td>
                 <td className="p-3"><span className={`badge ${c.active ? 'bg-leaf-100 text-leaf-700' : 'bg-black/10 text-ink/50'}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
                 <td className="p-3">

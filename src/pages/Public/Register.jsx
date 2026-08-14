@@ -8,8 +8,8 @@ import { ApiError } from '../../api/client'
 import otpApi from '../../api/otp/otpApi'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
+import AddressAutocomplete from '../../components/forms/AddressAutocomplete'
 import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
-import { INDIAN_STATES } from '../../data/states'
 
 const schema = z
   .object({
@@ -21,12 +21,12 @@ const schema = z
     // Address fields - collected here so a new account isn't left with zero saved
     // addresses, but saved via the real /api/addresses endpoint after the account
     // exists (registration itself has no address field on the backend).
-    pinCode: z.string().regex(/^\d{6}$/, 'Please enter a valid 6-digit PIN code.'),
-    houseNumber: z.string().refine((v) => v.trim().length > 0, 'House number is required'),
-    addressLine: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
-    locality: z.string().min(1, 'Locality is required'),
+    addressLine1: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
+    addressLine2: z.string().optional(),
     city: z.string().min(1, 'City is required'),
     state: z.string().min(1, 'Please select a state'),
+    zip: z.string().regex(/^\d{5}(-\d{4})?$/, 'Please enter a valid ZIP code.'),
+    country: z.string().min(1, 'Select an address to set your country'),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -41,24 +41,35 @@ export default function Register() {
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
     mode: 'onTouched',
     defaultValues: {
       fullName: '', mobile: '', email: '', password: '', confirmPassword: '',
-      pinCode: '', houseNumber: '', addressLine: '', locality: '', city: '', state: '',
+      addressLine1: '', addressLine2: '', city: '', state: '', zip: '', country: '',
     },
   })
 
   const { onChange: onMobileChange, ...mobileField } = register('mobile')
-  const { onChange: onPinCodeChange, ...pinCodeField } = register('pinCode')
+  const { onChange: onZipChange, ...zipField } = register('zip')
+  const addressLine1 = watch('addressLine1')
 
-  // Same digits-only, length-capped pattern as the mobile field - PIN code stays
-  // a string throughout (never parsed as a number) so a leading zero can't be lost.
-  const sanitizePinCodeInput = (e) => {
-    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6)
-    onPinCodeChange(e)
+  // Same digits-only, length-capped pattern as the mobile field - ZIP stays a
+  // string throughout (never parsed as a number) so a leading zero can't be lost.
+  const sanitizeZipInput = (e) => {
+    e.target.value = e.target.value.replace(/[^\d-]/g, '').slice(0, 10)
+    onZipChange(e)
+  }
+
+  const handlePlaceSelect = (parsed) => {
+    setValue('addressLine1', parsed.line1, { shouldValidate: true, shouldDirty: true })
+    if (parsed.city) setValue('city', parsed.city, { shouldValidate: true, shouldDirty: true })
+    if (parsed.state) setValue('state', parsed.state, { shouldValidate: true, shouldDirty: true })
+    if (parsed.zip) setValue('zip', parsed.zip, { shouldValidate: true, shouldDirty: true })
+    if (parsed.country) setValue('country', parsed.country, { shouldValidate: true, shouldDirty: true })
   }
 
   const onSubmit = async (data) => {
@@ -113,36 +124,41 @@ export default function Register() {
           <div className="border-t border-black/5 pt-4">
             <p className="font-semibold text-sm text-ink mb-3">Address Details</p>
             <div className="space-y-4">
-              <FormField label="PIN Code" error={errors.pinCode?.message}>
-                <input
-                  {...pinCodeField}
-                  onChange={sanitizePinCodeInput}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="Enter 6-digit PIN code"
+              <FormField label="Address Line 1" error={errors.addressLine1?.message} hint="Start typing to search your address">
+                <AddressAutocomplete
+                  value={addressLine1}
+                  onChange={(e) => setValue('addressLine1', e.target.value, { shouldValidate: true, shouldDirty: true })}
+                  onPlaceSelect={handlePlaceSelect}
+                  placeholder="Enter street address"
                   className="input-field"
-                  aria-invalid={!!errors.pinCode}
+                  aria-invalid={!!errors.addressLine1}
                 />
               </FormField>
-              <FormField label="House Number / Tower / Block" error={errors.houseNumber?.message} hint="House number helps with doorstep delivery">
-                <input {...register('houseNumber')} placeholder="Enter house number, tower or block" className="input-field" aria-invalid={!!errors.houseNumber} />
-              </FormField>
-              <FormField label="Address (Locality, Building, Street)" error={errors.addressLine?.message} hint="Please enter your society/apartment/building details">
-                <input {...register('addressLine')} placeholder="Enter locality, building name, street" className="input-field" aria-invalid={!!errors.addressLine} />
-              </FormField>
-              <FormField label="Locality / Town" error={errors.locality?.message}>
-                <input {...register('locality')} placeholder="Enter locality or town" className="input-field" aria-invalid={!!errors.locality} />
+              <FormField label="Address Line 2 (optional)" error={errors.addressLine2?.message}>
+                <input {...register('addressLine2')} placeholder="Apt, suite, floor, unit" className="input-field" />
               </FormField>
               <div className="grid sm:grid-cols-2 gap-4">
-                <FormField label="City / District" error={errors.city?.message}>
-                  <input {...register('city')} placeholder="Enter city or district" className="input-field" aria-invalid={!!errors.city} />
+                <FormField label="City" error={errors.city?.message}>
+                  <input {...register('city')} placeholder="Enter city" className="input-field" aria-invalid={!!errors.city} />
                 </FormField>
                 <FormField label="State" error={errors.state?.message}>
-                  <select {...register('state')} className="input-field" aria-invalid={!!errors.state}>
-                    <option value="">Select State</option>
-                    {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <input {...register('state')} className="input-field" aria-invalid={!!errors.state} />
+                </FormField>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <FormField label="Country" error={errors.country?.message}>
+                  <input {...register('country')} className="input-field" aria-invalid={!!errors.country} />
+                </FormField>
+                <FormField label="ZIP Code" error={errors.zip?.message}>
+                  <input
+                    {...zipField}
+                    onChange={sanitizeZipInput}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Enter ZIP code"
+                    className="input-field"
+                    aria-invalid={!!errors.zip}
+                  />
                 </FormField>
               </div>
             </div>

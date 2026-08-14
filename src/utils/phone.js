@@ -7,3 +7,15 @@ export function sanitizeMobileInput(e, onChange) {
   e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10)
   onChange(e)
 }
+
+// The backend stores the phone with a "+91" country code (e.g. "+919834081505"),
+// but every mobile-number input in the app is a bare 10-digit field (matches
+// INDIAN_MOBILE_REGEX, no country code shown or editable). Populating a form
+// straight from the stored value - as opposed to a value the user is actively
+// typing, which sanitizeMobileInput already handles - skips that sanitizer
+// entirely, so the 12-digit value lands in the field as-is and immediately
+// fails the 10-digit regex. Strip it back down to the bare number for display.
+export function stripCountryCode(phone) {
+  const digits = (phone || '').replace(/\D/g, '')
+  return digits.length > 10 ? digits.slice(-10) : digits
+}

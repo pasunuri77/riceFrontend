@@ -60,6 +60,10 @@ export function AuthProvider({ children }) {
   const register = (data) => authApi.register(data).then((u) => { setUser(u); return u })
   const updateProfile = (data) => authApi.updateProfile(data).then((u) => { setUser(u); return u })
   const updateAdminProfile = (data) => authApi.updateAdminProfile(data).then((u) => { setUser(u); return u })
+  const uploadPhoto = (file) => authApi.uploadPhoto(file).then((u) => { setUser(u); return u })
+  const removePhoto = () => authApi.removePhoto().then((u) => { setUser(u); return u })
+  const uploadAdminPhoto = (file) => authApi.uploadAdminPhoto(file).then((u) => { setUser(u); return u })
+  const removeAdminPhoto = () => authApi.removeAdminPhoto().then((u) => { setUser(u); return u })
   const logout = () => authApi.logout().then(() => setUser(null))
 
   const addAddress = (addr) => addressApi.create(addr).then(() => addressApi.list()).then(setAddresses)
@@ -69,7 +73,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, register, updateProfile, updateAdminProfile, logout, addresses, addAddress, updateAddress, deleteAddress, setDefaultAddress }}
+      value={{ user, login, register, updateProfile, updateAdminProfile, uploadPhoto, removePhoto, uploadAdminPhoto, removeAdminPhoto, logout, addresses, addAddress, updateAddress, deleteAddress, setDefaultAddress }}
     >
       {children}
     </AuthContext.Provider>

@@ -167,7 +167,7 @@ export default function Navbar() {
                       <Link role="menuitem" to={isAdmin ? '/admin' : '/dashboard'} onClick={profileMenu.close} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-50 text-sm">
                         <LayoutDashboard className="w-4 h-4" aria-hidden="true" /> Dashboard
                       </Link>
-                      <Link role="menuitem" to={isAdmin ? '/admin/settings' : '/dashboard/profile'} onClick={profileMenu.close} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-50 text-sm">
+                      <Link role="menuitem" to={isAdmin ? '/admin/profile' : '/dashboard/profile'} onClick={profileMenu.close} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-50 text-sm">
                         <User className="w-4 h-4" aria-hidden="true" /> Profile
                       </Link>
                       <button role="menuitem" onClick={() => { profileMenu.close(); logout() }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 text-sm text-red-500">

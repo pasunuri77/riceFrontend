@@ -36,7 +36,7 @@ export default function Addresses() {
 
   return (
     <div>
-      <Breadcrumb items={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Addresses' }]} />
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/dashboard' }, { label: ' Addresses' }]} />
       <PageHeader
         title="Manage Addresses"
         subtitle="Save multiple addresses for faster checkout"

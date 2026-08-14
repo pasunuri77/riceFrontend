@@ -3,25 +3,41 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
-import { INDIAN_STATES } from '../../data/states'
 import FormField from '../ui/FormField'
 import SubmitButton from '../ui/SubmitButton'
+import AddressAutocomplete from './AddressAutocomplete'
 import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 import deliveryApi from '../../api/deliveryApi'
 
 // Address Details fields (and their labels/order/validation) are kept identical
-// to the Address Details section on the Register page - same 6 fields, same
-// requirements - so adding an address here and adding one at signup feel like
-// the same form. `building`/`landmark`/`village`/`district`/`type` aren't
-// collected in either place; `type` defaults to Home server-side when omitted,
-// and `country` stays fixed to India (matches Register's implicit default).
+// to the Address Details section on the Register page - Address Line 1/2, City,
+// State, Country, ZIP - so adding an address here and adding one at signup feel
+// like the same form.
 const EMPTY = {
   addressFor: 'Personal', storeName: '', ownerName: '',
-  fullName: '', mobile: '', altMobile: '',
-  flat: '', street: '', area: '',
-  city: '', state: '', country: 'India', pincode: '',
+  fullName: '', mobile: '',
+  addressLine1: '', addressLine2: '', city: '', state: '', country: '', zip: '',
   instructions: '', isDefault: false,
 }
+
+// Saved addresses are still stored under the old India-shaped field names
+// (flat/street/area/pincode) - translate them into this form's field names
+// when editing, and back again on submit.
+const mapAddressToForm = (a) => (a ? {
+  addressFor: a.addressFor || 'Personal',
+  storeName: a.storeName || '',
+  ownerName: a.ownerName || '',
+  fullName: a.fullName || '',
+  mobile: a.mobile || '',
+  addressLine1: a.street || '',
+  addressLine2: a.flat || '',
+  city: a.city || '',
+  state: a.state || '',
+  country: a.country || '',
+  zip: a.pincode || '',
+  instructions: a.instructions || '',
+  isDefault: !!a.isDefault,
+} : {})
 
 const schema = z
   .object({
@@ -30,14 +46,12 @@ const schema = z
     ownerName: z.string().optional(),
     fullName: z.string().min(1, 'Full name is required'),
     mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
-    altMobile: z.union([z.string().length(0), z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number')]).optional(),
-    pincode: z.string().regex(/^\d{6}$/, 'Please enter a valid 6-digit PIN code.'),
-    flat: z.string().refine((v) => v.trim().length > 0, 'House number is required'),
-    street: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
-    area: z.string().min(1, 'Locality is required'),
+    addressLine1: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
+    addressLine2: z.string().optional(),
     city: z.string().min(1, 'City is required'),
     state: z.string().min(1, 'Please select a state'),
-    country: z.string(),
+    country: z.string().min(1, 'Select an address to set your country'),
+    zip: z.string().regex(/^\d{5}(-\d{4})?$/, 'Please enter a valid ZIP code.'),
     instructions: z.string().optional(),
     isDefault: z.boolean(),
   })
@@ -53,48 +67,61 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
     mode: 'onTouched',
-    defaultValues: { ...EMPTY, ...initial },
+    defaultValues: { ...EMPTY, ...mapAddressToForm(initial) },
   })
 
   const addressFor = watch('addressFor')
   const { onChange: onMobileChange, ...mobileField } = register('mobile')
-  const { onChange: onAltMobileChange, ...altMobileField } = register('altMobile')
-  const { onChange: onPincodeChange, ...pincodeField } = register('pincode')
-  const pincode = watch('pincode')
+  const { onChange: onZipChange, ...zipField } = register('zip')
+  const addressLine1 = watch('addressLine1')
+  const zip = watch('zip')
 
-  // Same digits-only, length-capped pattern as Register's PIN Code field.
-  const sanitizePincodeInput = (e) => {
-    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6)
-    onPincodeChange(e)
+  // Same digits-only pattern as Register's ZIP field.
+  const sanitizeZipInput = (e) => {
+    e.target.value = e.target.value.replace(/[^\d-]/g, '').slice(0, 10)
+    onZipChange(e)
+  }
+
+  const handlePlaceSelect = (parsed) => {
+    setValue('addressLine1', parsed.line1, { shouldValidate: true, shouldDirty: true })
+    if (parsed.city) setValue('city', parsed.city, { shouldValidate: true, shouldDirty: true })
+    if (parsed.state) setValue('state', parsed.state, { shouldValidate: true, shouldDirty: true })
+    if (parsed.zip) setValue('zip', parsed.zip, { shouldValidate: true, shouldDirty: true })
+    if (parsed.country) setValue('country', parsed.country, { shouldValidate: true, shouldDirty: true })
   }
 
   // Blocks saving once we have a definitive "not serviceable" answer - but
   // never blocks on 'checking' or a failed/unknown check (null), since we
   // shouldn't punish the user for a slow or broken network call by refusing
   // to save something they typed correctly. Debounced so the real backend
-  // call only fires once the pincode is complete and settled.
+  // call only fires once the ZIP is complete and settled.
   const [serviceability, setServiceability] = useState(null) // null | 'checking' | { serviceable }
   useEffect(() => {
-    if (!/^\d{6}$/.test(pincode || '')) {
+    if (!/^\d{5}(-\d{4})?$/.test(zip || '')) {
       setServiceability(null)
       return undefined
     }
     setServiceability('checking')
     const t = setTimeout(() => {
-      deliveryApi.check(pincode)
+      deliveryApi.check(zip)
         .then((res) => setServiceability(res))
         .catch(() => setServiceability(null))
     }, 400)
     return () => clearTimeout(t)
-  }, [pincode])
+  }, [zip])
+
+  const submitHandler = (data) => {
+    const { addressLine1: street, addressLine2: flat, city, zip: pincode, ...rest } = data
+    onSubmit({ ...rest, flat, street, area: city, city, pincode })
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
-      <input type="hidden" {...register('country')} />
+    <form onSubmit={handleSubmit(submitHandler)} className="space-y-5" noValidate>
       <div>
         <p className="label-field mb-2">Is this address for personal use or a business?</p>
         <div className="flex gap-6">
@@ -135,59 +162,56 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
             aria-invalid={!!errors.mobile}
           />
         </FormField>
-        <FormField label="Alternate Mobile" error={errors.altMobile?.message}>
-          <input
-            {...altMobileField}
-            onChange={(e) => sanitizeMobileInput(e, onAltMobileChange)}
-            type="tel"
-            inputMode="numeric"
-            maxLength={10}
-            className="input-field"
-            aria-invalid={!!errors.altMobile}
-          />
-        </FormField>
       </div>
 
       <div className="border-t border-black/5 pt-5">
-        <p className="font-semibold text-sm text-ink mb-3">Address Details</p>
+        <div className="flex items-center gap-2 mb-3">
+          <p className="font-semibold text-sm text-ink">Address Details</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">Google Maps</span>
+        </div>
         <div className="space-y-4">
-          <FormField label="PIN Code" error={errors.pincode?.message}>
-            <input
-              {...pincodeField}
-              onChange={sanitizePincodeInput}
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="Enter 6-digit PIN code"
+          <FormField label="Address Line 1" error={errors.addressLine1?.message} hint="Start typing to search your address">
+            <AddressAutocomplete
+              value={addressLine1}
+              onChange={(e) => setValue('addressLine1', e.target.value, { shouldValidate: true, shouldDirty: true })}
+              onPlaceSelect={handlePlaceSelect}
+              placeholder="Enter street address"
               className="input-field"
-              aria-invalid={!!errors.pincode}
+              aria-invalid={!!errors.addressLine1}
             />
-            {serviceability === 'checking' ? (
-              <p className="flex items-center gap-1.5 text-xs text-ink/40 mt-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking delivery availability...</p>
-            ) : serviceability?.serviceable ? (
-              <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> We deliver to this area</p>
-            ) : serviceability && !serviceability.serviceable ? (
-              <p className="flex items-center gap-1.5 text-xs text-red-500 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> We don't deliver here yet - this address can't be saved</p>
-            ) : null}
           </FormField>
-          <FormField label="House Number / Tower / Block" error={errors.flat?.message} hint="House number helps with doorstep delivery">
-            <input {...register('flat')} placeholder="Enter house number, tower or block" className="input-field" aria-invalid={!!errors.flat} />
-          </FormField>
-          <FormField label="Address (Locality, Building, Street)" error={errors.street?.message} hint="Please enter your society/apartment/building details">
-            <input {...register('street')} placeholder="Enter locality, building name, street" className="input-field" aria-invalid={!!errors.street} />
-          </FormField>
-          <FormField label="Locality / Town" error={errors.area?.message}>
-            <input {...register('area')} placeholder="Enter locality or town" className="input-field" aria-invalid={!!errors.area} />
+          <FormField label="Address Line 2 (optional)" error={errors.addressLine2?.message}>
+            <input {...register('addressLine2')} placeholder="Apt, suite, floor, unit" className="input-field" />
           </FormField>
           <div className="grid sm:grid-cols-2 gap-4">
-            <FormField label="City / District" error={errors.city?.message}>
-              <input {...register('city')} placeholder="Enter city or district" className="input-field" aria-invalid={!!errors.city} />
+            <FormField label="City" error={errors.city?.message}>
+              <input {...register('city')} placeholder="Enter city" className="input-field" aria-invalid={!!errors.city} />
             </FormField>
             <FormField label="State" error={errors.state?.message}>
-              <select {...register('state')} className="input-field" aria-invalid={!!errors.state}>
-                <option value="">Select State</option>
-                {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <input {...register('state')} className="input-field" aria-invalid={!!errors.state} />
+            </FormField>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <FormField label="Country" error={errors.country?.message}>
+              <input {...register('country')} className="input-field" aria-invalid={!!errors.country} />
+            </FormField>
+            <FormField label="ZIP Code" error={errors.zip?.message}>
+              <input
+                {...zipField}
+                onChange={sanitizeZipInput}
+                type="text"
+                inputMode="numeric"
+                placeholder="Enter ZIP code"
+                className="input-field"
+                aria-invalid={!!errors.zip}
+              />
+              {serviceability === 'checking' ? (
+                <p className="flex items-center gap-1.5 text-xs text-ink/40 mt-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking delivery availability...</p>
+              ) : serviceability?.serviceable ? (
+                <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> We deliver to this area</p>
+              ) : serviceability && !serviceability.serviceable ? (
+                <p className="flex items-center gap-1.5 text-xs text-red-500 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> We don't deliver here yet - this address can't be saved</p>
+              ) : null}
             </FormField>
           </div>
         </div>

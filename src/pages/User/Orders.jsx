@@ -94,7 +94,12 @@ export default function Orders() {
                   <span>Qty: {itemQtys(o)}</span>
                   <span>•</span>
                   <span>Ordered: {formatDate(o.date)}</span>
-                  {o.deliveryStatus !== 'Cancelled' && (
+                  {o.deliveryStatus === 'Delivered' && o.deliveredAt ? (
+                    <>
+                      <span>•</span>
+                      <span>Delivered On: <span className="font-semibold text-ink/70">{formatDate(o.deliveredAt)}</span></span>
+                    </>
+                  ) : o.deliveryStatus !== 'Cancelled' && (
                     <>
                       <span>•</span>
                       <span>Estimated Delivery: <span className="font-semibold text-ink/70">{estimatedDelivery(4, o.date)}</span></span>

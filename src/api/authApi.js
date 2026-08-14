@@ -1,4 +1,4 @@
-import { http, setToken } from './client'
+import { http, setToken, uploadFile } from './client'
 
 /** Maps to Spring Boot: POST /api/auth/login, POST /api/auth/register, POST /api/auth/logout, PATCH /api/users/me, PATCH /api/admin/profile */
 const authApi = {
@@ -40,6 +40,12 @@ const authApi = {
     email: data.email,
     mobile: data.mobile,
   }),
+
+  uploadPhoto: (file) => uploadFile('/api/users/me/photo', file),
+  removePhoto: () => http.delete('/api/users/me/photo'),
+
+  uploadAdminPhoto: (file) => uploadFile('/api/admin/profile/photo', file),
+  removeAdminPhoto: () => http.delete('/api/admin/profile/photo'),
 }
 
 export default authApi

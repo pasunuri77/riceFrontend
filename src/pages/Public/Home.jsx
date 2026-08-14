@@ -1,13 +1,8 @@
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ShoppingBag, Package } from 'lucide-react'
-import useHomeProducts from '../../hooks/useHomeProducts'
-import ProductCard from '../../components/product/ProductCard'
-import { ProductCardSkeleton } from '../../components/ui/Skeleton'
-import EmptyState from '../../components/ui/EmptyState'
+import { ShoppingBag } from 'lucide-react'
 
 export default function Home() {
-  const { products: sonaMasoori, loading } = useHomeProducts()
-
   return (
     <div>
       {/* Hero */}
@@ -22,9 +17,9 @@ export default function Home() {
               Naturally wholesome rice for everyday meals - light, aromatic, and grown for consistent quality in every batch.
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
-              <a href="#sona-masoori-products" className="btn-primary">
+              <Link to="/products" className="btn-primary">
                 <ShoppingBag className="w-4 h-4" aria-hidden="true" /> Shop Now
-              </a>
+              </Link>
             </div>
           </motion.div>
 
@@ -41,31 +36,6 @@ export default function Home() {
             </div>
           </motion.div>
         </div>
-      </section>
-
-      {/* Sona Masoori Rice products */}
-      <section id="sona-masoori-products" className="container-app py-14">
-        <div className="mb-6">
-          <h2 className="section-title">Sona Masoori Rice</h2>
-          <p className="section-sub">Available Sona Masoori Rice products</p>
-        </div>
-
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-            {Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)}
-          </div>
-        ) : sonaMasoori.length === 0 ? (
-          <EmptyState
-            icon={Package}
-            title="No Sona Masoori Rice products available right now."
-            actionLabel="Browse Products"
-            actionTo="/products"
-          />
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-            {sonaMasoori.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
-          </div>
-        )}
       </section>
     </div>
   )

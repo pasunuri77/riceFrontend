@@ -128,7 +128,9 @@ export default function OrderDetail() {
             <h3 className="font-bold mb-3 flex items-center gap-2"><CalendarClock className="w-4 h-4 text-primary-600" aria-hidden="true" /> Delivery Information</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-ink/50">Ordered On</span><span className="font-semibold">{formatDate(order.date)}</span></div>
-              {order.deliveryStatus !== 'Cancelled' && (
+              {order.deliveryStatus === 'Delivered' ? (
+                <div className="flex justify-between"><span className="text-ink/50">Delivered On</span><span className="font-semibold">{order.deliveredAt ? formatDate(order.deliveredAt) : '--'}</span></div>
+              ) : order.deliveryStatus !== 'Cancelled' && (
                 <div className="flex justify-between"><span className="text-ink/50">Estimated Delivery</span><span className="font-semibold">{estimatedDelivery(4, order.date)}</span></div>
               )}
               <div className="flex justify-between items-center"><span className="text-ink/50">Status</span><StatusPill status={order.deliveryStatus} /></div>

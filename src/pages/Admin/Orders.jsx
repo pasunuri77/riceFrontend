@@ -251,8 +251,7 @@ export default function AdminOrders() {
                 {isVisible('estimatedDelivery') && (
                   <td className="p-3 text-ink/50">{o.deliveryStatus === 'Cancelled' ? '--' : estimatedDelivery(4, o.date)}</td>
                 )}
-                {/* No `deliveredAt` field exists on the backend yet - this column is a placeholder awaiting that data, never a guessed value. */}
-                {isVisible('deliveredOn') && <td className="p-3 text-ink/50">--</td>}
+                {isVisible('deliveredOn') && <td className="p-3 text-ink/50">{o.deliveredAt ? formatDate(o.deliveredAt) : '--'}</td>}
                 {isVisible('payment') && <td className="p-3"><StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${o.id}:payment`]} onChange={(status) => updatePaymentStatus(o.id, status)} /></td>}
                 {isVisible('delivery') && <td className="p-3"><StatusSelect value={o.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${o.id}:delivery`]} onChange={(status) => updateDeliveryStatus(o.id, status)} /></td>}
                 <td className="p-3"><button onClick={() => setViewing(o)} aria-label={`View order ${o.id}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" aria-hidden="true" /></button></td>
@@ -277,10 +276,11 @@ export default function AdminOrders() {
             <div className="flex justify-between"><span className="text-ink/50">Address</span><span className="font-semibold text-right max-w-[60%]">{viewing.address}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Amount</span><span className="font-semibold">{formatINR(viewing.amount)}</span></div>
             <div className="flex justify-between"><span className="text-ink/50">Order Date</span><span className="font-semibold">{formatDate(viewing.date)}</span></div>
-            {viewing.deliveryStatus !== 'Cancelled' && (
+            {viewing.deliveryStatus === 'Delivered' ? (
+              <div className="flex justify-between"><span className="text-ink/50">Delivered On</span><span className="font-semibold">{viewing.deliveredAt ? formatDate(viewing.deliveredAt) : '--'}</span></div>
+            ) : viewing.deliveryStatus !== 'Cancelled' && (
               <div className="flex justify-between"><span className="text-ink/50">Estimated Delivery</span><span className="font-semibold">{estimatedDelivery(4, viewing.date)}</span></div>
             )}
-            <div className="flex justify-between"><span className="text-ink/50">Delivered On</span><span className="font-semibold">--</span></div>
             <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
             <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><StatusSelect value={viewing.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${viewing.id}:delivery`]} onChange={(status) => updateDeliveryStatus(viewing.id, status)} /></div>
           </div>

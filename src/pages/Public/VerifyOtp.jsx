@@ -82,13 +82,13 @@ export default function VerifyOtp() {
           await addressApi.create({
             fullName: formData.fullName,
             mobile: formData.mobile,
-            flat: formData.houseNumber,
-            street: formData.addressLine,
-            area: formData.locality,
+            flat: formData.addressLine2,
+            street: formData.addressLine1,
+            area: formData.city,
             city: formData.city,
             state: formData.state,
-            country: 'India',
-            pincode: formData.pinCode,
+            country: formData.country,
+            pincode: formData.zip,
             type: 'Home',
             isDefault: true,
           })

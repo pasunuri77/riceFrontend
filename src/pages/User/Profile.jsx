@@ -6,31 +6,32 @@ import PageHeader from '../../components/ui/PageHeader'
 import FormField from '../../components/ui/FormField'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import SubmitButton from '../../components/ui/SubmitButton'
-import { INDIAN_STATES } from '../../data/states'
+import AddressAutocomplete from '../../components/forms/AddressAutocomplete'
+import ProfilePhotoCard from '../../components/ui/ProfilePhotoCard'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
-import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
+import { INDIAN_MOBILE_REGEX, sanitizeMobileInput, stripCountryCode } from '../../utils/phone'
 
 // Address Details fields here are kept identical to Register's Address Details
-// section (same 6 fields, same labels/hints/validation) - Profile just edits
+// section (same fields, same labels/hints/validation) - Profile just edits
 // the same underlying saved address in place, right after Mobile Number,
 // instead of a separate "Manage Addresses" detour.
 const schema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
   mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
-  pincode: z.string().regex(/^\d{6}$/, 'Please enter a valid 6-digit PIN code.'),
-  flat: z.string().refine((v) => v.trim().length > 0, 'House number is required'),
-  street: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
-  area: z.string().min(1, 'Locality is required'),
+  addressLine1: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
+  addressLine2: z.string().optional(),
   city: z.string().min(1, 'City is required'),
   state: z.string().min(1, 'Please select a state'),
+  zip: z.string().regex(/^\d{5}(-\d{4})?$/, 'Please enter a valid ZIP code.'),
+  country: z.string().min(1, 'Select an address to set your country'),
 })
 
 export default function Profile() {
-  const { user, addresses, updateProfile, addAddress, updateAddress } = useAuth()
+  const { user, addresses, updateProfile, addAddress, updateAddress, uploadPhoto, removePhoto } = useAuth()
   const { showToast } = useToast()
   const { notify } = useNotifications()
   const [savingAddress, setSavingAddress] = useState(false)
@@ -42,35 +43,45 @@ export default function Profile() {
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
     mode: 'onTouched',
-    defaultValues: { fullName: '', email: '', mobile: '', pincode: '', flat: '', street: '', area: '', city: '', state: '' },
+    defaultValues: { fullName: '', email: '', mobile: '', addressLine1: '', addressLine2: '', city: '', state: '', zip: '', country: '' },
   })
 
   useEffect(() => {
     reset({
       fullName: user?.name || '',
       email: user?.email || '',
-      mobile: user?.phone || '',
-      pincode: primaryAddress?.pincode || '',
-      flat: primaryAddress?.flat || '',
-      street: primaryAddress?.street || '',
-      area: primaryAddress?.area || '',
+      mobile: stripCountryCode(user?.phone),
+      addressLine1: primaryAddress?.street || '',
+      addressLine2: primaryAddress?.flat || '',
       city: primaryAddress?.city || '',
       state: primaryAddress?.state || '',
+      zip: primaryAddress?.pincode || '',
+      country: primaryAddress?.country || '',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, primaryAddress?.id, reset])
 
   const { onChange: onMobileChange, ...mobileField } = register('mobile')
-  const { onChange: onPincodeChange, ...pincodeField } = register('pincode')
+  const { onChange: onZipChange, ...zipField } = register('zip')
   const fullName = watch('fullName')
+  const addressLine1 = watch('addressLine1')
 
-  const sanitizePincodeInput = (e) => {
-    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6)
-    onPincodeChange(e)
+  const sanitizeZipInput = (e) => {
+    e.target.value = e.target.value.replace(/[^\d-]/g, '').slice(0, 10)
+    onZipChange(e)
+  }
+
+  const handlePlaceSelect = (parsed) => {
+    setValue('addressLine1', parsed.line1, { shouldValidate: true, shouldDirty: true })
+    if (parsed.city) setValue('city', parsed.city, { shouldValidate: true, shouldDirty: true })
+    if (parsed.state) setValue('state', parsed.state, { shouldValidate: true, shouldDirty: true })
+    if (parsed.zip) setValue('zip', parsed.zip, { shouldValidate: true, shouldDirty: true })
+    if (parsed.country) setValue('country', parsed.country, { shouldValidate: true, shouldDirty: true })
   }
 
   const save = async (data) => {
@@ -80,8 +91,8 @@ export default function Profile() {
       setSavingAddress(true)
       const addressPayload = {
         fullName: data.fullName, mobile: data.mobile,
-        pincode: data.pincode, flat: data.flat, street: data.street, area: data.area,
-        city: data.city, state: data.state, country: 'India', isDefault: true,
+        pincode: data.zip, flat: data.addressLine2, street: data.addressLine1, area: data.city,
+        city: data.city, state: data.state, country: data.country, isDefault: true,
       }
       if (primaryAddress) await updateAddress(primaryAddress.id, addressPayload)
       else await addAddress(addressPayload)
@@ -100,15 +111,18 @@ export default function Profile() {
       <Breadcrumb items={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Profile' }]} />
       <PageHeader title="My Profile" subtitle="Manage your personal information" />
 
-      <div className="card p-6 max-w-lg">
+      <div className="max-w-lg">
+        <ProfilePhotoCard
+          name={fullName}
+          roleLabel="User Account"
+          photoUrl={user?.photoUrl}
+          onUpload={uploadPhoto}
+          onRemove={removePhoto}
+        />
+      </div>
+
+      <div className="card p-6 max-w-lg mt-6">
         <form onSubmit={handleSubmit(save)} className="space-y-4" noValidate>
-          <div className="flex items-center gap-4 mb-2">
-            <div className="w-16 h-16 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold uppercase">{fullName?.[0] || 'U'}</div>
-            <div>
-              <p className="font-bold">{fullName}</p>
-              <p className="text-xs text-ink/40">User Account</p>
-            </div>
-          </div>
           <FormField label="Full Name" error={errors.fullName?.message}>
             <input {...register('fullName')} autoFocus className="input-field" aria-invalid={!!errors.fullName} />
           </FormField>
@@ -128,38 +142,46 @@ export default function Profile() {
           </FormField>
 
           <div className="border-t border-black/5 pt-5">
-            <p className="font-semibold text-sm text-ink mb-3">Address Details</p>
+            <div className="flex items-center gap-2 mb-3">
+              <p className="font-semibold text-sm text-ink">Address</p>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">Google Maps</span>
+            </div>
             <div className="space-y-4">
-              <FormField label="PIN Code" error={errors.pincode?.message}>
-                <input
-                  {...pincodeField}
-                  onChange={sanitizePincodeInput}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="Enter 6-digit PIN code"
+              <FormField label="Address Line 1" error={errors.addressLine1?.message} hint="Start typing to search your address">
+                <AddressAutocomplete
+                  value={addressLine1}
+                  onChange={(e) => setValue('addressLine1', e.target.value, { shouldValidate: true, shouldDirty: true })}
+                  onPlaceSelect={handlePlaceSelect}
+                  placeholder="Enter street address"
                   className="input-field"
-                  aria-invalid={!!errors.pincode}
+                  aria-invalid={!!errors.addressLine1}
                 />
               </FormField>
-              <FormField label="House Number / Tower / Block" error={errors.flat?.message} hint="House number helps with doorstep delivery">
-                <input {...register('flat')} placeholder="Enter house number, tower or block" className="input-field" aria-invalid={!!errors.flat} />
-              </FormField>
-              <FormField label="Address (Locality, Building, Street)" error={errors.street?.message} hint="Please enter your society/apartment/building details">
-                <input {...register('street')} placeholder="Enter locality, building name, street" className="input-field" aria-invalid={!!errors.street} />
-              </FormField>
-              <FormField label="Locality / Town" error={errors.area?.message}>
-                <input {...register('area')} placeholder="Enter locality or town" className="input-field" aria-invalid={!!errors.area} />
+              <FormField label="Address Line 2 (optional)" error={errors.addressLine2?.message}>
+                <input {...register('addressLine2')} placeholder="Apt, suite, floor, unit" className="input-field" />
               </FormField>
               <div className="grid sm:grid-cols-2 gap-4">
-                <FormField label="City / District" error={errors.city?.message}>
-                  <input {...register('city')} placeholder="Enter city or district" className="input-field" aria-invalid={!!errors.city} />
+                <FormField label="City" error={errors.city?.message}>
+                  <input {...register('city')} placeholder="Enter city" className="input-field" aria-invalid={!!errors.city} />
                 </FormField>
                 <FormField label="State" error={errors.state?.message}>
-                  <select {...register('state')} className="input-field" aria-invalid={!!errors.state}>
-                    <option value="">Select State</option>
-                    {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <input {...register('state')} className="input-field" aria-invalid={!!errors.state} />
+                </FormField>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <FormField label="Country" error={errors.country?.message}>
+                  <input {...register('country')} className="input-field" aria-invalid={!!errors.country} />
+                </FormField>
+                <FormField label="ZIP Code" error={errors.zip?.message}>
+                  <input
+                    {...zipField}
+                    onChange={sanitizeZipInput}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Enter ZIP code"
+                    className="input-field"
+                    aria-invalid={!!errors.zip}
+                  />
                 </FormField>
               </div>
             </div>
