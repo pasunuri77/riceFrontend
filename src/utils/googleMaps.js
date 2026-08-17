@@ -1,13 +1,15 @@
-// Loads the Google Maps JS API (Places library) once and shares the same
-// promise across every caller, so multiple autocomplete inputs on one page
-// don't each inject their own <script> tag.
+// Loads the Google Maps JS API (Places library, new/Preview API surface) once
+// and shares the same promise across every caller, so multiple autocomplete
+// inputs on one page don't each inject their own <script> tag. `v=beta` is
+// required for AutocompleteSuggestion/Place - the same approach SquareEdgeSports
+// uses, since the legacy Autocomplete widget/AutocompleteService are deprecated.
 let loadPromise = null
 
 export function loadGoogleMaps() {
   if (loadPromise) return loadPromise
 
   loadPromise = new Promise((resolve, reject) => {
-    if (window.google?.maps?.places) {
+    if (window.google?.maps?.places?.AutocompleteSuggestion) {
       resolve(window.google.maps)
       return
     }
@@ -26,24 +28,26 @@ export function loadGoogleMaps() {
     }
 
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=beta`
     script.async = true
     script.defer = true
     script.dataset.googleMaps = 'true'
     script.onload = () => resolve(window.google.maps)
-    script.onerror = () => reject(new Error('Failed to load Google Maps script'))
+    script.onerror = () => { loadPromise = null; reject(new Error('Failed to load Google Maps script')) }
     document.head.appendChild(script)
   })
 
   return loadPromise
 }
 
-// Pulls the address parts we care about out of a Places `address_components`
-// array. Google splits an address into many small parts (street_number,
-// route, locality, ...) with no single "line 1" field, so we assemble one.
+// Pulls the address parts we care about out of a Place's `addressComponents`
+// (new Places API - camelCase fields: longText/shortText, not the legacy
+// address_components' long_name/short_name). Google splits an address into
+// many small parts (street_number, route, locality, ...) with no single
+// "line 1" field, so we assemble one.
 export function parseAddressComponents(components = []) {
-  const get = (type) => components.find((c) => c.types.includes(type))?.long_name || ''
-  const getShort = (type) => components.find((c) => c.types.includes(type))?.short_name || ''
+  const get = (type) => components.find((c) => c.types.includes(type))?.longText || ''
+  const getShort = (type) => components.find((c) => c.types.includes(type))?.shortText || ''
 
   const streetNumber = get('street_number')
   const route = get('route')

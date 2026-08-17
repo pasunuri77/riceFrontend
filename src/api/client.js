@@ -70,14 +70,17 @@ async function request(path, { method = 'GET', body } = {}, attempt = 0) {
     // for this one action - forcing a full logout there would kill a legitimate
     // session over a single denied request, so we leave the token alone.
     //
-    // A 500 is included here too as a defensive workaround: the backend's
-    // JwtAuthFilter currently throws an uncaught UsernameNotFoundException when a
-    // token's account no longer exists (e.g. deleted, or switching to a fresh
-    // database), which surfaces as a 500 instead of the 401 it should be. Treating
-    // "500 while holding a token" the same as "401 while holding a token" recovers
-    // the same way. The real fix is a try/catch around that lookup on the backend
-    // (see BACKEND_TODO) - this is a frontend safety net, not a replacement for it.
-    if (token && (res.status === 401 || res.status === 500)) {
+    // Deliberately NOT treating 500 the same as 401 here (it used to be): the backend's
+    // JwtAuthFilter can throw an uncaught UsernameNotFoundException for a token whose
+    // account no longer exists, which surfaces as a 500 instead of the 401 it should be
+    // (see BACKEND_TODO) - but 500 is also the generic "something threw on the server"
+    // status for completely unrelated failures (e.g. a validation crash while saving an
+    // address). Force-logging-out on every 500 meant any unrelated server error during
+    // checkout/address-save got misreported as "your session has expired" instead of the
+    // real failure, and silently discarded whatever the user was in the middle of doing.
+    // The real fix for the JwtAuthFilter case belongs server-side; this is not a stand-in
+    // for it.
+    if (token && res.status === 401) {
       setToken(null)
       window.dispatchEvent(new Event('auth:invalid'))
     }
@@ -129,7 +132,7 @@ export async function uploadFile(path, file) {
   const data = isJson ? await res.json() : null
 
   if (!res.ok) {
-    if (token && (res.status === 401 || res.status === 500)) {
+    if (token && res.status === 401) {
       setToken(null)
       window.dispatchEvent(new Event('auth:invalid'))
     }

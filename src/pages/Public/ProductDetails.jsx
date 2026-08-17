@@ -10,7 +10,7 @@ import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
 import Modal from '../../components/ui/Modal'
 import { formatUSD, estimatedDelivery } from '../../utils/format'
-import { BAG_LOW_STOCK_THRESHOLD, stockFieldForWeight, bagSizeLabel } from '../../utils/stock'
+import { BAG_LOW_STOCK_THRESHOLD, stockFieldForWeight, bagSizeLabel, bagSizeLb } from '../../utils/stock'
 import { safeImageUrl } from '../../utils/sanitize'
 import { useCart } from '../../context/CartContext'
 import { PackageSearch } from 'lucide-react'
@@ -19,22 +19,23 @@ import { TextSkeleton } from '../../components/ui/Skeleton'
 export default function ProductDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { addToCart } = useCart()
+  const { addMultipleToCart } = useCart()
 
   const [loading, setLoading] = useState(true)
   const [product, setProduct] = useState(null)
   const [related, setRelated] = useState([])
   const [zoomOpen, setZoomOpen] = useState(false)
 
-  const [weight, setWeight] = useState(null)
-  const [qty, setQty] = useState(1)
+  // Independent quantity per bag size, keyed by weight - lets the shopper build
+  // up an order across every size (2lb, 10lb, 20lb, ...) before a single
+  // combined "Add Selected Bags to Cart" action, instead of one size at a time.
+  const [quantities, setQuantities] = useState({})
 
   useEffect(() => {
     setLoading(true)
     productApi.getById(id).then((p) => {
       setProduct(p)
-      setWeight(p?.weightOptions[0])
-      setQty(1)
+      setQuantities(Object.fromEntries((p?.weightOptions || []).map((w) => [w, 0])))
       setLoading(false)
       if (p) {
         productApi.listRelated(p.category, p.id).then(setRelated).catch(() => setRelated([]))
@@ -70,23 +71,34 @@ export default function ProductDetails() {
 
   // Rice ships as pre-packed bags, not loose lb - each bag size has its own
   // real, independent stock column on the backend (stock1Kg/stock5Kg/stock10Kg),
-  // so this is the actual count for the selected pack size, not derived from a
-  // shared pool. Which column a given weight maps to is resolved by position
+  // so this is the count for that specific pack size, not derived from a shared
+  // pool. Which column a given weight maps to is resolved by position
   // (stockFieldForWeight), not the literal number, so it works for both older
   // kg-based products (1/5/10) and newer lb-based ones (2/10/20).
-  const availableBags = Math.max(0, product[stockFieldForWeight(product.weightOptions, weight)] ?? 0)
-  const maxQty = Math.max(1, availableBags)
-  const pricePerBag = product.pricePerKg * weight
-  const total = pricePerBag * qty
-  const outOfStock = availableBags <= 0
+  const availableBagsFor = (w) => Math.max(0, product[stockFieldForWeight(product.weightOptions, w)] ?? 0)
+  const pricePerBagFor = (w) => product.pricePerKg * w
 
-  const handleAddToCart = () => {
-    addToCart(product, weight, qty)
+  const setQtyFor = (w, next) => {
+    const clamped = Math.max(0, Math.min(availableBagsFor(w), next))
+    setQuantities((q) => ({ ...q, [w]: clamped }))
+  }
+
+  const selections = product.weightOptions
+    .map((w) => ({ weight: w, qty: quantities[w] || 0 }))
+    .filter((s) => s.qty > 0)
+  const totalBags = selections.reduce((sum, s) => sum + s.qty, 0)
+  const totalWeightLb = selections.reduce((sum, s) => sum + bagSizeLb(product.weightOptions, s.weight) * s.qty, 0)
+  const estimatedSubtotal = selections.reduce((sum, s) => sum + pricePerBagFor(s.weight) * s.qty, 0)
+
+  const handleAddSelected = () => {
+    if (selections.length === 0) return
+    addMultipleToCart(product, selections)
     productApi.logEvent(product.id, 'add-to-cart')
+    setQuantities(Object.fromEntries(product.weightOptions.map((w) => [w, 0])))
   }
 
   const buyNow = () => {
-    handleAddToCart()
+    handleAddSelected()
     navigate('/cart')
   }
 
@@ -116,56 +128,71 @@ export default function ProductDetails() {
           <p className="text-primary-600 font-bold text-sm uppercase tracking-wide">{product.brand}</p>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-ink mt-1">{product.name}</h1>
 
-          <div className="flex items-center gap-1.5 mt-4">
-            <span className="text-3xl font-extrabold font-display text-ink">{formatUSD(pricePerBag)}</span>
-            <span className="text-3xl font-extrabold font-display text-primary-600">/{bagSizeLabel(product.weightOptions, weight)}</span>
-          </div>
-
           <p className="text-ink/60 text-sm mt-4 leading-relaxed">{product.description}</p>
 
           <div className="border-t border-black/5 mt-6 pt-6">
-            <p className="label-field">Select Pack Size</p>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {product.weightOptions.map((w) => (
-                <button
-                  key={w}
-                  onClick={() => {
-                    setWeight(w)
-                    // Each pack size has its own available-bags count, so carrying over
-                    // a quantity chosen for a different pack (e.g. maxed out at 499 for
-                    // 2lb bags) makes it look like it's stuck reusing the old number
-                    // instead of respecting the new selection. Reset to 1 instead.
-                    setQty(1)
-                  }}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold border ${weight === w ? 'bg-primary-500 text-white border-primary-500' : 'border-black/10 hover:border-primary-300'}`}
-                >
-                  {bagSizeLabel(product.weightOptions, w)} Bag
-                </button>
-              ))}
+            <p className="label-field mb-3">Select Bag Sizes &amp; Quantities</p>
+            <div className="space-y-3">
+              {product.weightOptions.map((w) => {
+                const available = availableBagsFor(w)
+                const qty = quantities[w] || 0
+                const out = available <= 0
+                return (
+                  <div key={w} className={`card p-4 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap ${out ? 'opacity-60' : ''}`}>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm">{bagSizeLabel(product.weightOptions, w)} Bag</p>
+                      <p className="text-ink/60 text-sm mt-0.5">{formatUSD(pricePerBagFor(w))} / bag</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-xs text-ink/40">{available} available</span>
+                        <StockBadge stock={available} threshold={BAG_LOW_STOCK_THRESHOLD} />
+                      </div>
+                    </div>
+                    <div className="flex items-center border border-black/10 rounded-lg shrink-0">
+                      <button
+                        onClick={() => setQtyFor(w, qty - 1)}
+                        disabled={qty <= 0}
+                        aria-label={`Decrease quantity for ${bagSizeLabel(product.weightOptions, w)} bag`}
+                        className="p-2.5 hover:bg-primary-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Minus className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                      <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
+                      <button
+                        onClick={() => setQtyFor(w, qty + 1)}
+                        disabled={qty >= available}
+                        aria-label={`Increase quantity for ${bagSizeLabel(product.weightOptions, w)} bag`}
+                        className="p-2.5 hover:bg-primary-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Plus className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
-            <div className="flex items-center gap-2 mb-4 text-sm">
-              <span className="text-ink/50">Available:</span>
-              <span className="font-semibold">{availableBags} bag{availableBags === 1 ? '' : 's'}</span>
-              <StockBadge stock={availableBags} threshold={BAG_LOW_STOCK_THRESHOLD} />
-            </div>
+            {totalBags > 0 && (
+              <div className="card p-4 mt-4 bg-primary-50 border-0 flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm text-ink/60 space-y-0.5">
+                  <p>Total Bags: <span className="font-bold text-ink">{totalBags}</span></p>
+                  <p>Total Weight: <span className="font-bold text-ink">{totalWeightLb} lb</span></p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] text-ink/50">Estimated Subtotal</p>
+                  <p className="font-bold text-primary-700 text-lg">{formatUSD(estimatedSubtotal)}</p>
+                </div>
+              </div>
+            )}
 
-            <p className="label-field">Quantity <span className="normal-case font-normal text-ink/40">(bags)</span></p>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="flex items-center border border-black/10 rounded-lg">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} aria-label="Decrease quantity" className="p-2.5 hover:bg-primary-50 disabled:opacity-40 disabled:cursor-not-allowed"><Minus className="w-4 h-4" aria-hidden="true" /></button>
-                <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
-                <button onClick={() => setQty((q) => Math.min(maxQty, q + 1))} disabled={qty >= maxQty} aria-label="Increase quantity" className="p-2.5 hover:bg-primary-50 disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-4 h-4" aria-hidden="true" /></button>
-              </div>
-              <div className="card px-4 py-2.5 bg-primary-50 border-0">
-                <p className="text-[11px] text-ink/50">Total Price</p>
-                <p className="font-bold text-primary-700">{formatUSD(total)}</p>
-              </div>
-            </div>
+            <p className="text-xs text-ink/50 mt-3 mb-2">
+              {totalBags > 0 ? `${totalBags} bag${totalBags === 1 ? '' : 's'} selected` : 'Select at least one bag size and quantity.'}
+            </p>
 
             <div className="flex flex-wrap gap-3">
-              <button onClick={handleAddToCart} disabled={outOfStock} className="btn-primary flex-1"><ShoppingCart className="w-4 h-4" /> Add to Cart</button>
-              <button onClick={buyNow} disabled={outOfStock} className="btn-secondary flex-1">Buy Now</button>
+              <button onClick={handleAddSelected} disabled={totalBags === 0} className="btn-primary flex-1">
+                <ShoppingCart className="w-4 h-4" aria-hidden="true" /> Add to Cart
+              </button>
+              <button onClick={buyNow} disabled={totalBags === 0} className="btn-secondary flex-1">Buy Now</button>
             </div>
           </div>
 
@@ -206,11 +233,11 @@ export default function ProductDetails() {
           fixed bottom-0, z-40), not on top of it. */}
       <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-white border-t border-black/10 px-4 py-3 flex items-center gap-3 shadow-cardHover">
         <div className="min-w-0">
-          <p className="text-[11px] text-ink/40">Total</p>
-          <p className="font-extrabold text-primary-700 truncate">{formatUSD(total)}</p>
+          <p className="text-[11px] text-ink/40">{totalBags > 0 ? `${totalBags} bag${totalBags === 1 ? '' : 's'} selected` : 'No bags selected'}</p>
+          <p className="font-extrabold text-primary-700 truncate">{formatUSD(estimatedSubtotal)}</p>
         </div>
-        <button onClick={handleAddToCart} disabled={outOfStock} className="btn-primary flex-1 justify-center">
-          <ShoppingCart className="w-4 h-4" aria-hidden="true" /> {outOfStock ? 'Out of Stock' : 'Add to Cart'}
+        <button onClick={handleAddSelected} disabled={totalBags === 0} className="btn-primary flex-1 justify-center">
+          <ShoppingCart className="w-4 h-4" aria-hidden="true" /> Add to Cart
         </button>
       </div>
     </div>

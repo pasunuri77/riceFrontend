@@ -10,12 +10,12 @@ import ProfilePhotoCard from '../../components/ui/ProfilePhotoCard'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
-import { INDIAN_MOBILE_REGEX, sanitizeMobileInput, stripCountryCode } from '../../utils/phone'
+import { US_MOBILE_REGEX, sanitizeMobileInput, stripCountryCode } from '../../utils/phone'
 
 const profileSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
+  mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit US phone number'),
 })
 
 export default function AdminProfile() {

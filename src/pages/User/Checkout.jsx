@@ -10,8 +10,10 @@ import DeliveryTimeline from '../../components/ui/DeliveryTimeline'
 import CouponInput from '../../components/cart/CouponInput'
 import { formatUSD, estimatedDelivery } from '../../utils/format'
 import { bagWeightLb } from '../../utils/stock'
+import { findDeliveryAreaForZip } from '../../data/deliveryAreas'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
+import useShopNowPath from '../../hooks/useShopNowPath'
 import { useToast } from '../../context/ToastContext'
 import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
@@ -20,10 +22,13 @@ import productApi from '../../api/productApi'
 import deliveryApi from '../../api/deliveryApi'
 import { ShoppingCart as CartIcon } from 'lucide-react'
 
+// Labels only reflect US payment methods now - `id` values are left unchanged
+// (still 'upi'/'netbanking' internally) since they're sent to the backend as
+// `paymentMethod` and may be relied on by admin-side order handling there.
 const PAYMENT_METHODS = [
-  { id: 'upi', label: 'UPI', icon: Smartphone },
+  { id: 'upi', label: 'Digital Wallet', icon: Smartphone },
   { id: 'card', label: 'Credit / Debit Card', icon: CreditCard },
-  { id: 'netbanking', label: 'Net Banking', icon: Landmark },
+  { id: 'netbanking', label: 'Bank Transfer', icon: Landmark },
   { id: 'cod', label: 'Cash on Delivery', icon: Truck },
 ]
 
@@ -34,6 +39,7 @@ export default function Checkout() {
   const { notify } = useNotifications()
   const navigate = useNavigate()
   const location = useLocation()
+  const shopNowPath = useShopNowPath()
 
   const [selected, setSelected] = useState('')
   const [addressModalOpen, setAddressModalOpen] = useState(false)
@@ -52,6 +58,10 @@ export default function Checkout() {
   }, [addresses])
 
   const selectedAddress = addresses.find((a) => a.id === selected)
+  // Informational only - which of our 5 named Austin areas this ZIP falls
+  // into, if any. Actual deliverability is still decided by the real backend
+  // check further down in placeOrder(), not by this lookup.
+  const selectedDeliveryArea = selectedAddress ? findDeliveryAreaForZip(selectedAddress.pincode) : null
 
   // Checkout places a real order tied to the logged-in account - an unauthenticated
   // visitor must never reach this page, since without a real session there's no
@@ -63,7 +73,7 @@ export default function Checkout() {
   if (items.length === 0 && stage !== 'placed') {
     return (
       <div className="container-app py-8">
-        <EmptyState icon={CartIcon} title="Your cart is empty" subtitle="Add products to your cart before checking out." actionLabel="Browse Products" actionTo="/products" />
+        <EmptyState icon={CartIcon} title="Your cart is empty" subtitle="Add products to your cart before checking out." actionLabel="Browse Products" actionTo={shopNowPath} />
       </div>
     )
   }
@@ -217,7 +227,7 @@ export default function Checkout() {
         </div>
         <div className="flex gap-3 justify-center mt-6">
           <Link to="/dashboard/orders" className="btn-primary">View Orders</Link>
-          <Link to="/products" className="btn-outline">Continue Shopping</Link>
+          <Link to={shopNowPath} className="btn-outline">Continue Shopping</Link>
         </div>
       </div>
     )
@@ -252,6 +262,24 @@ export default function Checkout() {
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-8">
         <div className="space-y-4">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-3">{items.length} Item{items.length === 1 ? '' : 's'} Selected</h3>
+            <div className="card divide-y divide-black/5">
+              {items.map((i) => (
+                <div key={i.id + i.weight} className="p-3 flex items-center gap-3">
+                  <Link to={`/products/${i.id}`} className="shrink-0">
+                    <img src={i.image} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <Link to={`/products/${i.id}`} className="text-sm font-semibold truncate block hover:text-primary-600">{i.name}</Link>
+                    <p className="text-xs text-ink/40">{bagWeightLb(i.weight)}lb Bag • Qty: {i.qty} bag{i.qty === 1 ? '' : 's'}</p>
+                  </div>
+                  <p className="text-sm font-bold">{formatUSD(i.pricePerKg * i.weight * i.qty)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Deliver to bar */}
           {selectedAddress ? (
             <div className="card p-4 flex items-start justify-between gap-3">
@@ -263,6 +291,15 @@ export default function Checkout() {
                   <p className="text-xs text-ink/50 truncate">
                     {[selectedAddress.flat, selectedAddress.area, selectedAddress.city].filter(Boolean).join(', ')}
                   </p>
+                  {selectedDeliveryArea ? (
+                    <p className="text-xs text-leaf-600 font-semibold mt-1.5 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Delivery Area: {selectedDeliveryArea.name} - Available
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 font-semibold mt-1.5 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" /> Outside our known Austin delivery areas - availability confirmed at checkout
+                    </p>
+                  )}
                 </div>
               </div>
               <button onClick={() => setAddressModalOpen(true)} className="btn-outline text-xs py-1.5 px-3 shrink-0">Change Address</button>
@@ -289,24 +326,6 @@ export default function Checkout() {
               ))}
             </div>
             <p className="flex items-center gap-1.5 text-xs text-ink/40 mt-2"><ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> Payments are encrypted and secure.</p>
-          </div>
-
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-3">{items.length} Item{items.length === 1 ? '' : 's'} Selected</h3>
-            <div className="card divide-y divide-black/5">
-              {items.map((i) => (
-                <div key={i.id + i.weight} className="p-3 flex items-center gap-3">
-                  <Link to={`/products/${i.id}`} className="shrink-0">
-                    <img src={i.image} alt="" className="w-12 h-12 rounded-lg object-cover" />
-                  </Link>
-                  <div className="flex-1 min-w-0">
-                    <Link to={`/products/${i.id}`} className="text-sm font-semibold truncate block hover:text-primary-600">{i.name}</Link>
-                    <p className="text-xs text-ink/40">{bagWeightLb(i.weight)}lb Bag • Qty: {i.qty} bag{i.qty === 1 ? '' : 's'}</p>
-                  </div>
-                  <p className="text-sm font-bold">{formatUSD(i.pricePerKg * i.weight * i.qty)}</p>
-                </div>
-              ))}
-            </div>
           </div>
 
           <div>

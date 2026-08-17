@@ -91,7 +91,7 @@ export default function Login() {
           <SubmitButton loading={isSubmitting} loadingLabel="Logging in...">Login</SubmitButton>
         </form>
 
-        {/* <p className="text-xs text-center text-ink/40 mt-3">Tip: admin@ricebazaar.in / Admin@123 to preview the Admin Dashboard.</p> */}
+        {/* <p className="text-xs text-center text-ink/40 mt-3">Tip: admin@ricebazaar.com / Admin@123 to preview the Admin Dashboard.</p> */}
 
         <p className="text-sm text-center text-ink/60 mt-6">
           New to RiceBazaar? <Link to="/register" className="text-primary-600 font-semibold">Create an account</Link>

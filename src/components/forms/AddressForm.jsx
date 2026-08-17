@@ -6,7 +6,7 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import FormField from '../ui/FormField'
 import SubmitButton from '../ui/SubmitButton'
 import AddressAutocomplete from './AddressAutocomplete'
-import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
+import { US_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 import deliveryApi from '../../api/deliveryApi'
 
 // Address Details fields (and their labels/order/validation) are kept identical
@@ -16,7 +16,7 @@ import deliveryApi from '../../api/deliveryApi'
 const EMPTY = {
   addressFor: 'Personal', storeName: '', ownerName: '',
   fullName: '', mobile: '',
-  addressLine1: '', addressLine2: '', city: '', state: '', country: '', zip: '',
+  addressLine1: '', addressLine2: '', city: 'Austin', state: 'Texas', country: 'United States', zip: '',
   instructions: '', isDefault: false,
 }
 
@@ -45,7 +45,7 @@ const schema = z
     storeName: z.string().optional(),
     ownerName: z.string().optional(),
     fullName: z.string().min(1, 'Full name is required'),
-    mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
+    mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit US phone number'),
     addressLine1: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
     addressLine2: z.string().optional(),
     city: z.string().min(1, 'City is required'),
@@ -208,10 +208,12 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
               {serviceability === 'checking' ? (
                 <p className="flex items-center gap-1.5 text-xs text-ink/40 mt-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking delivery availability...</p>
               ) : serviceability?.serviceable ? (
-                <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> We deliver to this area</p>
+                <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Great! RiceBazaar delivers to your area.</p>
               ) : serviceability && !serviceability.serviceable ? (
-                <p className="flex items-center gap-1.5 text-xs text-red-500 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> We don't deliver here yet - this address can't be saved</p>
-              ) : null}
+                <p className="flex items-center gap-1.5 text-xs text-red-500 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> Sorry, RiceBazaar currently does not deliver to this location. We currently deliver to selected areas of Austin, Texas.</p>
+              ) : (
+                <p className="text-xs text-ink/40 mt-1.5">RiceBazaar currently delivers within selected areas of Austin, Texas.</p>
+              )}
             </FormField>
           </div>
         </div>

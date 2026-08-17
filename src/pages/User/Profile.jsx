@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
-import { INDIAN_MOBILE_REGEX, sanitizeMobileInput, stripCountryCode } from '../../utils/phone'
+import { US_MOBILE_REGEX, sanitizeMobileInput, stripCountryCode } from '../../utils/phone'
 
 // Address Details fields here are kept identical to Register's Address Details
 // section (same fields, same labels/hints/validation) - Profile just edits
@@ -21,7 +21,7 @@ import { INDIAN_MOBILE_REGEX, sanitizeMobileInput, stripCountryCode } from '../.
 const schema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
+  mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit US phone number'),
   addressLine1: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
   addressLine2: z.string().optional(),
   city: z.string().min(1, 'City is required'),
@@ -48,7 +48,7 @@ export default function Profile() {
   } = useForm({
     resolver: zodResolver(schema),
     mode: 'onTouched',
-    defaultValues: { fullName: '', email: '', mobile: '', addressLine1: '', addressLine2: '', city: '', state: '', zip: '', country: '' },
+    defaultValues: { fullName: '', email: '', mobile: '', addressLine1: '', addressLine2: '', city: 'Austin', state: 'Texas', zip: '', country: 'United States' },
   })
 
   useEffect(() => {
@@ -58,10 +58,10 @@ export default function Profile() {
       mobile: stripCountryCode(user?.phone),
       addressLine1: primaryAddress?.street || '',
       addressLine2: primaryAddress?.flat || '',
-      city: primaryAddress?.city || '',
-      state: primaryAddress?.state || '',
+      city: primaryAddress?.city || 'Austin',
+      state: primaryAddress?.state || 'Texas',
       zip: primaryAddress?.pincode || '',
-      country: primaryAddress?.country || '',
+      country: primaryAddress?.country || 'United States',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, primaryAddress?.id, reset])

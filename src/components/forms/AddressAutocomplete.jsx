@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps, parseAddressComponents } from '../../utils/googleMaps'
 
-// Address Line 1 input with its own suggestions dropdown, backed by Google
-// Places (restricted to US addresses). Renders its own list instead of the
-// native Google-attached dropdown so it can match the app's own styling.
+// Address Line 1 input with its own suggestions dropdown, backed by the new
+// Google Places API (AutocompleteSuggestion + Place, session-tokened) - same
+// mechanism as SquareEdgeSports' AddressAutocomplete, restricted to US
+// addresses. Renders its own list instead of the native Google-attached
+// dropdown so it can match the app's own styling.
 export default function AddressAutocomplete({ value, onChange, onPlaceSelect, placeholder, className, ...rest }) {
   const [suggestions, setSuggestions] = useState([])
   const [open, setOpen] = useState(false)
@@ -14,8 +16,6 @@ export default function AddressAutocomplete({ value, onChange, onPlaceSelect, pl
   const containerRef = useRef(null)
   const inputRef = useRef(null)
   const debounceRef = useRef(null)
-  const autocompleteServiceRef = useRef(null)
-  const placesServiceRef = useRef(null)
   const sessionTokenRef = useRef(null)
 
   useEffect(() => {
@@ -23,8 +23,6 @@ export default function AddressAutocomplete({ value, onChange, onPlaceSelect, pl
     loadGoogleMaps()
       .then((maps) => {
         if (cancelled) return
-        autocompleteServiceRef.current = new maps.places.AutocompleteService()
-        placesServiceRef.current = new maps.places.PlacesService(document.createElement('div'))
         sessionTokenRef.current = new maps.places.AutocompleteSessionToken()
         setReady(true)
       })
@@ -42,27 +40,40 @@ export default function AddressAutocomplete({ value, onChange, onPlaceSelect, pl
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const fetchSuggestions = useCallback((query) => {
+  const fetchSuggestions = useCallback(async (query) => {
     if (!ready || !query || query.trim().length < 3) {
       setSuggestions([])
       setOpen(false)
       return
     }
     setLoading(true)
-    autocompleteServiceRef.current.getPlacePredictions(
-      { input: query, componentRestrictions: { country: 'us' }, types: ['address'], sessionToken: sessionTokenRef.current },
-      (results, status) => {
-        setLoading(false)
-        if (status !== window.google.maps.places.PlacesServiceStatus.OK || !results) {
-          setSuggestions([])
-          setOpen(false)
-          return
-        }
-        setSuggestions(results)
-        setOpen(true)
-        setHighlighted(-1)
-      },
-    )
+    try {
+      const { suggestions: results } =
+        await window.google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: query,
+          includedRegionCodes: ['us'],
+          sessionToken: sessionTokenRef.current,
+        })
+
+      if (!results?.length) {
+        setSuggestions([])
+        setOpen(false)
+        return
+      }
+
+      setSuggestions(results.map((s) => ({
+        prediction: s.placePrediction,
+        primary: s.placePrediction.mainText?.text || s.placePrediction.text?.text || '',
+        secondary: s.placePrediction.secondaryText?.text || '',
+      })))
+      setOpen(true)
+      setHighlighted(-1)
+    } catch {
+      setSuggestions([])
+      setOpen(false)
+    } finally {
+      setLoading(false)
+    }
   }, [ready])
 
   const handleInputChange = (e) => {
@@ -72,21 +83,27 @@ export default function AddressAutocomplete({ value, onChange, onPlaceSelect, pl
     debounceRef.current = setTimeout(() => fetchSuggestions(query), 300)
   }
 
-  const handleSelect = (prediction) => {
+  const handleSelect = async (item) => {
+    const selectedText = item.prediction.text?.text ||
+      (item.secondary ? `${item.primary}, ${item.secondary}` : item.primary)
+    const line1 = selectedText.trim()
+
     setOpen(false)
     setSuggestions([])
     setLoading(true)
-    placesServiceRef.current.getDetails(
-      { placeId: prediction.place_id, fields: ['address_components'], sessionToken: sessionTokenRef.current },
-      (place, status) => {
-        setLoading(false)
-        sessionTokenRef.current = new window.google.maps.places.AutocompleteSessionToken()
-        onChange({ target: { value: prediction.description } })
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
-          onPlaceSelect?.(parseAddressComponents(place.address_components))
-        }
-      },
-    )
+    onChange({ target: { value: line1 } })
+
+    try {
+      const place = item.prediction.toPlace()
+      await place.fetchFields({ fields: ['addressComponents'], sessionToken: sessionTokenRef.current })
+      // Refresh session token after a completed session.
+      sessionTokenRef.current = new window.google.maps.places.AutocompleteSessionToken()
+      onPlaceSelect?.(parseAddressComponents(place.addressComponents || []))
+    } catch {
+      // Details fetch failed - line1 is still set from the suggestion text.
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleKeyDown = (e) => {
@@ -131,15 +148,15 @@ export default function AddressAutocomplete({ value, onChange, onPlaceSelect, pl
           <p className="text-[10px] text-ink/40 uppercase tracking-wide px-3.5 pt-2.5 pb-1.5">Select an address to auto-fill city, state &amp; ZIP</p>
           {suggestions.map((s, i) => (
             <button
-              key={s.place_id}
+              key={s.prediction.placeId}
               type="button"
               onMouseDown={(e) => { e.preventDefault(); handleSelect(s) }}
               onMouseEnter={() => setHighlighted(i)}
               className={`w-full text-left px-3.5 py-2.5 border-t border-black/5 transition-colors ${highlighted === i ? 'bg-primary-50' : 'hover:bg-black/[0.02]'}`}
             >
-              <p className="text-sm font-medium text-ink truncate">{s.structured_formatting?.main_text || s.description}</p>
-              {s.structured_formatting?.secondary_text ? (
-                <p className="text-xs text-ink/40 truncate mt-0.5">{s.structured_formatting.secondary_text}</p>
+              <p className="text-sm font-medium text-ink truncate">{s.primary}</p>
+              {s.secondary ? (
+                <p className="text-xs text-ink/40 truncate mt-0.5">{s.secondary}</p>
               ) : null}
             </button>
           ))}

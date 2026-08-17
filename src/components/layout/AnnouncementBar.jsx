@@ -1,10 +1,12 @@
 import { Tag, Truck, ShieldCheck, BadgeCheck, Receipt, RotateCcw } from 'lucide-react'
 import useActiveCoupons from '../../hooks/useActiveCoupons'
 
+// Truthful value props only - no certification claims (USDA/FDA/ISO/organic)
+// unless the business actually holds them.
 const TRUST_ITEMS = [
   { icon: Truck, text: 'Free Delivery above $100' },
-  { icon: ShieldCheck, text: 'USDA Certified Quality' },
-  { icon: BadgeCheck, text: 'ISO Certified Standards' },
+  { icon: ShieldCheck, text: 'Freshly Packed' },
+  { icon: BadgeCheck, text: 'Reliable Austin Delivery' },
   { icon: Receipt, text: 'Sales Tax Billing on Every Order' },
   { icon: RotateCcw, text: 'Easy Returns' },
 ]

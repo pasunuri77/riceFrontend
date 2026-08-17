@@ -10,12 +10,14 @@ import { bagWeightLb } from '../../utils/stock'
 import { safeImageUrl } from '../../utils/sanitize'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
+import useShopNowPath from '../../hooks/useShopNowPath'
 import productApi from '../../api/productApi'
 
 export default function Cart() {
   const { user } = useAuth()
   const location = useLocation()
   const { items, updateQty, removeFromCart, subtotal, deliveryCharge, tax, discountAmount, coupon, total, freeDeliveryThreshold } = useCart()
+  const shopNowPath = useShopNowPath()
   const [products, setProducts] = useState({})
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function Cart() {
       )}
 
       {items.length === 0 ? (
-        <EmptyState icon={ShoppingCart} title="Your cart is empty" subtitle="Looks like you haven't added any rice yet." actionLabel="Continue Shopping" actionTo="/products" />
+        <EmptyState icon={ShoppingCart} title="Your cart is empty" subtitle="Looks like you haven't added any rice yet." actionLabel="Continue Shopping" actionTo={shopNowPath} />
       ) : (
         <div className="grid lg:grid-cols-[1fr_340px] gap-8">
           <div className="space-y-3">
@@ -90,7 +92,7 @@ export default function Cart() {
                 </div>
               )
             })}
-            <Link to="/products" className="text-sm font-semibold text-primary-600 inline-block mt-2">← Continue Shopping</Link>
+            <Link to={shopNowPath} className="text-sm font-semibold text-primary-600 inline-block mt-2">← Continue Shopping</Link>
           </div>
 
           <div className="space-y-4 h-fit sticky top-20">

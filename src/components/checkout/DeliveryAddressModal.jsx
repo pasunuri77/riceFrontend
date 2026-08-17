@@ -1,53 +1,12 @@
-import { useState } from 'react'
-import { Plus, Trash2, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import Modal from '../ui/Modal'
-import deliveryApi from '../../api/deliveryApi'
 
 export default function DeliveryAddressModal({ open, onClose, addresses, selected, onSelect, onEdit, onDelete, onAddNew }) {
-  const [pincode, setPincode] = useState('')
-  const [result, setResult] = useState(null)
-  const [checking, setChecking] = useState(false)
-
-  const runCheck = () => {
-    if (!/^\d{5}$/.test(pincode)) {
-      setResult({ ok: false, message: 'Enter a valid 5-digit ZIP code' })
-      return
-    }
-    setChecking(true)
-    deliveryApi.check(pincode)
-      .then((res) => setResult({ ok: res.serviceable, message: res.serviceable ? `Delivering to ${pincode}` : `Not deliverable to ${pincode} yet` }))
-      .catch(() => setResult({ ok: false, message: 'Unable to check delivery right now' }))
-      .finally(() => setChecking(false))
-  }
-
   return (
     <Modal open={open} onClose={onClose} title="Select Delivery Address" maxWidth="max-w-md">
-      <div className="-mx-6 -mt-6 px-6 pt-5 pb-4 border-b border-black/5">
-        <div className="flex gap-2">
-          <input
-            value={pincode}
-            onChange={(e) => { setPincode(e.target.value.replace(/\D/g, '').slice(0, 5)); setResult(null) }}
-            placeholder="Enter ZIP code"
-            inputMode="numeric"
-            aria-label="Enter ZIP code to check delivery"
-            className="input-field flex-1"
-          />
-          <button onClick={runCheck} disabled={!pincode || checking} className="btn-outline px-4 text-sm font-bold shrink-0 disabled:opacity-40">
-            {checking ? 'Checking...' : 'Check'}
-          </button>
-        </div>
-        {result && (
-          <p className={`flex items-center gap-1.5 text-xs font-semibold mt-2 ${result.ok ? 'text-leaf-600' : 'text-red-500'}`}>
-            {result.ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
-            {result.message}
-          </p>
-        )}
-      </div>
+      <button onClick={onAddNew} className="btn-outline w-full mb-4"><Plus className="w-4 h-4" aria-hidden="true" /> Add New Address</button>
 
-      <div className="flex items-center justify-between pt-4 pb-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink/40">Saved Address</p>
-        <button onClick={onAddNew} className="text-xs font-bold text-primary-600 hover:underline">+ Add New Address</button>
-      </div>
+      <p className="text-xs font-bold uppercase tracking-wide text-ink/40 pb-3">Saved Address</p>
 
       {addresses.length === 0 ? (
         <p className="text-sm text-ink/50 text-center py-6">No saved addresses yet.</p>
@@ -98,8 +57,6 @@ export default function DeliveryAddressModal({ open, onClose, addresses, selecte
           })}
         </div>
       )}
-
-      <button onClick={onAddNew} className="btn-outline w-full mt-4"><Plus className="w-4 h-4" aria-hidden="true" /> Add New Address</button>
     </Modal>
   )
 }

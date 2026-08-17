@@ -74,28 +74,50 @@ export function CartProvider({ children }) {
     return () => window.removeEventListener('store-settings:saved', refreshStoreSettings)
   }, [refreshStoreSettings])
 
+  // Shared merge step for both single- and multi-variant adds: a cart line's
+  // identity is productId + weight (bag size), so adding a size already in the
+  // cart increments its qty in place rather than creating a second row for the
+  // same size, while a different size of the same product always gets its own
+  // row. `selections` is an array so multiple bag sizes of one product can be
+  // merged into cart state in a single update instead of one setItems call per
+  // size (which would each re-render off a stale `prev` otherwise).
+  const mergeIntoCart = (prev, product, selections) => {
+    let next = prev
+    for (const { weight, qty } of selections) {
+      const existingIndex = next.findIndex((i) => i.id === product.id && i.weight === weight)
+      next = existingIndex >= 0
+        ? next.map((i, idx) => (idx === existingIndex ? { ...i, qty: i.qty + qty } : i))
+        : [
+            ...next,
+            {
+              id: product.id,
+              name: product.name,
+              brand: product.brand,
+              image: product.image,
+              pricePerKg: product.pricePerKg,
+              weight,
+              qty,
+            },
+          ]
+    }
+    return next
+  }
+
   const addToCart = (product, weight = product.weightOptions[0], qty = 1) => {
-    setItems((prev) => {
-      const existing = prev.find((i) => i.id === product.id && i.weight === weight)
-      if (existing) {
-        return prev.map((i) =>
-          i.id === product.id && i.weight === weight ? { ...i, qty: i.qty + qty } : i
-        )
-      }
-      return [
-        ...prev,
-        {
-          id: product.id,
-          name: product.name,
-          brand: product.brand,
-          image: product.image,
-          pricePerKg: product.pricePerKg,
-          weight,
-          qty,
-        },
-      ]
-    })
+    setItems((prev) => mergeIntoCart(prev, product, [{ weight, qty }]))
     showToast(`${product.name} added to cart`, 'success')
+  }
+
+  // Adds several bag sizes of the same product in one action (Product Details'
+  // "Add Selected Bags to Cart") - every size with qty > 0 lands in the cart as
+  // its own line item (or merges into its existing one), atomically in a single
+  // state update, with one combined confirmation toast instead of one per size.
+  const addMultipleToCart = (product, selections) => {
+    const valid = selections.filter((s) => s.qty > 0)
+    if (valid.length === 0) return
+    setItems((prev) => mergeIntoCart(prev, product, valid))
+    const totalBags = valid.reduce((sum, s) => sum + s.qty, 0)
+    showToast(`${totalBags} bag${totalBags === 1 ? '' : 's'} of ${product.name} added to cart`, 'success')
   }
 
   const removeFromCart = (id, weight) =>
@@ -176,7 +198,7 @@ export function CartProvider({ children }) {
   return (
     <CartContext.Provider
       value={{
-        items, addToCart, removeFromCart, updateQty, clearCart,
+        items, addToCart, addMultipleToCart, removeFromCart, updateQty, clearCart,
         subtotal, deliveryCharge, tax, total, count,
         freeDeliveryThreshold: storeSettings.freeDeliveryThreshold,
         taxPercentage: storeSettings.taxPercentage,

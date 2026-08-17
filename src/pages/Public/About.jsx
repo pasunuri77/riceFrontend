@@ -5,7 +5,7 @@ import Breadcrumb from '../../components/ui/Breadcrumb'
 import brandApi from '../../api/brandApi'
 
 const VALUES = [
-  { icon: Leaf, title: 'Farm-Fresh Sourcing', desc: 'We work directly with mills and farmers across India to bring you the freshest rice.' },
+  { icon: Leaf, title: 'Farm-Fresh Sourcing', desc: 'We work directly with trusted mills to bring authentic Sona Masoori rice to your door.' },
   { icon: Target, title: 'Quality First', desc: 'Every batch is quality-checked before it reaches your kitchen or store shelf.' },
   { icon: Users, title: 'Customer Obsessed', desc: 'From individuals to bulk business buyers, we tailor service to your needs.' },
   { icon: Eye, title: 'Transparency', desc: 'Clear pricing, honest descriptions, and no hidden charges — ever.' },
@@ -24,9 +24,9 @@ export default function About() {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid lg:grid-cols-2 gap-10 items-center mb-16">
         <div>
           <span className="badge bg-primary-100 text-primary-700 mb-4">Our Story</span>
-          <h1 className="section-title !text-4xl">Bringing India's Finest Rice to Every Home</h1>
+          <h1 className="section-title !text-4xl">Bringing Authentic Sona Masoori Rice to Austin</h1>
           <p className="text-ink/60 mt-4 leading-relaxed">
-            RiceBazaar started with a simple idea — make premium, authentic Indian rice accessible to everyone, whether you're cooking for a family of four or running a restaurant that serves hundreds. Today we partner with {brands.length} trusted brands and serve both individual households and business customers across the country.
+            RiceBazaar started with a simple idea — make premium, authentic Sona Masoori rice accessible to everyone in Austin, whether you're cooking for a family of four or running a restaurant. We're based in North Austin and currently deliver to selected neighborhoods across Austin, Texas, partnering with {brands.length} trusted brands to serve both individual households and business customers.
           </p>
           <p className="text-ink/60 mt-3 leading-relaxed">
             We believe great meals start with great rice — and we're committed to quality, fair pricing, and reliable delivery, every single time.

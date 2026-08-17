@@ -9,12 +9,12 @@ import otpApi from '../../api/otp/otpApi'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
 import AddressAutocomplete from '../../components/forms/AddressAutocomplete'
-import { INDIAN_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
+import { US_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 
 const schema = z
   .object({
     fullName: z.string().min(1, 'Full name is required'),
-    mobile: z.string().regex(INDIAN_MOBILE_REGEX, 'Enter a valid 10-digit Indian mobile number'),
+    mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit US phone number'),
     email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
@@ -49,7 +49,7 @@ export default function Register() {
     mode: 'onTouched',
     defaultValues: {
       fullName: '', mobile: '', email: '', password: '', confirmPassword: '',
-      addressLine1: '', addressLine2: '', city: '', state: '', zip: '', country: '',
+      addressLine1: '', addressLine2: '', city: 'Austin', state: 'Texas', zip: '', country: 'United States',
     },
   })
 
@@ -103,7 +103,7 @@ export default function Register() {
                 type="tel"
                 inputMode="numeric"
                 maxLength={10}
-                placeholder="98765 43210"
+                placeholder="(512) 555-0123"
                 className="input-field"
                 aria-invalid={!!errors.mobile}
               />

@@ -36,11 +36,17 @@ export function stockFieldForWeight(weightOptions, weight) {
 // small/medium/large regardless of which literal numbers a product has, so
 // this always displays the current 2/10/20 lb sizing without needing every
 // existing product record to be edited first.
-const BAG_LABELS_BY_POSITION = ['2 lb', '10 lb', '20 lb']
+const BAG_LB_BY_POSITION = [2, 10, 20]
 
 export function bagSizeLabel(weightOptions, weight) {
+  return `${bagSizeLb(weightOptions, weight) ?? weight} lb`
+}
+
+// Numeric counterpart to bagSizeLabel, for totals math (total weight, etc.)
+// that needs the actual lb number rather than display text.
+export function bagSizeLb(weightOptions, weight) {
   const index = [...(weightOptions || [])].sort((a, b) => a - b).indexOf(weight)
-  return BAG_LABELS_BY_POSITION[index] ?? `${weight} lb`
+  return BAG_LB_BY_POSITION[index]
 }
 
 // Cart/order line items only ever stored the single chosen weight number, not

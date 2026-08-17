@@ -7,7 +7,7 @@ const SECTIONS = [
   { title: '4. Delivery', body: 'Estimated delivery dates are provided at checkout but are not guaranteed. Delays due to logistics or weather are outside our control.' },
   { title: '5. Returns & Refunds', body: 'Unopened products may be returned within 7 days of delivery. Refunds are processed within 5-7 business days of return approval.' },
   { title: '6. Limitation of Liability', body: 'RiceBazaar is not liable for indirect damages arising from use of the platform, to the maximum extent permitted by law.' },
-  { title: '7. Governing Law', body: 'These terms are governed by the laws of India, with jurisdiction in New Delhi courts.' },
+  { title: '7. Governing Law', body: 'These terms are governed by the laws of the State of Texas, with jurisdiction in Austin, Texas courts.' },
 ]
 
 export default function Terms() {
