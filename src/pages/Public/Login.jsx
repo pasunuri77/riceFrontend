@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,7 +18,7 @@ const schema = z.object({
 
 export default function Login() {
   const [show, setShow] = useState(false)
-  const { login } = useAuth()
+  const { user, login } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
@@ -29,19 +29,27 @@ export default function Login() {
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(schema), mode: 'onTouched', defaultValues: { email: '', password: '' } })
 
+  // Already signed in - nothing to do on the login form itself, send them
+  // straight to their own dashboard rather than showing it again. Placed after
+  // every hook call above so this early return never changes the hook order.
+  if (user) {
+    return <Navigate to={user.role === 'admin' || user.role === 'employee' ? '/admin' : '/dashboard'} replace />
+  }
+
   const onSubmit = async (data) => {
     try {
       const user = await login(data)
       showToast('Welcome back!', 'success')
       // Only honor an intended destination that matches the account's own role area -
       // e.g. a user bounced from an admin page should still land on /dashboard, not /admin.
+      const isStaff = user.role === 'admin' || user.role === 'employee'
       const from = location.state?.from
       const fromPath = from ? `${from.pathname ?? ''}${from.search ?? ''}` : ''
       const isAdminPath = fromPath.startsWith('/admin')
       const isUserPath = fromPath.startsWith('/dashboard') || fromPath.startsWith('/checkout')
-      if (user.role === 'admin' && isAdminPath) navigate(fromPath)
-      else if (user.role !== 'admin' && isUserPath) navigate(fromPath)
-      else navigate(user.role === 'admin' ? '/admin' : '/dashboard')
+      if (isStaff && isAdminPath) navigate(fromPath)
+      else if (!isStaff && isUserPath) navigate(fromPath)
+      else navigate(isStaff ? '/admin' : '/dashboard')
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Login failed', 'error')
     }

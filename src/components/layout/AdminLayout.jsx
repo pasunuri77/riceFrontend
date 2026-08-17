@@ -63,5 +63,5 @@ export default function AdminLayout() {
     if (current && !permissions[current.perm]) navigate('/admin', { replace: true })
   }, [permissions, location.pathname, isEmployee])
 
-  return <DashboardShell navItems={visibleNav} brandLabel="Admin Panel" requireRole={['admin', 'employee']} profileTo="/admin/profile" />
+  return <DashboardShell navItems={visibleNav} brandLabel="Admin Panel" requireRole={['admin', 'employee']} profileTo="/admin/profile" showBackToStore={false} />
 }

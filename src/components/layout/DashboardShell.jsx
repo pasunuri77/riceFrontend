@@ -7,7 +7,7 @@ import NotificationBell from '../ui/NotificationBell'
 import PageTransition from '../ui/PageTransition'
 import { useDropdown } from '../../hooks/useDropdown'
 
-export default function DashboardShell({ navItems, brandLabel, requireRole, profileTo = '/dashboard/profile' }) {
+export default function DashboardShell({ navItems, brandLabel, requireRole, profileTo = '/dashboard/profile', showBackToStore = true }) {
   const [open, setOpen] = useState(false)
   const profileMenu = useDropdown('profile')
   const { user, logout } = useAuth()
@@ -88,7 +88,7 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
           <button onClick={() => setOpen(true)} aria-label="Open sidebar menu" className="lg:hidden p-2 rounded-lg hover:bg-primary-50">
             <Menu className="w-5 h-5" />
           </button>
-          <Link to="/" className="text-sm text-ink/50 hover:text-primary-600 hidden sm:block">← Back to Store</Link>
+          {showBackToStore && <Link to="/" className="text-sm text-ink/50 hover:text-primary-600 hidden sm:block">← Back to Store</Link>}
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
             <div ref={profileMenu.ref} className="relative">

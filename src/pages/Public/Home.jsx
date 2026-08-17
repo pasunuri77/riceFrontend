@@ -1,12 +1,21 @@
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShoppingBag, Store } from 'lucide-react'
 import useShopNowPath from '../../hooks/useShopNowPath'
 import ZipDeliveryCheck from '../../components/home/ZipDeliveryCheck'
 import { ALL_LOCATION_NAMES, STORE_MAPS_URL } from '../../data/deliveryAreas'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Home() {
   const shopNowPath = useShopNowPath()
+  const { user } = useAuth()
+
+  // Admins/employees land in their dashboard, not the storefront - the public
+  // Home page has nothing for them to do, and this also covers navigating back
+  // to "/" (e.g. the logo) while already signed in on the admin side.
+  if (user?.role === 'admin' || user?.role === 'employee') {
+    return <Navigate to="/admin" replace />
+  }
 
   return (
     <div>

@@ -1,5 +1,7 @@
+import { Navigate } from 'react-router-dom'
 import { LayoutDashboard, MapPin, Package, User, ShoppingCart } from 'lucide-react'
 import DashboardShell from './DashboardShell'
+import { useAuth } from '../../context/AuthContext'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -10,5 +12,13 @@ const navItems = [
 ]
 
 export default function UserLayout() {
+  const { user } = useAuth()
+
+  // An admin/employee has nothing to do in the customer dashboard - send them
+  // to their own dashboard instead of letting them wander into it.
+  if (user?.role === 'admin' || user?.role === 'employee') {
+    return <Navigate to="/admin" replace />
+  }
+
   return <DashboardShell navItems={navItems} brandLabel="User Dashboard" />
 }

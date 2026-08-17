@@ -1,9 +1,10 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useToast } from '../../context/ToastContext'
+import { useAuth } from '../../context/AuthContext'
 import { ApiError } from '../../api/client'
 import otpApi from '../../api/otp/otpApi'
 import FormField from '../../components/ui/FormField'
@@ -34,6 +35,7 @@ const schema = z
   })
 
 export default function Register() {
+  const { user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
@@ -56,6 +58,13 @@ export default function Register() {
   const { onChange: onMobileChange, ...mobileField } = register('mobile')
   const { onChange: onZipChange, ...zipField } = register('zip')
   const addressLine1 = watch('addressLine1')
+
+  // Already signed in - registration is for creating a new account, not
+  // relevant to someone already logged in. Placed after every hook call
+  // above so this early return never changes the hook order.
+  if (user) {
+    return <Navigate to={user.role === 'admin' || user.role === 'employee' ? '/admin' : '/dashboard'} replace />
+  }
 
   // Same digits-only, length-capped pattern as the mobile field - ZIP stays a
   // string throughout (never parsed as a number) so a leading zero can't be lost.
