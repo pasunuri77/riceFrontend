@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Eye, Truck } from 'lucide-react'
+import { Eye, Truck, Plus } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import { STATUS_STYLES } from '../../components/ui/StatusPill'
@@ -50,6 +50,36 @@ function StatusSelect({ value, options, onChange, disabled = false }) {
       className={`badge border-0 cursor-pointer pr-6 disabled:opacity-60 disabled:cursor-not-allowed ${STATUS_STYLES[value] || 'bg-black/10 text-ink/60'}`}
     >
       {options.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
+  )
+}
+
+// A still-Pending order isn't ready for the normal Processing/Shipped/Delivered
+// progression yet - it first needs an explicit admin decision. Rather than a
+// separate "Confirm Order" button next to the dropdown, that decision lives
+// inside the dropdown itself: Pending shows only "Confirm" (-> Processing) and
+// "Cancel" (-> Cancelled) as next steps. Once confirmed, this renders the
+// normal full-status StatusSelect for the rest of the order lifecycle.
+function DeliverySelect({ order, updating, onStatusChange, onConfirm }) {
+  if (order.deliveryStatus !== 'Pending') {
+    return <StatusSelect value={order.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${order.id}:delivery`]} onChange={(status) => onStatusChange(order.id, status)} />
+  }
+  const busy = updating[`${order.id}:delivery`] || updating[`${order.id}:confirm`]
+  return (
+    <select
+      value="Pending"
+      onChange={(e) => {
+        const action = e.target.value
+        if (action === 'Confirm') onConfirm(order.id)
+        else if (action === 'Cancel') onStatusChange(order.id, 'Cancelled')
+      }}
+      onClick={(e) => e.stopPropagation()}
+      disabled={busy}
+      className={`badge border-0 cursor-pointer pr-6 disabled:opacity-60 disabled:cursor-not-allowed ${STATUS_STYLES.Pending}`}
+    >
+      <option value="Pending">Pending</option>
+      <option value="Confirm">Confirm</option>
+      <option value="Cancel">Cancel</option>
     </select>
   )
 }
@@ -151,6 +181,20 @@ export default function AdminOrders() {
     }
   }
 
+  const confirmOrder = async (id) => {
+    const key = `${id}:confirm`
+    setUpdating((prev) => ({ ...prev, [key]: true }))
+    try {
+      const updatedOrder = await orderApi.confirmOrder(id)
+      replaceOrder(updatedOrder)
+      showToast('Order confirmed - now Processing', 'success')
+    } catch (err) {
+      showToast(err.message || 'Unable to confirm order', 'error')
+    } finally {
+      setUpdating((prev) => ({ ...prev, [key]: false }))
+    }
+  }
+
   // No bulk-delete endpoint exists for orders, so the bulk action reuses the
   // real per-order delivery-status endpoint instead of fabricating a delete.
   const handleBulkStatusUpdate = () => {
@@ -182,7 +226,11 @@ export default function AdminOrders() {
   return (
     <div>
       <Breadcrumb items={[{ label: 'Admin' }, { label: 'Orders' }]} />
-      <PageHeader title="Order Management" subtitle={`${filtered.length} of ${ordersData.length} orders`} />
+      <PageHeader
+        title="Order Management"
+        subtitle={`${filtered.length} of ${ordersData.length} orders`}
+        action={<Link to="/admin/orders/new" className="btn-primary text-sm"><Plus className="w-4 h-4" /> New Order</Link>}
+      />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search orders..." className="max-w-sm" />
@@ -254,7 +302,7 @@ export default function AdminOrders() {
                 )}
                 {isVisible('deliveredOn') && <td className="p-3 text-ink/50">{o.deliveredAt ? formatDate(o.deliveredAt) : '--'}</td>}
                 {isVisible('payment') && <td className="p-3"><StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${o.id}:payment`]} onChange={(status) => updatePaymentStatus(o.id, status)} /></td>}
-                {isVisible('delivery') && <td className="p-3"><StatusSelect value={o.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${o.id}:delivery`]} onChange={(status) => updateDeliveryStatus(o.id, status)} /></td>}
+                {isVisible('delivery') && <td className="p-3"><DeliverySelect order={o} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} /></td>}
                 <td className="p-3"><button onClick={() => setViewing(o)} aria-label={`View order ${o.id}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" aria-hidden="true" /></button></td>
               </tr>
             ))}
@@ -283,7 +331,7 @@ export default function AdminOrders() {
               <div className="flex justify-between"><span className="text-ink/50">Estimated Delivery</span><span className="font-semibold">{estimatedDelivery(4, viewing.date)}</span></div>
             )}
             <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
-            <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><StatusSelect value={viewing.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${viewing.id}:delivery`]} onChange={(status) => updateDeliveryStatus(viewing.id, status)} /></div>
+            <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><DeliverySelect order={viewing} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} /></div>
           </div>
         )}
       </Modal>

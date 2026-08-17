@@ -1,6 +1,6 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Eye, Ban, CheckCircle2, Package } from 'lucide-react'
+import { Eye, Ban, CheckCircle2, Package, Shield, Trash2, UserPlus, Mail } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import Modal from '../../components/ui/Modal'
@@ -11,84 +11,147 @@ import TableShell from '../../components/ui/TableShell'
 import SortableHeader from '../../components/ui/SortableHeader'
 import ColumnVisibilityMenu from '../../components/ui/ColumnVisibilityMenu'
 import ExportMenu from '../../components/ui/ExportMenu'
-import BulkActionsBar from '../../components/ui/BulkActionsBar'
 import { formatUSD, formatDate, fitTextSizeClass } from '../../utils/format'
 import { bagWeightLb } from '../../utils/stock'
 import { exportToCsv, exportToExcel } from '../../utils/exportTable'
+import { PERMISSIONS } from '../../data/permissions'
 import { useToast } from '../../context/ToastContext'
+import { useAuth } from '../../context/AuthContext'
+import { ApiError } from '../../api/client'
 import customerApi from '../../api/customerApi'
 import orderApi from '../../api/orderApi'
+import staffApi from '../../api/staffApi'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${bagWeightLb(i.weight)}lb Bag x${i.qty})`).join(', ') : o.riceName)
 
 const PAGE_SIZE = 8
 const MODAL_STAT_SCALE = ['text-lg', 'text-base', 'text-sm']
-const STATUS_TABS = ['All', 'Active', 'Blocked']
+const ROLE_TABS = ['All', 'Customers', 'Employees', 'Admins']
+const roleForTab = { Customers: 'user', Employees: 'employee', Admins: 'admin' }
+const ROLE_STYLES = {
+  user: { badge: 'bg-leaf-100 text-leaf-700', avatar: 'bg-leaf-500' },
+  employee: { badge: 'bg-blue-100 text-blue-700', avatar: 'bg-blue-500' },
+  admin: { badge: 'bg-primary-100 text-primary-700', avatar: 'bg-primary-500' },
+}
+const ROLE_LABEL = { user: 'Customer', employee: 'Employee', admin: 'Admin' }
+// No Super Admin tier here - riceApp only distinguishes Admin (full access)
+// from Employee (granular permissions), so only these two are invitable as staff.
+const INVITE_ROLES = ['user', 'employee', 'admin']
 
 const COLUMNS = [
-  { key: 'name', label: 'Customer', sortField: 'name' },
+  { key: 'name', label: 'User', sortField: 'name' },
   { key: 'mobile', label: 'Mobile' },
-  { key: 'orders', label: 'Orders', sortField: 'orders' },
-  { key: 'totalSpent', label: 'Total Spent', sortField: 'totalSpent' },
-  { key: 'joined', label: 'Joined', sortField: 'joined' },
+  { key: 'role', label: 'Role' },
   { key: 'status', label: 'Status' },
+  { key: 'joined', label: 'Joined', sortField: 'joined' },
 ]
 
+function RolePicker({ value, onChange, options }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {options.map((r) => {
+        const selected = value === r
+        return (
+          <button
+            key={r}
+            type="button"
+            onClick={() => onChange(r)}
+            className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
+              selected ? `${ROLE_STYLES[r].avatar} text-white border-transparent` : 'bg-black/[0.02] border-black/10 text-ink/60 opacity-60 hover:opacity-100'
+            }`}
+          >
+            {ROLE_LABEL[r]}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function AdminCustomers() {
-  const [customers, setCustomers] = useState([])
-  const [ordersData, setOrdersData] = useState([])
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('All')
-  const [sort, setSort] = useState({ key: 'joined', dir: 'desc' })
-  const [page, setPage] = useState(1)
-  const [viewing, setViewing] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState(new Set())
-  const [visibleCols, setVisibleCols] = useState({})
-  const [bulkUpdating, setBulkUpdating] = useState(false)
+  const { user: me } = useAuth()
   const { showToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  useEffect(() => {
-    Promise.all([
-      customerApi.list().then(setCustomers).catch(() => setCustomers([])),
-      orderApi.listAll().then(setOrdersData).catch(() => setOrdersData([])),
-    ]).finally(() => setLoading(false))
-  }, [])
+  const [customers, setCustomers] = useState([])
+  const [staff, setStaff] = useState([])
+  const [ordersData, setOrdersData] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const [search, setSearch] = useState('')
+  const [tab, setTab] = useState('All')
+  const [sort, setSort] = useState({ key: 'joined', dir: 'desc' })
+  const [page, setPage] = useState(1)
+  const [viewing, setViewing] = useState(null)
+  const [visibleCols, setVisibleCols] = useState({})
+
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteForm, setInviteForm] = useState({ fullName: '', mobile: '', email: '', role: 'user' })
+  const [inviting, setInviting] = useState(false)
+
+  const [permUser, setPermUser] = useState(null)
+  const [perms, setPerms] = useState({})
+  const [permLoading, setPermLoading] = useState(false)
+
+  const isAdmin = me?.role === 'admin'
+
+  const load = () => Promise.all([
+    // /api/admin/customers has been observed to return every account, not just
+    // customers (e.g. an admin's own account can come back through it too) -
+    // respect whatever role the backend actually attached rather than blindly
+    // overwriting it, so an admin/employee record isn't mislabeled "Customer".
+    customerApi.list().then((list) => setCustomers(list.map((c) => ({ ...c, role: c.role || 'user' })))).catch(() => setCustomers([])),
+    staffApi.list().then(setStaff).catch(() => setStaff([])),
+    orderApi.listAll().then(setOrdersData).catch(() => setOrdersData([])),
+  ]).finally(() => setLoading(false))
+
+  useEffect(() => { load() }, [])
+
+  // Once /api/admin/staff is live, the same account could come back from both
+  // lists - de-dupe by id, preferring the staff record (it's the authoritative
+  // source for role/status/permissions for admin & employee accounts).
+  const allUsers = useMemo(() => {
+    const staffIds = new Set(staff.map((s) => s.id))
+    return [...customers.filter((c) => !staffIds.has(c.id)), ...staff]
+  }, [customers, staff])
 
   useEffect(() => {
     const id = searchParams.get('id')
-    if (!id || customers.length === 0) return
-    const match = customers.find((c) => c.id === id)
+    if (!id || allUsers.length === 0) return
+    const match = allUsers.find((c) => c.id === id)
     if (match) setViewing(match)
     setSearchParams({}, { replace: true })
-  }, [searchParams, customers])
+  }, [searchParams, allUsers])
 
   const counts = useMemo(() => ({
-    All: customers.length,
-    Active: customers.filter((c) => c.status === 'Active').length,
-    Blocked: customers.filter((c) => c.status === 'Blocked').length,
-  }), [customers])
+    All: allUsers.length,
+    Customers: allUsers.filter((u) => u.role === 'user').length,
+    Employees: allUsers.filter((u) => u.role === 'employee').length,
+    Admins: allUsers.filter((u) => u.role === 'admin').length,
+  }), [allUsers, customers, staff])
 
   const list = useMemo(() => {
-    let next = customers.filter((c) =>
-      (status === 'All' || c.status === status) &&
+    const roleFilter = roleForTab[tab]
+    let next = allUsers.filter((c) =>
+      (!roleFilter || c.role === roleFilter) &&
       `${c.name} ${c.email} ${c.mobile}`.toLowerCase().includes(search.toLowerCase())
     )
     if (sort.key) {
       const field = COLUMNS.find((c) => c.key === sort.key)?.sortField
-      next = [...next].sort((a, b) => {
-        let av = a[field]; let bv = b[field]
-        if (field === 'joined') { av = new Date(av); bv = new Date(bv) }
-        if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase() }
-        if (av < bv) return sort.dir === 'asc' ? -1 : 1
-        if (av > bv) return sort.dir === 'asc' ? 1 : -1
-        return 0
-      })
+      if (field) {
+        next = [...next].sort((a, b) => {
+          let av = a[field]; let bv = b[field]
+          if (field === 'joined') { av = new Date(av || 0); bv = new Date(bv || 0) }
+          if (typeof av === 'string') { av = av.toLowerCase(); bv = (bv || '').toLowerCase() }
+          if (av < bv) return sort.dir === 'asc' ? -1 : 1
+          if (av > bv) return sort.dir === 'asc' ? 1 : -1
+          return 0
+        })
+      }
     }
     return next
-  }, [customers, search, status, sort])
+  }, [allUsers, tab, search, sort])
 
   const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE))
   const pageItems = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -97,39 +160,103 @@ export default function AdminCustomers() {
   const toggleCol = (key) => setVisibleCols((v) => ({ ...v, [key]: v[key] === false ? true : false }))
   const isVisible = (key) => visibleCols[key] !== false
 
-  const toggleSelect = (id) => setSelected((s) => { const next = new Set(s); next.has(id) ? next.delete(id) : next.add(id); return next })
-  const toggleSelectPage = () => setSelected((s) => {
-    const allSelected = pageItems.every((c) => s.has(c.id))
-    const next = new Set(s)
-    pageItems.forEach((c) => (allSelected ? next.delete(c.id) : next.add(c.id)))
-    return next
-  })
-  const clearSelection = () => setSelected(new Set())
-
-  const toggleStatus = (c) => {
-    const nextStatus = c.status === 'Active' ? 'Blocked' : 'Active'
-    customerApi.updateStatus(c.id, nextStatus).then((updated) => {
-      setCustomers((prev) => prev.map((x) => (x.id === c.id ? updated : x)))
-      setViewing((v) => (v?.id === c.id ? updated : v))
-      showToast(nextStatus === 'Blocked' ? `${c.name} blocked` : `${c.name} unblocked`, nextStatus === 'Blocked' ? 'error' : 'success')
-    })
+  const replaceCustomer = (updated) => {
+    setCustomers((prev) => prev.map((c) => (c.id === updated.id ? { ...updated, role: 'user' } : c)))
+    setViewing((v) => (v?.id === updated.id ? { ...updated, role: 'user' } : v))
+  }
+  const replaceStaff = (updated) => {
+    setStaff((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+    setViewing((v) => (v?.id === updated.id ? updated : v))
   }
 
-  // No bulk-delete endpoint exists for customers, so bulk actions reuse the
-  // real per-customer status endpoint instead of fabricating a delete.
-  const handleBulkStatus = (nextStatus) => {
-    setBulkUpdating(true)
-    Promise.allSettled([...selected].map((id) => customerApi.updateStatus(id, nextStatus)))
-      .then((results) => {
-        const updatedById = new Map()
-        results.forEach((r) => { if (r.status === 'fulfilled') updatedById.set(r.value.id, r.value) })
-        setCustomers((prev) => prev.map((c) => updatedById.get(c.id) || c))
-        const failed = results.filter((r) => r.status === 'rejected').length
-        clearSelection()
-        if (failed > 0) showToast(`${results.length - failed} updated, ${failed} failed`, 'error')
-        else showToast(`${results.length} customer(s) ${nextStatus === 'Blocked' ? 'blocked' : 'unblocked'}`, 'success')
-      })
-      .finally(() => setBulkUpdating(false))
+  const toggleActive = (target) => {
+    if (target.role === 'user') {
+      const nextStatus = target.status === 'Active' ? 'Blocked' : 'Active'
+      customerApi.updateStatus(target.id, nextStatus).then((updated) => {
+        replaceCustomer(updated)
+        showToast(nextStatus === 'Blocked' ? `${target.name} blocked` : `${target.name} unblocked`, nextStatus === 'Blocked' ? 'error' : 'success')
+      }).catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to update status', 'error'))
+      return
+    }
+    // Deactivating staff is an admin-only action - the UI never renders this
+    // control for an employee viewer (see the Actions cell below).
+    const nextStatus = target.status === 'Active' ? 'Inactive' : 'Active'
+    staffApi.updateStatus(target.id, nextStatus).then((updated) => {
+      replaceStaff(updated)
+      showToast(nextStatus === 'Inactive' ? `${target.name} deactivated` : `${target.name} reactivated`, nextStatus === 'Inactive' ? 'error' : 'success')
+    }).catch((err) => showToast(err instanceof ApiError ? err.message : 'Failed to update status', 'error'))
+  }
+
+  // Delete hierarchy, exactly as specified:
+  // - Nobody can delete their own account.
+  // - Admin can delete anyone else (customer, employee, or another admin).
+  // - Employee can delete customers only - never an admin, and never another employee or themself.
+  const canDelete = (target) => {
+    if (!me || target.id === me.id) return false
+    if (me.role === 'admin') return true
+    if (me.role === 'employee') return target.role === 'user'
+    return false
+  }
+  const deleteTooltip = (target) => {
+    if (target.id === me?.id) return 'Cannot delete your own account'
+    if (me?.role === 'employee' && target.role !== 'user') return 'Employees can only remove customer accounts'
+    return null
+  }
+
+  const removeUser = async (target) => {
+    if (!window.confirm(`Remove ${target.name}? This can't be undone.`)) return
+    try {
+      if (target.role === 'user') {
+        await customerApi.remove(target.id)
+        setCustomers((prev) => prev.filter((c) => c.id !== target.id))
+      } else {
+        await staffApi.remove(target.id)
+        setStaff((prev) => prev.filter((s) => s.id !== target.id))
+      }
+      setViewing((v) => (v?.id === target.id ? null : v))
+      showToast(`${target.name} removed`, 'success')
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to remove', 'error')
+    }
+  }
+
+  const sendInvite = async () => {
+    if (!inviteForm.fullName.trim() || !inviteForm.email.trim()) { showToast('Name and email are required', 'error'); return }
+    setInviting(true)
+    try {
+      if (inviteForm.role === 'user') {
+        const created = await customerApi.create(inviteForm)
+        setCustomers((prev) => [...prev, { ...created, role: 'user' }])
+      } else {
+        await staffApi.invite(inviteForm)
+      }
+      showToast(`Invitation sent to ${inviteForm.email}`, 'success')
+      setInviteOpen(false)
+      setInviteForm({ fullName: '', mobile: '', email: '', role: 'user' })
+      load()
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to send invite', 'error')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  const openPermissions = async (target) => {
+    setPermUser(target)
+    try { setPerms((await staffApi.getPermissions(target.id)) || {}) } catch { setPerms({}) }
+  }
+  const togglePerm = (key) => setPerms((p) => ({ ...p, [key]: !p[key] }))
+  const savePermissions = async () => {
+    setPermLoading(true)
+    try {
+      await staffApi.updatePermissions(permUser.id, perms)
+      showToast('Permissions updated - takes effect immediately', 'success')
+      setPermUser(null)
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Failed to update permissions', 'error')
+    } finally {
+      setPermLoading(false)
+    }
   }
 
   const customerOrders = (id) => ordersData.filter((o) => o.customerId === id)
@@ -138,24 +265,27 @@ export default function AdminCustomers() {
     { label: 'Name', value: (c) => c.name },
     { label: 'Email', value: (c) => c.email },
     { label: 'Mobile', value: (c) => c.mobile },
-    { label: 'Orders', value: (c) => c.orders },
-    { label: 'Total Spent', value: (c) => c.totalSpent },
-    { label: 'Joined', value: (c) => c.joined },
+    { label: 'Role', value: (c) => ROLE_LABEL[c.role] },
     { label: 'Status', value: (c) => c.status },
+    { label: 'Joined', value: (c) => c.joined },
   ]
 
-  const colCount = 2 + COLUMNS.filter((c) => isVisible(c.key)).length + 1
+  const colCount = COLUMNS.length + 1
 
   return (
     <div>
       <Breadcrumb items={[{ label: 'Admin' }, { label: 'Customers' }]} />
-      <PageHeader title="Customer Management" subtitle={`${list.length} of ${customers.length} customers`} />
+      <PageHeader
+        title="Customer & Staff Management"
+        subtitle={`${list.length} of ${allUsers.length} users`}
+        action={<button onClick={() => { setInviteForm({ fullName: '', mobile: '', email: '', role: 'user' }); setInviteOpen(true) }} className="btn-primary text-sm"><UserPlus className="w-4 h-4" /> Invite User</button>}
+      />
 
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex gap-2">
-          {STATUS_TABS.map((s) => (
-            <button key={s} onClick={() => { setStatus(s); setPage(1) }} className={`px-4 py-2 rounded-lg text-sm font-semibold ${status === s ? 'bg-primary-500 text-white' : 'bg-white border border-black/10 text-ink/60'}`}>
-              {s} ({counts[s]})
+        <div className="flex gap-2 flex-wrap">
+          {ROLE_TABS.map((t) => (
+            <button key={t} onClick={() => { setTab(t); setPage(1) }} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === t ? 'bg-primary-500 text-white' : 'bg-white border border-black/10 text-ink/60'}`}>
+              {t} ({counts[t]})
             </button>
           ))}
         </div>
@@ -163,80 +293,134 @@ export default function AdminCustomers() {
           <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search name, email, mobile..." className="" inputClassName="!w-64" />
           <ColumnVisibilityMenu columns={COLUMNS} visible={visibleCols} onToggle={toggleCol} />
           <ExportMenu
-            onExportCsv={() => exportToCsv('customers', exportColumns, list)}
-            onExportExcel={() => exportToExcel('customers', exportColumns, list)}
+            onExportCsv={() => exportToCsv('users', exportColumns, list)}
+            onExportExcel={() => exportToExcel('users', exportColumns, list)}
           />
         </div>
       </div>
 
-      <BulkActionsBar count={selected.size} onClear={clearSelection}>
-        <button onClick={() => handleBulkStatus('Blocked')} disabled={bulkUpdating} className="btn text-xs px-3 py-1.5 bg-red-500 text-white disabled:opacity-60">
-          <Ban className="w-3.5 h-3.5" /> Block
-        </button>
-        <button onClick={() => handleBulkStatus('Active')} disabled={bulkUpdating} className="btn text-xs px-3 py-1.5 bg-leaf-600 text-white disabled:opacity-60">
-          <CheckCircle2 className="w-3.5 h-3.5" /> Unblock
-        </button>
-      </BulkActionsBar>
-
       <TableShell minWidth="900px">
           <thead>
             <tr className="text-left text-ink/40 text-xs uppercase border-b border-black/5">
-              <th scope="col" className="p-3.5 w-10">
-                <input type="checkbox" aria-label="Select all customers on this page" className="accent-primary-500 w-4 h-4" checked={pageItems.length > 0 && pageItems.every((c) => selected.has(c.id))} onChange={toggleSelectPage} />
-              </th>
-              {isVisible('name') && <SortableHeader label="Customer" sortKey="name" sort={sort} onSort={toggleSort} />}
+              {isVisible('name') && <SortableHeader label="User" sortKey="name" sort={sort} onSort={toggleSort} />}
               {isVisible('mobile') && <th scope="col" className="p-3.5">Mobile</th>}
-              {isVisible('orders') && <SortableHeader label="Orders" sortKey="orders" sort={sort} onSort={toggleSort} />}
-              {isVisible('totalSpent') && <SortableHeader label="Total Spent" sortKey="totalSpent" sort={sort} onSort={toggleSort} />}
-              {isVisible('joined') && <SortableHeader label="Joined" sortKey="joined" sort={sort} onSort={toggleSort} />}
+              {isVisible('role') && <th scope="col" className="p-3.5">Role</th>}
               {isVisible('status') && <th scope="col" className="p-3.5">Status</th>}
+              {isVisible('joined') && <SortableHeader label="Joined" sortKey="joined" sort={sort} onSort={toggleSort} />}
               <th scope="col" className="p-3.5">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} cols={colCount} />)}
-            {!loading && pageItems.map((c) => (
-              <tr key={c.id} className={`border-b border-black/5 last:border-0 hover:bg-primary-50/40 ${selected.has(c.id) ? 'bg-primary-50/60' : ''}`}>
-                <td className="p-3"><input type="checkbox" aria-label={`Select ${c.name}`} className="accent-primary-500 w-4 h-4" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} /></td>
-                {isVisible('name') && (
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold shrink-0">{c.name[0]}</div>
-                      <div className="min-w-0">
-                        <p className="font-semibold truncate">{c.name}</p>
-                        <p className="text-xs text-ink/40 truncate">{c.email}</p>
+            {!loading && pageItems.map((c) => {
+              const disabledDelete = !canDelete(c)
+              return (
+                <tr key={c.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
+                  {isVisible('name') && (
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-full ${ROLE_STYLES[c.role].avatar} text-white flex items-center justify-center text-xs font-bold shrink-0`}>{c.name?.[0]}</div>
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">{c.name}</p>
+                          <p className="text-xs text-ink/40 truncate">{c.email}</p>
+                        </div>
+                        {c.pendingSetup && <span className="badge bg-amber-100 text-amber-700 text-[10px] shrink-0">Pending Setup</span>}
                       </div>
+                    </td>
+                  )}
+                  {isVisible('mobile') && <td className="p-3 text-ink/60">{c.mobile || '--'}</td>}
+                  {isVisible('role') && <td className="p-3"><span className={`badge ${ROLE_STYLES[c.role].badge}`}>{ROLE_LABEL[c.role]}</span></td>}
+                  {isVisible('status') && <td className="p-3"><StatusPill status={c.status || 'Active'} /></td>}
+                  {isVisible('joined') && <td className="p-3 text-ink/50">{c.joined ? formatDate(c.joined) : '--'}</td>}
+                  <td className="p-3">
+                    <div className="flex gap-1.5">
+                      <button onClick={() => setViewing(c)} aria-label={`View ${c.name}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" aria-hidden="true" /></button>
+                      {isAdmin && c.role === 'employee' && (
+                        <button onClick={() => openPermissions(c)} title="Manage permissions" className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100">
+                          <Shield className="w-3.5 h-3.5" /> Perms
+                        </button>
+                      )}
+                      {(c.role === 'user' || isAdmin) && (
+                        <button
+                          onClick={() => toggleActive(c)}
+                          aria-label={c.status === 'Active' ? `Deactivate ${c.name}` : `Reactivate ${c.name}`}
+                          className={`p-1.5 rounded-lg ${c.status === 'Active' ? 'hover:bg-red-100 text-red-500' : 'hover:bg-leaf-100 text-leaf-600'}`}
+                        >
+                          {c.status === 'Active' ? <Ban className="w-4 h-4" aria-hidden="true" /> : <CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeUser(c)}
+                        disabled={disabledDelete}
+                        title={disabledDelete ? deleteTooltip(c) : 'Remove account'}
+                        aria-label={`Remove ${c.name}`}
+                        className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                      >
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
+                      </button>
                     </div>
                   </td>
-                )}
-                {isVisible('mobile') && <td className="p-3 text-ink/60">{c.mobile}</td>}
-                {isVisible('orders') && <td className="p-3 font-semibold">{c.orders}</td>}
-                {isVisible('totalSpent') && <td className="p-3 font-semibold">{formatUSD(c.totalSpent)}</td>}
-                {isVisible('joined') && <td className="p-3 text-ink/50">{formatDate(c.joined)}</td>}
-                {isVisible('status') && <td className="p-3"><StatusPill status={c.status} /></td>}
-                <td className="p-3">
-                  <div className="flex gap-1.5">
-                    <button onClick={() => setViewing(c)} aria-label={`View ${c.name}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" aria-hidden="true" /></button>
-                    <button
-                      onClick={() => toggleStatus(c)}
-                      aria-label={c.status === 'Active' ? `Block ${c.name}` : `Unblock ${c.name}`}
-                      className={`p-1.5 rounded-lg ${c.status === 'Active' ? 'hover:bg-red-100 text-red-500' : 'hover:bg-leaf-100 text-leaf-600'}`}
-                    >
-                      {c.status === 'Active' ? <Ban className="w-4 h-4" aria-hidden="true" /> : <CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                </tr>
+              )
+            })}
             {!loading && pageItems.length === 0 && (
-              <tr><td colSpan={colCount} className="p-8 text-center text-ink/40">No customers match your filters.</td></tr>
+              <tr><td colSpan={colCount} className="p-8 text-center text-ink/40">No users match your filters.</td></tr>
             )}
           </tbody>
       </TableShell>
       <Pagination page={page} totalPages={totalPages} onChange={setPage} />
 
-      <Modal open={!!viewing} onClose={() => setViewing(null)} title="Customer Details" maxWidth="max-w-lg">
-        {viewing && (
+      {/* Invite / Add user modal */}
+      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title={isAdmin ? 'Invite New User' : 'Add New Customer'}>
+        <div className="space-y-3">
+          <div className="flex items-start gap-2.5 bg-primary-50 border border-primary-100 rounded-xl px-4 py-3">
+            <Mail className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-ink/60">An invitation email will be sent with a secure link to set up their password. The link expires in 24 hours.</p>
+          </div>
+          <input value={inviteForm.fullName} onChange={(e) => setInviteForm((f) => ({ ...f, fullName: e.target.value }))} placeholder="Full name" className="input-field" />
+          <input value={inviteForm.mobile} onChange={(e) => setInviteForm((f) => ({ ...f, mobile: e.target.value }))} placeholder="Mobile (optional)" className="input-field" />
+          <input value={inviteForm.email} onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))} type="email" placeholder="Email" className="input-field" />
+          {isAdmin && (
+            <div>
+              <p className="label-field">Role</p>
+              <RolePicker value={inviteForm.role} onChange={(role) => setInviteForm((f) => ({ ...f, role }))} options={INVITE_ROLES} />
+            </div>
+          )}
+          <button onClick={sendInvite} disabled={inviting} className="btn-primary w-full disabled:opacity-60">
+            {inviting ? 'Sending...' : 'Send Invite'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Permissions modal (Employee rows, admin-only trigger) */}
+      <Modal open={!!permUser} onClose={() => setPermUser(null)} title={`Permissions - ${permUser?.name || ''}`}>
+        <p className="text-xs text-ink/50 mb-3">Toggle module access for this employee. Changes take effect immediately.</p>
+        <div className="space-y-2">
+          {PERMISSIONS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => togglePerm(p.key)}
+              className={`w-full flex items-center justify-between p-3.5 rounded-xl border ${perms[p.key] ? 'bg-primary-50 border-primary-200' : 'bg-black/[0.02] border-black/5'}`}
+            >
+              <div className="text-left">
+                <p className={`text-sm font-bold ${perms[p.key] ? 'text-primary-700' : 'text-ink'}`}>{p.label}</p>
+                <p className="text-xs text-ink/50">{p.desc}</p>
+              </div>
+              <div className={`w-10 h-5 rounded-full relative shrink-0 transition-colors ${perms[p.key] ? 'bg-primary-500' : 'bg-black/15'}`}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${perms[p.key] ? 'left-5' : 'left-0.5'}`} />
+              </div>
+            </button>
+          ))}
+        </div>
+        <button onClick={savePermissions} disabled={permLoading} className="btn-primary w-full mt-4 disabled:opacity-60">
+          {permLoading ? 'Saving...' : 'Save Permissions'}
+        </button>
+      </Modal>
+
+      {/* View modal */}
+      <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing?.role === 'user' ? 'Customer Details' : 'Staff Details'} maxWidth="max-w-lg">
+        {viewing && viewing.role === 'user' && (
           <div className="space-y-5">
             <div className="flex items-center gap-3">
               <div className="w-14 h-14 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xl font-bold shrink-0">{viewing.name[0]}</div>
@@ -279,9 +463,32 @@ export default function AdminCustomers() {
               )}
             </div>
 
-            <button onClick={() => toggleStatus(viewing)} className={`btn w-full ${viewing.status === 'Active' ? 'bg-red-50 text-red-500' : 'bg-leaf-50 text-leaf-700'}`}>
+            <button onClick={() => toggleActive(viewing)} className={`btn w-full ${viewing.status === 'Active' ? 'bg-red-50 text-red-500' : 'bg-leaf-50 text-leaf-700'}`}>
               {viewing.status === 'Active' ? <><Ban className="w-4 h-4" /> Block Customer</> : <><CheckCircle2 className="w-4 h-4" /> Unblock Customer</>}
             </button>
+          </div>
+        )}
+        {viewing && viewing.role !== 'user' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-full ${ROLE_STYLES[viewing.role].avatar} text-white flex items-center justify-center text-lg font-bold shrink-0`}>{viewing.name?.[0]}</div>
+              <div className="min-w-0">
+                <p className="font-bold">{viewing.name}</p>
+                <p className="text-sm text-ink/50 truncate">{viewing.email}</p>
+              </div>
+            </div>
+            <div className="flex justify-between text-sm border-t border-black/5 pt-3">
+              <span className="text-ink/50">Role</span><span className={`badge ${ROLE_STYLES[viewing.role].badge}`}>{ROLE_LABEL[viewing.role]}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-ink/50">Mobile</span><span className="font-semibold">{viewing.mobile || '--'}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-ink/50">Access</span>
+              <span className="font-semibold text-right max-w-[65%]">
+                {viewing.role === 'admin' ? 'Full admin access - all modules & settings' : 'Restricted access - permissions set individually'}
+              </span>
+            </div>
           </div>
         )}
       </Modal>

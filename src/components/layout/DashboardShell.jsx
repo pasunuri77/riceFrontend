@@ -14,7 +14,10 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
   const location = useLocation()
 
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />
-  if (requireRole && user.role !== requireRole) return <Navigate to="/403" replace />
+  if (requireRole) {
+    const allowedRoles = Array.isArray(requireRole) ? requireRole : [requireRole]
+    if (!allowedRoles.includes(user.role)) return <Navigate to="/403" replace />
+  }
 
   const SidebarContent = (
     <div className="flex flex-col h-full">
@@ -101,7 +104,7 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
                 </div>
                 <div className="hidden sm:block leading-tight text-left">
                   <p className="text-sm font-semibold capitalize">{user.name}</p>
-                  <p className="text-[11px] text-ink/60">{user.role === 'admin' ? 'Administrator' : 'User'}</p>
+                  <p className="text-[11px] text-ink/60">{user.role === 'admin' ? 'Administrator' : user.role === 'employee' ? 'Employee' : 'User'}</p>
                 </div>
                 <ChevronDown className={`w-3.5 h-3.5 text-ink/40 hidden sm:block transition-transform ${profileMenu.isOpen ? 'rotate-180' : ''}`} />
               </button>

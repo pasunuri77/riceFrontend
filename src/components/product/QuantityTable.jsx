@@ -107,13 +107,13 @@ export default function QuantityTable({
       </div>
 
       {/* Add Another Size button */}
-      <button
+      {/* <button
         type="button"
         onClick={onAddAnother}
         className="text-sm font-semibold text-primary-600 hover:text-primary-700 transition py-2"
       >
         + Add another size
-      </button>
+      </button> */}
 
       {/* Subtotal */}
       <div className="flex items-center justify-end gap-6 pt-3 border-t border-black/5">

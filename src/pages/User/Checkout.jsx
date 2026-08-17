@@ -10,7 +10,7 @@ import DeliveryTimeline from '../../components/ui/DeliveryTimeline'
 import CouponInput from '../../components/cart/CouponInput'
 import { formatUSD, estimatedDelivery } from '../../utils/format'
 import { bagWeightLb } from '../../utils/stock'
-import { findDeliveryAreaForZip } from '../../data/deliveryAreas'
+import { findGreaterAustinAreaForZip } from '../../data/deliveryAreas'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
 import useShopNowPath from '../../hooks/useShopNowPath'
@@ -58,10 +58,10 @@ export default function Checkout() {
   }, [addresses])
 
   const selectedAddress = addresses.find((a) => a.id === selected)
-  // Informational only - which of our 5 named Austin areas this ZIP falls
-  // into, if any. Actual deliverability is still decided by the real backend
-  // check further down in placeOrder(), not by this lookup.
-  const selectedDeliveryArea = selectedAddress ? findDeliveryAreaForZip(selectedAddress.pincode) : null
+  // Informational only - which Greater Austin area (named zone or sub-city)
+  // this ZIP falls into, if any. Actual deliverability is still decided by
+  // the real backend check further down in placeOrder(), not by this lookup.
+  const selectedDeliveryArea = selectedAddress ? findGreaterAustinAreaForZip(selectedAddress.pincode) : null
 
   // Checkout places a real order tied to the logged-in account - an unauthenticated
   // visitor must never reach this page, since without a real session there's no
@@ -135,21 +135,34 @@ export default function Checkout() {
     // Re-check delivery at the moment of booking, even for an already-saved
     // address - it may have been saved before this check existed (e.g. via
     // Profile, which never validated it), or coverage may have changed since
-    // it was saved. Checked per-product, not just the general pincode list,
-    // since a product can be individually restricted (ProductDeliveryCoverage).
+    // it was saved.
     if (addr?.pincode) {
+      // Cheap, definitive first pass: our own known Greater Austin ZIP list
+      // (kept in lockstep with the backend's seeded serviceable_pincodes) - if
+      // it's not on this list at all, there's no need to even call the API to
+      // know the order shouldn't go through.
+      if (!findGreaterAustinAreaForZip(addr.pincode)) {
+        showToast(`Sorry, we don't currently deliver to ${addr.pincode}. Please choose a different address.`, 'error')
+        return
+      }
+
+      // Checked per-product, not just the general pincode list, since a product
+      // can be individually restricted (ProductDeliveryCoverage). A failed check
+      // (network error, non-2xx) must NOT be treated as "deliverable" - that would
+      // silently let an order through for an address the backend couldn't confirm,
+      // which is worse than blocking checkout and asking the shopper to retry.
       try {
         const uniqueProductIds = [...new Set(items.map((i) => i.id))]
         const results = await Promise.all(
-          uniqueProductIds.map((id) => deliveryApi.check(addr.pincode, id).catch(() => ({ serviceable: true })))
+          uniqueProductIds.map((id) => deliveryApi.check(addr.pincode, id))
         )
         if (results.some((r) => !r.serviceable)) {
           showToast(`We don't currently deliver one or more items in your cart to ${addr.pincode}. Please choose a different address.`, 'error')
           return
         }
       } catch {
-        // If the check itself fails entirely (network), don't block checkout on it -
-        // the real order request remains the source of truth.
+        showToast("We couldn't confirm delivery availability for this address right now. Please try again.", 'error')
+        return
       }
     }
 
@@ -293,11 +306,11 @@ export default function Checkout() {
                   </p>
                   {selectedDeliveryArea ? (
                     <p className="text-xs text-leaf-600 font-semibold mt-1.5 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Delivery Area: {selectedDeliveryArea.name} - Available
+                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Delivery Area: {selectedDeliveryArea.areaName} - Available
                     </p>
                   ) : (
                     <p className="text-xs text-amber-600 font-semibold mt-1.5 flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" /> Outside our known Austin delivery areas - availability confirmed at checkout
+                      <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" /> Outside our known Greater Austin delivery areas - availability confirmed at checkout
                     </p>
                   )}
                 </div>

@@ -10,7 +10,7 @@ export default function Footer() {
             <span className="text-2xl">🌾</span>
             <span className="font-display font-extrabold text-lg text-white">RiceBazaar</span>
           </div>
-          <p className="text-sm text-white/50 leading-relaxed">Authentic Sona Masoori rice delivered fresh across selected areas of Austin, Texas - for homes and businesses alike.</p>
+          <p className="text-sm text-white/50 leading-relaxed">Authentic Sona Masoori rice, available for delivery across the Greater Austin region or in person at our North Austin store - for homes and businesses alike.</p>
           <div className="flex gap-3 mt-4">
             <Facebook className="w-4 h-4 hover:text-primary-400 cursor-pointer" />
             <Instagram className="w-4 h-4 hover:text-primary-400 cursor-pointer" />

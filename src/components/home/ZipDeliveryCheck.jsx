@@ -27,18 +27,20 @@ export default function ZipDeliveryCheck({ className = '', compact = false }) {
         maxLength={5}
         placeholder="Search your ZIP code"
         aria-label="Check delivery availability by ZIP code"
-        className={`input-field ${compact ? 'w-36 sm:w-40 text-xs h-11 py-0' : 'max-w-xs'}`}
+        className={`input-field ${compact ? 'w-full min-w-[110px] sm:w-40 text-xs h-11 py-0' : 'max-w-xs'}`}
       />
-      {result && result !== 'not-found' && (
-        <p className={`flex items-center gap-1.5 ${compact ? 'text-xs' : 'text-sm'} text-leaf-600 font-semibold mt-2`}>
-          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> Great! We deliver to {result.areaName}.
-        </p>
-      )}
-      {result === 'not-found' && (
-        <p className={`flex items-center gap-1.5 ${compact ? 'text-xs' : 'text-sm'} text-red-500 font-semibold mt-2`}>
-          <XCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> Sorry, we don't currently deliver to this ZIP code.
-        </p>
-      )}
+      <div className={`mt-2 ${compact ? 'min-h-[16px]' : 'min-h-[20px]'}`}>
+        {result && result !== 'not-found' && (
+          <p className={`flex items-center gap-1.5 ${compact ? 'text-xs' : 'text-sm'} text-leaf-600 font-semibold`}>
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> Great! We deliver to {result.areaName}.
+          </p>
+        )}
+        {result === 'not-found' && (
+          <p className={`flex items-center gap-1.5 ${compact ? 'text-xs' : 'text-sm'} text-red-500 font-semibold`}>
+            <XCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> Sorry, we don't currently deliver to this ZIP code.
+          </p>
+        )}
+      </div>
     </div>
   )
 }
