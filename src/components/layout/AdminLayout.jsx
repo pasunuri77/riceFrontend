@@ -1,23 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Package, Users, ClipboardList, BarChart3, User, Tag, Truck } from 'lucide-react'
+import { LayoutDashboard, Package, Users, ClipboardList, BarChart3, User, Tag, Truck, Wallet } from 'lucide-react'
 import DashboardShell from './DashboardShell'
 import { useAuth } from '../../context/AuthContext'
 import staffApi from '../../api/staffApi'
 
 // Every entry except the two `always` ones is gated by an Employee permission
 // key (see src/data/permissions.js) - an `admin` role always sees everything,
-// an `employee` only sees what they've been granted.
+// an `employee` only sees what they've been granted. Grouped into MAIN
+// (day-to-day operations) and MANAGEMENT (admin-configuration) sections,
+// each rendered under a `{ section }` marker - a section header disappears
+// on its own if none of its items end up visible to the current viewer.
 const ALL_NAV = [
+  { section: 'MAIN' },
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true, always: true },
   { to: '/admin/products', icon: Package, label: 'Products', perm: 'canManageProducts' },
+  { to: '/admin/orders', icon: ClipboardList, label: 'Orders', perm: 'canManageOrders' },
   // Also covers the merged staff (Employee/Admin) list on this same page -
   // there's no separate permission for managing staff, since an employee is
   // never allowed to touch other admins/employees regardless of grants.
   { to: '/admin/customers', icon: Users, label: 'Customers', perm: 'canManageCustomers' },
-  { to: '/admin/orders', icon: ClipboardList, label: 'Orders', perm: 'canManageOrders' },
   { to: '/admin/coupons', icon: Tag, label: 'Coupons', perm: 'canManageCoupons' },
   { to: '/admin/reports', icon: BarChart3, label: 'Reports', perm: 'canViewReports' },
+
+  { section: 'MANAGEMENT' },
+  { to: '/admin/payments', icon: Wallet, label: 'Payments', perm: 'canManagePayments' },
   { to: '/admin/delivery-tax', icon: Truck, label: 'Delivery & Tax', perm: 'canManageDeliveryTax' },
   { to: '/admin/profile', icon: User, label: 'Profile', always: true },
 ]
@@ -52,14 +59,22 @@ export default function AdminLayout() {
     return !!permissions[item.perm]
   }
 
-  const visibleNav = ALL_NAV.filter(canSee)
+  // Drop a `{ section }` header whenever every item under it (up to the next
+  // header) ends up hidden, so an employee never sees an empty group label.
+  const visibleNav = ALL_NAV.filter((item, i) => {
+    if (!item.section) return canSee(item)
+    const rest = ALL_NAV.slice(i + 1)
+    const nextSectionIdx = rest.findIndex((n) => n.section)
+    const groupItems = nextSectionIdx === -1 ? rest : rest.slice(0, nextSectionIdx)
+    return groupItems.some(canSee)
+  })
 
   // If an employee is currently on a page whose permission was just revoked
   // (caught by the poll above), bounce them back to the Dashboard rather than
   // leaving them stranded on a now-forbidden page.
   useEffect(() => {
     if (!isEmployee || !permissions) return
-    const current = ALL_NAV.find((item) => !item.always && location.pathname.startsWith(item.to))
+    const current = ALL_NAV.find((item) => item.to && !item.always && location.pathname.startsWith(item.to))
     if (current && !permissions[current.perm]) navigate('/admin', { replace: true })
   }, [permissions, location.pathname, isEmployee])
 

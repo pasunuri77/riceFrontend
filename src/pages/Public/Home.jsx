@@ -1,9 +1,9 @@
 import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ShoppingBag, Store } from 'lucide-react'
+import { ShoppingBag, Store, MapPin } from 'lucide-react'
 import useShopNowPath from '../../hooks/useShopNowPath'
 import ZipDeliveryCheck from '../../components/home/ZipDeliveryCheck'
-import { ALL_LOCATION_NAMES, STORE_MAPS_URL } from '../../data/deliveryAreas'
+import { ALL_LOCATION_NAMES, STORE_ADDRESS_LINE, STORE_MAPS_URL } from '../../data/deliveryAreas'
 import { useAuth } from '../../context/AuthContext'
 
 export default function Home() {
@@ -57,10 +57,16 @@ export default function Home() {
               className="flex items-start gap-2 mt-4 text-sm group w-fit"
             >
               <Store className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" aria-hidden="true" />
-              <div>
-                <p className="font-semibold text-ink group-hover:text-primary-700 underline underline-offset-2 leading-tight">Visit Our Store</p>
-                <p className="text-ink/50 text-xs leading-tight">Shop in person in North Austin - view on Google Maps.</p>
-              </div>
+              <p className="font-semibold text-ink group-hover:text-primary-700 underline underline-offset-2 leading-tight">Visit Our Store</p>
+            </a>
+            <a
+              href={STORE_MAPS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 mt-1.5 text-xs text-ink/50 hover:text-primary-700 w-fit"
+            >
+              <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              {STORE_ADDRESS_LINE}
             </a>
 
             <div className="flex flex-nowrap items-start gap-2 sm:gap-3 mt-6">

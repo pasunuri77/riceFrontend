@@ -29,22 +29,28 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            onClick={() => setOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
-                isActive ? 'bg-primary-500 text-white shadow-card' : 'text-ink/60 hover:bg-primary-50 hover:text-primary-700'
-              }`
-            }
-          >
-            <item.icon className="w-4.5 h-4.5 w-[18px] h-[18px]" />
-            {item.label}
-          </NavLink>
-        ))}
+        {navItems.map((item) =>
+          item.section ? (
+            <p key={item.section} className="px-3.5 pt-4 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-ink/35 first:pt-1.5">
+              {item.section}
+            </p>
+          ) : (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                  isActive ? 'bg-primary-500 text-white shadow-card' : 'text-ink/60 hover:bg-primary-50 hover:text-primary-700'
+                }`
+              }
+            >
+              <item.icon className="w-4.5 h-4.5 w-[18px] h-[18px]" />
+              {item.label}
+            </NavLink>
+          )
+        )}
       </nav>
     </div>
   )

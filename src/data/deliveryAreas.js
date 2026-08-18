@@ -5,23 +5,23 @@
 // see FUTURE_CITIES below for what's planned but not yet active.
 export const STORE_LOCATION = {
   name: 'RiceBazaar',
-  area: 'North Austin',
-  city: 'Austin',
+  address: '801 Wells Branch Parkway',
+  area: 'Pflugerville',
+  city: 'Pflugerville',
   state: 'Texas',
   stateCode: 'TX',
+  zip: '78660',
   country: 'United States',
   countryCode: 'US',
 }
 
+export const STORE_ADDRESS_LINE = `${STORE_LOCATION.address}, ${STORE_LOCATION.city}, ${STORE_LOCATION.stateCode} ${STORE_LOCATION.zip}`
+
 export const SERVICE_CITY = { city: 'Austin', state: 'Texas', stateCode: 'TX' }
 
-// A real street address for the store hasn't been provided, so this links to
-// a Google Maps search for the neighborhood/city (real, not invented) rather
-// than a fabricated exact address - update to a precise address/place link
-// once one exists.
-export const STORE_MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-  `${STORE_LOCATION.area}, ${STORE_LOCATION.city}, ${STORE_LOCATION.stateCode}`
-)}`
+// Precise street address, not just an area-level search - links straight to
+// the exact storefront on Google Maps.
+export const STORE_MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(STORE_ADDRESS_LINE)}`
 
 // Exactly one ZIP per named Austin zone. Every ZIP in this file (these 5 plus
 // GREATER_AUSTIN_SUB_CITIES below) is seeded into the backend's

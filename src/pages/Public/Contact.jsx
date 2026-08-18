@@ -8,6 +8,7 @@ import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
 import { useToast } from '../../context/ToastContext'
 import contactApi from '../../api/contactApi'
+import { STORE_ADDRESS_LINE } from '../../data/deliveryAreas'
 
 const MESSAGE_MAX = 2000
 const SUBJECT_MAX = 150
@@ -81,7 +82,7 @@ export default function Contact() {
         <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
           <div className="card p-5 flex items-start gap-3">
             <MapPin className="w-5 h-5 text-primary-600 shrink-0 mt-0.5" />
-            <div><p className="font-semibold text-sm">Base Location</p><p className="text-sm text-ink/50">North Austin, Austin, TX, United States</p></div>
+            <div><p className="font-semibold text-sm">Base Location</p><p className="text-sm text-ink/50">{STORE_ADDRESS_LINE}, United States</p></div>
           </div>
           <div className="card p-5 flex items-start gap-3">
             <Phone className="w-5 h-5 text-primary-600 shrink-0 mt-0.5" />

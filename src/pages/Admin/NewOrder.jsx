@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, UserPlus, Package, Plus, Minus, Trash2, CreditCard, Smartphone, Landmark, Truck, Store, CheckCircle2, Tag, X } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
@@ -32,6 +32,7 @@ const normalizeMoney = (value) => { const n = Number(value); return Number.isFin
 
 export default function AdminNewOrder() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { showToast } = useToast()
 
   const [customers, setCustomers] = useState([])
@@ -44,7 +45,7 @@ export default function AdminNewOrder() {
   const [newCustomer, setNewCustomer] = useState({ fullName: '', email: '', mobile: '' })
   const [creatingCustomer, setCreatingCustomer] = useState(false)
 
-  const [orderType, setOrderType] = useState('online')
+  const [orderType, setOrderType] = useState(searchParams.get('type') === 'offline' ? 'offline' : 'online')
   const [cartItems, setCartItems] = useState([])
   const [address, setAddress] = useState(null)
   const [payment, setPayment] = useState('cod')

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Target, Eye, Leaf, Users } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import brandApi from '../../api/brandApi'
+import { STORE_LOCATION } from '../../data/deliveryAreas'
 
 const VALUES = [
   { icon: Leaf, title: 'Farm-Fresh Sourcing', desc: 'We work directly with trusted mills to bring authentic Sona Masoori rice to your door.' },
@@ -26,7 +27,7 @@ export default function About() {
           <span className="badge bg-primary-100 text-primary-700 mb-4">Our Story</span>
           <h1 className="section-title !text-4xl">Bringing Authentic Sona Masoori Rice to Austin</h1>
           <p className="text-ink/60 mt-4 leading-relaxed">
-            RiceBazaar started with a simple idea — make premium, authentic Sona Masoori rice accessible to everyone in Austin, whether you're cooking for a family of four or running a restaurant. You can shop with us online for delivery across selected areas of the Greater Austin region, or visit our North Austin store in person - we partner with {brands.length} trusted brands to serve both individual households and business customers.
+            RiceBazaar started with a simple idea — make premium, authentic Sona Masoori rice accessible to everyone in Austin, whether you're cooking for a family of four or running a restaurant. You can shop with us online for delivery across selected areas of the Greater Austin region, or visit our {STORE_LOCATION.area} store in person - we partner with {brands.length} trusted brands to serve both individual households and business customers.
           </p>
           <p className="text-ink/60 mt-3 leading-relaxed">
             We believe great meals start with great rice — and we're committed to quality, fair pricing, and reliable delivery, every single time.

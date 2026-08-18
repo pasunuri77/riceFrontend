@@ -1,16 +1,15 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Eye, Truck, Plus } from 'lucide-react'
+import { Eye, Plus, Printer, Download, Package, User as UserIcon, MapPin, CreditCard } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import { STATUS_STYLES } from '../../components/ui/StatusPill'
-import Modal from '../../components/ui/Modal'
+import Drawer from '../../components/ui/Drawer'
 import SearchInput from '../../components/ui/SearchInput'
 import TableShell from '../../components/ui/TableShell'
 import SortableHeader from '../../components/ui/SortableHeader'
 import ColumnVisibilityMenu from '../../components/ui/ColumnVisibilityMenu'
 import ExportMenu from '../../components/ui/ExportMenu'
-import BulkActionsBar from '../../components/ui/BulkActionsBar'
 import Pagination from '../../components/ui/Pagination'
 import { formatUSD, formatDate, estimatedDelivery } from '../../utils/format'
 import { bagWeightLb } from '../../utils/stock'
@@ -21,11 +20,23 @@ import { RowSkeleton } from '../../components/ui/Skeleton'
 
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${bagWeightLb(i.weight)}lb Bag x${i.qty})`).join(', ') : o.riceName)
 
+// Not persisted as its own column everywhere yet - orders created before the
+// Online/Offline distinction existed (or synced from an endpoint that hasn't
+// been updated to return it) fall back to "online", since that's what every
+// order was before this feature.
+const orderTypeOf = (o) => o.orderType || 'online'
+
+const PAYMENT_METHOD_LABELS = { upi: 'Digital Wallet', card: 'Credit / Debit Card', netbanking: 'Bank Transfer', cod: 'Cash on Delivery' }
+const paymentMethodLabel = (o) => PAYMENT_METHOD_LABELS[o.paymentMethod] || o.paymentMethod || '--'
+
 const PAYMENT_STATUSES = ['Pending', 'Paid']
 const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+const TYPE_TABS = ['All Orders', 'Online Orders', 'Offline Orders']
+const typeForTab = { 'Online Orders': 'online', 'Offline Orders': 'offline' }
 const PAGE_SIZE = 10
 
 const COLUMNS = [
+  { key: 'type', label: 'Type' },
   { key: 'customer', label: 'Customer' },
   { key: 'rice', label: 'Rice' },
   { key: 'qty', label: 'Qty' },
@@ -39,6 +50,15 @@ const COLUMNS = [
   { key: 'payment', label: 'Payment' },
   { key: 'delivery', label: 'Delivery' },
 ]
+
+function TypeBadge({ order }) {
+  const online = orderTypeOf(order) === 'online'
+  return (
+    <span className={`badge ${online ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+      {online ? 'Online' : 'Offline'}
+    </span>
+  )
+}
 
 function StatusSelect({ value, options, onChange, disabled = false }) {
   return (
@@ -84,10 +104,53 @@ function DeliverySelect({ order, updating, onStatusChange, onConfirm }) {
   )
 }
 
+// Opens a clean, invoice-only print view in a new tab and triggers the browser
+// print dialog - "Download Invoice" points at the same view since the browser's
+// own "Save as PDF" print destination covers that without a new PDF dependency.
+function printInvoice(order) {
+  const win = window.open('', '_blank')
+  if (!win) return
+  const rows = (order.items?.length ? order.items : [{ name: itemsSummary(order), weight: '', qty: 1 }])
+    .map((i) => `<tr><td>${i.name}</td><td>${i.weight ? `${bagWeightLb(i.weight)} lb` : '--'}</td><td>${i.qty}</td><td>${formatUSD((i.pricePerKg || 0) * (i.weight || 0))}</td><td>${formatUSD((i.pricePerKg || 0) * (i.weight || 0) * (i.qty || 1))}</td></tr>`)
+    .join('')
+  win.document.write(`
+    <html><head><title>Invoice ${order.id}</title>
+    <style>
+      body{font-family:Segoe UI,Arial,sans-serif;color:#111;padding:32px;max-width:640px;margin:auto}
+      h1{font-size:20px;margin:0 0 4px}
+      table{width:100%;border-collapse:collapse;margin-top:16px}
+      th,td{text-align:left;padding:8px;border-bottom:1px solid #eee;font-size:13px}
+      .totals td{border:none;padding:4px 8px}
+      .muted{color:#666;font-size:13px}
+    </style></head>
+    <body>
+      <h1>RiceBazaar - Invoice ${order.id}</h1>
+      <p class="muted">${orderTypeOf(order) === 'online' ? 'Online Order' : 'Offline Order'} • ${formatDate(order.date)}</p>
+      <p><strong>Customer:</strong> ${order.customerName || '--'}</p>
+      <p><strong>Address:</strong> ${order.address || '--'}</p>
+      <table><thead><tr><th>Product</th><th>Variant</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="totals" style="margin-top:8px">
+        <tr><td>Subtotal</td><td style="text-align:right">${formatUSD(order.subtotal)}</td></tr>
+        ${order.discountAmount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-${formatUSD(order.discountAmount)}</td></tr>` : ''}
+        <tr><td>Delivery</td><td style="text-align:right">${order.deliveryCharge > 0 ? formatUSD(order.deliveryCharge) : 'Free'}</td></tr>
+        <tr><td>Tax</td><td style="text-align:right">${formatUSD(order.tax)}</td></tr>
+        <tr><td><strong>Total</strong></td><td style="text-align:right"><strong>${formatUSD(order.amount)}</strong></td></tr>
+      </table>
+      <p class="muted" style="margin-top:24px">Payment: ${paymentMethodLabel(order)} - ${order.paymentStatus}</p>
+    </body></html>
+  `)
+  win.document.close()
+  win.focus()
+  win.print()
+}
+
 export default function AdminOrders() {
   const { showToast } = useToast()
   const [ordersData, setOrdersData] = useState([])
   const [search, setSearch] = useState('')
+  const [tab, setTab] = useState('All Orders')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [paymentFilter, setPaymentFilter] = useState('')
   const [deliveryFilter, setDeliveryFilter] = useState('')
   const [sort, setSort] = useState({ key: null, dir: 'asc' })
@@ -95,10 +158,7 @@ export default function AdminOrders() {
   const [viewing, setViewing] = useState(null)
   const [updating, setUpdating] = useState({})
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState(new Set())
   const [visibleCols, setVisibleCols] = useState({})
-  const [bulkStatus, setBulkStatus] = useState(DELIVERY_STATUSES[0])
-  const [bulkUpdating, setBulkUpdating] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
@@ -106,7 +166,7 @@ export default function AdminOrders() {
   }, [])
 
   // Lets a notification (or any other link) deep-link straight into a specific
-  // order's detail modal, e.g. /admin/orders?view=<id>, the same pattern already
+  // order's detail panel, e.g. /admin/orders?view=<id>, the same pattern already
   // used for customers via ?id=.
   useEffect(() => {
     const id = searchParams.get('view')
@@ -116,10 +176,20 @@ export default function AdminOrders() {
     setSearchParams({}, { replace: true })
   }, [searchParams, ordersData])
 
+  const counts = useMemo(() => ({
+    'All Orders': ordersData.length,
+    'Online Orders': ordersData.filter((o) => orderTypeOf(o) === 'online').length,
+    'Offline Orders': ordersData.filter((o) => orderTypeOf(o) === 'offline').length,
+  }), [ordersData])
+
   const filtered = useMemo(() => {
+    const typeFilter = typeForTab[tab]
     let list = ordersData.filter((o) => `${o.id} ${o.customerName} ${o.riceName}`.toLowerCase().includes(search.toLowerCase()))
+    if (typeFilter) list = list.filter((o) => orderTypeOf(o) === typeFilter)
     if (paymentFilter) list = list.filter((o) => o.paymentStatus === paymentFilter)
     if (deliveryFilter) list = list.filter((o) => o.deliveryStatus === deliveryFilter)
+    if (dateFrom) list = list.filter((o) => new Date(o.date) >= new Date(dateFrom))
+    if (dateTo) list = list.filter((o) => new Date(o.date) <= new Date(`${dateTo}T23:59:59`))
     if (sort.key) {
       const field = COLUMNS.find((c) => c.key === sort.key)?.sortField
       list = [...list].sort((a, b) => {
@@ -130,7 +200,7 @@ export default function AdminOrders() {
       })
     }
     return list
-  }, [ordersData, search, paymentFilter, deliveryFilter, sort])
+  }, [ordersData, tab, search, paymentFilter, deliveryFilter, dateFrom, dateTo, sort])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -138,15 +208,6 @@ export default function AdminOrders() {
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
   const toggleCol = (key) => setVisibleCols((v) => ({ ...v, [key]: v[key] === false ? true : false }))
   const isVisible = (key) => visibleCols[key] !== false
-
-  const toggleSelect = (id) => setSelected((s) => { const next = new Set(s); next.has(id) ? next.delete(id) : next.add(id); return next })
-  const toggleSelectPage = () => setSelected((s) => {
-    const allSelected = pageItems.every((o) => s.has(o.id))
-    const next = new Set(s)
-    pageItems.forEach((o) => (allSelected ? next.delete(o.id) : next.add(o.id)))
-    return next
-  })
-  const clearSelection = () => setSelected(new Set())
 
   const replaceOrder = (updatedOrder) => {
     setOrdersData((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)))
@@ -195,23 +256,9 @@ export default function AdminOrders() {
     }
   }
 
-  // No bulk-delete endpoint exists for orders, so the bulk action reuses the
-  // real per-order delivery-status endpoint instead of fabricating a delete.
-  const handleBulkStatusUpdate = () => {
-    setBulkUpdating(true)
-    Promise.allSettled([...selected].map((id) => orderApi.updateDeliveryStatus(id, bulkStatus)))
-      .then((results) => {
-        results.forEach((r) => { if (r.status === 'fulfilled') replaceOrder(r.value) })
-        const failed = results.filter((r) => r.status === 'rejected').length
-        clearSelection()
-        if (failed > 0) showToast(`${results.length - failed} updated, ${failed} failed`, 'error')
-        else showToast(`${results.length} order(s) marked ${bulkStatus}`, 'success')
-      })
-      .finally(() => setBulkUpdating(false))
-  }
-
   const exportColumns = [
     { label: 'Order ID', value: (o) => o.id },
+    { label: 'Type', value: (o) => (orderTypeOf(o) === 'online' ? 'Online' : 'Offline') },
     { label: 'Customer', value: (o) => o.customerName },
     { label: 'Rice', value: (o) => itemsSummary(o) },
     { label: 'Qty', value: (o) => o.quantity },
@@ -221,7 +268,7 @@ export default function AdminOrders() {
     { label: 'Delivery', value: (o) => o.deliveryStatus },
   ]
 
-  const colCount = 2 + COLUMNS.filter((c) => isVisible(c.key)).length + 1
+  const colCount = 1 + COLUMNS.filter((c) => isVisible(c.key)).length + 1
 
   return (
     <div>
@@ -229,11 +276,29 @@ export default function AdminOrders() {
       <PageHeader
         title="Order Management"
         subtitle={`${filtered.length} of ${ordersData.length} orders`}
-        action={<Link to="/admin/orders/new" className="btn-primary text-sm"><Plus className="w-4 h-4" /> New Order</Link>}
+        action={
+          <div className="flex gap-2">
+            <Link to="/admin/orders/new" className="btn-outline text-sm"><Plus className="w-4 h-4" /> New Order</Link>
+            <Link to="/admin/orders/new?type=offline" className="btn-primary text-sm"><Plus className="w-4 h-4" /> Add Offline Order</Link>
+          </div>
+        }
       />
 
+      <div className="flex gap-2 flex-wrap mb-4">
+        {TYPE_TABS.map((t) => (
+          <button key={t} onClick={() => { setTab(t); setPage(1) }} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === t ? 'bg-primary-500 text-white' : 'bg-white border border-black/10 text-ink/60'}`}>
+            {t} <span className={tab === t ? 'text-white/80' : 'text-ink/40'}>{counts[t]}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search orders..." className="max-w-sm" />
+        <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search by Order ID, Customer name or Phone..." className="max-w-sm" />
+        <div className="flex items-center gap-1.5">
+          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="input-field !w-auto text-sm" aria-label="From date" />
+          <span className="text-ink/30 text-sm">-</span>
+          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="input-field !w-auto text-sm" aria-label="To date" />
+        </div>
         <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="input-field !w-auto text-sm">
           <option value="">All Payments</option>
           {PAYMENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -251,22 +316,11 @@ export default function AdminOrders() {
         </div>
       </div>
 
-      <BulkActionsBar count={selected.size} onClear={clearSelection}>
-        <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="input-field !w-auto text-xs py-1.5">
-          {DELIVERY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <button onClick={handleBulkStatusUpdate} disabled={bulkUpdating} className="btn text-xs px-3 py-1.5 bg-primary-500 text-white disabled:opacity-60">
-          <Truck className="w-3.5 h-3.5" /> {bulkUpdating ? 'Updating...' : 'Mark as Selected Status'}
-        </button>
-      </BulkActionsBar>
-
-      <TableShell minWidth="1040px">
+      <TableShell minWidth="1100px">
           <thead>
             <tr className="text-left text-ink/40 text-xs uppercase border-b border-black/5">
-              <th scope="col" className="p-3.5 w-10">
-                <input type="checkbox" aria-label="Select all orders on this page" className="accent-primary-500 w-4 h-4" checked={pageItems.length > 0 && pageItems.every((o) => selected.has(o.id))} onChange={toggleSelectPage} />
-              </th>
               <th scope="col" className="p-3.5">Order ID</th>
+              {isVisible('type') && <th scope="col" className="p-3.5">Type</th>}
               {isVisible('customer') && <th scope="col" className="p-3.5">Customer</th>}
               {isVisible('rice') && <th scope="col" className="p-3.5">Rice</th>}
               {isVisible('qty') && <th scope="col" className="p-3.5">Qty</th>}
@@ -285,9 +339,9 @@ export default function AdminOrders() {
             ) : pageItems.length === 0 ? (
               <tr><td colSpan={colCount} className="p-8 text-center text-sm text-ink/40">No orders found.</td></tr>
             ) : pageItems.map((o) => (
-              <tr key={o.id} className={`border-b border-black/5 last:border-0 hover:bg-primary-50/40 ${selected.has(o.id) ? 'bg-primary-50/60' : ''}`}>
-                <td className="p-3"><input type="checkbox" aria-label={`Select order ${o.id}`} className="accent-primary-500 w-4 h-4" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} /></td>
+              <tr key={o.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
                 <td className="p-3 font-semibold">{o.id}</td>
+                {isVisible('type') && <td className="p-3"><TypeBadge order={o} /></td>}
                 {isVisible('customer') && (
                   <td className="p-3">
                     <Link to={`/admin/customers?id=${o.customerId}`} className="font-semibold text-primary-700 hover:underline">{o.customerName}</Link>
@@ -310,31 +364,81 @@ export default function AdminOrders() {
       </TableShell>
       <Pagination page={page} totalPages={totalPages} onChange={setPage} />
 
-      <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing?.id}>
+      <Drawer open={!!viewing} onClose={() => setViewing(null)} title="Order Details" width="max-w-lg">
         {viewing && (
-          <div className="space-y-3 text-sm">
-            {viewing.productId ? (
-              <Link to={`/products/${viewing.productId}`}>
-                <img src={viewing.image} alt="" className="w-full h-40 object-cover rounded-xl mb-2 hover:opacity-90 transition" />
-              </Link>
-            ) : (
-              <img src={viewing.image} alt="" className="w-full h-40 object-cover rounded-xl mb-2" />
-            )}
-            <div className="flex justify-between"><span className="text-ink/50">Customer</span><Link to={`/admin/customers?id=${viewing.customerId}`} className="font-semibold text-primary-700 hover:underline">{viewing.customerName}</Link></div>
-            <div className="flex justify-between"><span className="text-ink/50">Rice</span><span className="font-semibold text-right max-w-[60%]">{itemsSummary(viewing)}</span></div>
-            <div className="flex justify-between"><span className="text-ink/50">Address</span><span className="font-semibold text-right max-w-[60%]">{viewing.address}</span></div>
-            <div className="flex justify-between"><span className="text-ink/50">Amount</span><span className="font-semibold">{formatUSD(viewing.amount)}</span></div>
-            <div className="flex justify-between"><span className="text-ink/50">Order Date</span><span className="font-semibold">{formatDate(viewing.date)}</span></div>
-            {viewing.deliveryStatus === 'Delivered' ? (
-              <div className="flex justify-between"><span className="text-ink/50">Delivered On</span><span className="font-semibold">{viewing.deliveredAt ? formatDate(viewing.deliveredAt) : '--'}</span></div>
-            ) : viewing.deliveryStatus !== 'Cancelled' && (
-              <div className="flex justify-between"><span className="text-ink/50">Estimated Delivery</span><span className="font-semibold">{estimatedDelivery(4, viewing.date)}</span></div>
-            )}
-            <div className="flex justify-between items-center"><span className="text-ink/50">Payment Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
-            <div className="flex justify-between items-center"><span className="text-ink/50">Delivery Status</span><DeliverySelect order={viewing} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} /></div>
+          <div className="p-5 space-y-5 text-sm">
+            <div className="flex items-center justify-between">
+              <TypeBadge order={viewing} />
+              <div className="flex gap-2">
+                <button onClick={() => printInvoice(viewing)} className="btn-outline text-xs px-3 py-1.5"><Printer className="w-3.5 h-3.5" /> Print Invoice</button>
+                <button onClick={() => printInvoice(viewing)} className="btn-outline text-xs px-3 py-1.5"><Download className="w-3.5 h-3.5" /> Download Invoice</button>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-lg font-display">{viewing.id}</h4>
+                <StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} />
+              </div>
+              <p className="text-ink/50 text-xs mt-1">{formatDate(viewing.date)}{viewing.deliveryStatus === 'Delivered' && viewing.deliveredAt ? ` • Delivered ${formatDate(viewing.deliveredAt)}` : ''}</p>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><UserIcon className="w-3.5 h-3.5" /> Customer Information</h5>
+              <div className="card p-3.5 space-y-1.5">
+                <div className="flex justify-between"><span className="text-ink/50">Name</span><Link to={`/admin/customers?id=${viewing.customerId}`} className="font-semibold text-primary-700 hover:underline">{viewing.customerName}</Link></div>
+                <div className="flex justify-between items-start gap-3"><span className="text-ink/50 shrink-0 flex items-center gap-1"><MapPin className="w-3 h-3" /> Address</span><span className="font-semibold text-right">{viewing.address || '--'}</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><Package className="w-3.5 h-3.5" /> Order Items</h5>
+              <div className="card divide-y divide-black/5">
+                {(viewing.items?.length ? viewing.items : [{ name: itemsSummary(viewing), weight: '', qty: viewing.quantity, pricePerKg: 0 }]).map((i, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{i.name}</p>
+                      <p className="text-xs text-ink/40">{i.weight ? `${bagWeightLb(i.weight)}lb Bag` : ''} {i.weight ? '•' : ''} Qty: {i.qty}</p>
+                    </div>
+                    <p className="font-bold shrink-0">{formatUSD((i.pricePerKg || 0) * (i.weight || 0) * (i.qty || 1))}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2">Order Summary</h5>
+              <div className="card p-3.5 space-y-2">
+                <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatUSD(viewing.subtotal)}</span></div>
+                {viewing.discountAmount > 0 && (
+                  <div className="flex justify-between text-leaf-600"><span>Discount {viewing.couponCode && `(${viewing.couponCode})`}</span><span className="font-semibold">-{formatUSD(viewing.discountAmount)}</span></div>
+                )}
+                {orderTypeOf(viewing) === 'online' && (
+                  <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-semibold">{viewing.deliveryCharge > 0 ? formatUSD(viewing.deliveryCharge) : 'Free'}</span></div>
+                )}
+                <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-semibold">{formatUSD(viewing.tax)}</span></div>
+                <div className="border-t border-black/10 pt-2 flex justify-between items-center">
+                  <span className="font-bold">Total Amount</span>
+                  <span className="font-extrabold text-lg text-primary-700">{formatUSD(viewing.amount)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" /> Payment</h5>
+              <div className="card p-3.5 space-y-1.5">
+                <div className="flex justify-between"><span className="text-ink/50">Method</span><span className="font-semibold">{paymentMethodLabel(viewing)}</span></div>
+                <div className="flex justify-between items-center"><span className="text-ink/50">Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
+              </div>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2">Delivery Status</h5>
+              <DeliverySelect order={viewing} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} />
+            </div>
           </div>
         )}
-      </Modal>
+      </Drawer>
     </div>
   )
 }

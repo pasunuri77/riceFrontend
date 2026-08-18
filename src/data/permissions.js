@@ -11,6 +11,7 @@ export const PERMISSIONS = [
   { key: 'canManageOrders', label: 'Orders', desc: 'View, confirm & update orders' },
   { key: 'canManageCustomers', label: 'Customers', desc: 'View & manage customer accounts' },
   { key: 'canManageCoupons', label: 'Coupons', desc: 'Create & edit discount coupons' },
+  { key: 'canManagePayments', label: 'Payments', desc: 'View payment records & refunds' },
   { key: 'canViewReports', label: 'Reports', desc: 'Access sales & revenue reports' },
   { key: 'canManageDeliveryTax', label: 'Delivery & Tax', desc: 'Edit delivery areas & tax rates' },
 ]
