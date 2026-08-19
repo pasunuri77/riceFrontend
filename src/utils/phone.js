@@ -1,6 +1,7 @@
-// US phone numbers: 10 digits (area code + subscriber number), area code can't
-// start with 0 or 1 per NANP rules.
-export const US_MOBILE_REGEX = /^[2-9]\d{9}$/
+// Country-agnostic: any 10-digit mobile number, no NANP-style area-code
+// restriction - the app doesn't collect/store a country code alongside it, so
+// this only checks digit count, not which country the number is valid for.
+export const US_MOBILE_REGEX = /^\d{10}$/
 
 // Strips anything non-numeric as the user types and caps length at 10, so it's
 // physically impossible to type a letter/symbol or an 11th digit into the field.

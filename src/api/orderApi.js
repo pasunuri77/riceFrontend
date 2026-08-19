@@ -16,15 +16,12 @@ const orderApi = {
 
   listAll: () => http.get('/api/admin/orders'),
 
-  // GET /api/orders/:id takes the raw numeric database id, but every order in the
-  // UI uses the "ORD10013" display format (= 10000 + db id) - translate it here so
-  // callers can just pass whatever id the rest of the app already works with.
-  getById: (id) => {
-    const numericId = typeof id === 'string' && id.toUpperCase().startsWith('ORD')
-      ? Number(id.slice(3)) - 10000
-      : id
-    return http.get(`/api/orders/${numericId}`)
-  },
+  // Confirmed live: GET /api/orders/:id expects the full "ORD10013" display id
+  // string, same as every other per-order endpoint below (cancel, confirm,
+  // status updates) - it parses the display id server-side itself. Passing a
+  // bare converted number here (e.g. 13) gets a 400 "Invalid order id" back,
+  // which the caller then wrongly reports as "order not found".
+  getById: (id) => http.get(`/api/orders/${id}`),
 
   create: ({ address, paymentMethod, items, couponCode, notes }) =>
     http.post('/api/orders', { address, paymentMethod, items, couponCode, notes }),

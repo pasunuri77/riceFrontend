@@ -6,7 +6,7 @@ import useActiveCoupons from '../../hooks/useActiveCoupons'
 const TRUST_ITEMS = [
   { icon: Truck, text: 'Free Delivery above $100' },
   { icon: ShieldCheck, text: 'Freshly Packed' },
-  { icon: BadgeCheck, text: 'Reliable Austin Delivery' },
+  { icon: BadgeCheck, text: 'Reliable Local Delivery' },
   { icon: Receipt, text: 'Sales Tax Billing on Every Order' },
   { icon: RotateCcw, text: 'Easy Returns' },
 ]

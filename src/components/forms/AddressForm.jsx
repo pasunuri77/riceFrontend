@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -45,7 +45,7 @@ const schema = z
     storeName: z.string().optional(),
     ownerName: z.string().optional(),
     fullName: z.string().min(1, 'Full name is required'),
-    mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit US phone number'),
+    mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit mobile number'),
     addressLine1: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
     addressLine2: z.string().optional(),
     city: z.string().min(1, 'City is required'),
@@ -101,7 +101,11 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
   // to save something they typed correctly. Debounced so the real backend
   // call only fires once the ZIP is complete and settled.
   const [serviceability, setServiceability] = useState(null) // null | 'checking' | { serviceable }
+  const serviceabilityRequestRef = useRef(0)
   useEffect(() => {
+    const currentRequest = serviceabilityRequestRef.current + 1
+    serviceabilityRequestRef.current = currentRequest
+
     if (!/^\d{5}(-\d{4})?$/.test(zip || '')) {
       setServiceability(null)
       return undefined
@@ -109,8 +113,12 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
     setServiceability('checking')
     const t = setTimeout(() => {
       deliveryApi.check(zip)
-        .then((res) => setServiceability(res))
-        .catch(() => setServiceability(null))
+        .then((res) => {
+          if (serviceabilityRequestRef.current === currentRequest) setServiceability(res)
+        })
+        .catch(() => {
+          if (serviceabilityRequestRef.current === currentRequest) setServiceability(null)
+        })
     }, 400)
     return () => clearTimeout(t)
   }, [zip])
@@ -210,9 +218,9 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitLabel =
               ) : serviceability?.serviceable ? (
                 <p className="flex items-center gap-1.5 text-xs text-leaf-600 font-medium mt-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Great! RiceBazaar delivers to your area.</p>
               ) : serviceability && !serviceability.serviceable ? (
-                <p className="flex items-center gap-1.5 text-xs text-red-500 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> Sorry, RiceBazaar currently does not deliver to this location. We currently deliver to selected areas of Austin, Texas.</p>
+                <p className="flex items-center gap-1.5 text-xs text-red-500 font-medium mt-1.5"><XCircle className="w-3.5 h-3.5" /> Sorry, RiceBazaar currently does not deliver to this location.</p>
               ) : (
-                <p className="text-xs text-ink/40 mt-1.5">RiceBazaar currently delivers within selected areas of Austin, Texas.</p>
+                <p className="text-xs text-ink/40 mt-1.5">Enter your ZIP code to check delivery availability.</p>
               )}
             </FormField>
           </div>

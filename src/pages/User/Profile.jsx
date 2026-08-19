@@ -21,7 +21,7 @@ import { US_MOBILE_REGEX, sanitizeMobileInput, stripCountryCode } from '../../ut
 const schema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit US phone number'),
+  mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit mobile number'),
   addressLine1: z.string().refine((v) => v.trim().length > 0, 'Address is required'),
   addressLine2: z.string().optional(),
   city: z.string().min(1, 'City is required'),

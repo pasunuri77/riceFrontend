@@ -5,6 +5,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import { STATUS_STYLES } from '../../components/ui/StatusPill'
 import Drawer from '../../components/ui/Drawer'
+import RowActionsMenu from '../../components/ui/RowActionsMenu'
 import SearchInput from '../../components/ui/SearchInput'
 import TableShell from '../../components/ui/TableShell'
 import SortableHeader from '../../components/ui/SortableHeader'
@@ -31,6 +32,11 @@ const paymentMethodLabel = (o) => PAYMENT_METHOD_LABELS[o.paymentMethod] || o.pa
 
 const PAYMENT_STATUSES = ['Pending', 'Paid']
 const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+// An offline (in-store/walk-in) order never ships anywhere - "Shipped" has no
+// meaning for it, so it's dropped from the options an offline order can move
+// through. Everything else (Processing/Delivered/Cancelled) still applies -
+// "Delivered" reads fine as "handed over/completed" for a walk-in sale too.
+const deliveryStatusOptionsFor = (order) => (orderTypeOf(order) === 'offline' ? DELIVERY_STATUSES.filter((s) => s !== 'Shipped') : DELIVERY_STATUSES)
 const TYPE_TABS = ['All Orders', 'Online Orders', 'Offline Orders']
 const typeForTab = { 'Online Orders': 'online', 'Offline Orders': 'offline' }
 const PAGE_SIZE = 10
@@ -82,7 +88,7 @@ function StatusSelect({ value, options, onChange, disabled = false }) {
 // normal full-status StatusSelect for the rest of the order lifecycle.
 function DeliverySelect({ order, updating, onStatusChange, onConfirm }) {
   if (order.deliveryStatus !== 'Pending') {
-    return <StatusSelect value={order.deliveryStatus} options={DELIVERY_STATUSES} disabled={updating[`${order.id}:delivery`]} onChange={(status) => onStatusChange(order.id, status)} />
+    return <StatusSelect value={order.deliveryStatus} options={deliveryStatusOptionsFor(order)} disabled={updating[`${order.id}:delivery`]} onChange={(status) => onStatusChange(order.id, status)} />
   }
   const busy = updating[`${order.id}:delivery`] || updating[`${order.id}:confirm`]
   return (
@@ -207,7 +213,14 @@ export default function AdminOrders() {
 
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
   const toggleCol = (key) => setVisibleCols((v) => ({ ...v, [key]: v[key] === false ? true : false }))
-  const isVisible = (key) => visibleCols[key] !== false
+  // Estimated Delivery / Delivered On are shipping concepts that don't apply
+  // to an offline (in-store/walk-in) order - hidden outright while looking at
+  // the Offline Orders tab, since every row would just read "--" otherwise.
+  const shippingColsRelevant = tab !== 'Offline Orders'
+  const isVisible = (key) => {
+    if ((key === 'estimatedDelivery' || key === 'deliveredOn') && !shippingColsRelevant) return false
+    return visibleCols[key] !== false
+  }
 
   const replaceOrder = (updatedOrder) => {
     setOrdersData((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)))
@@ -276,12 +289,7 @@ export default function AdminOrders() {
       <PageHeader
         title="Order Management"
         subtitle={`${filtered.length} of ${ordersData.length} orders`}
-        action={
-          <div className="flex gap-2">
-            <Link to="/admin/orders/new" className="btn-outline text-sm"><Plus className="w-4 h-4" /> New Order</Link>
-            <Link to="/admin/orders/new?type=offline" className="btn-primary text-sm"><Plus className="w-4 h-4" /> Add Offline Order</Link>
-          </div>
-        }
+        action={<Link to="/admin/orders/new?type=offline" className="btn-primary text-sm"><Plus className="w-4 h-4" /> Add Offline Order</Link>}
       />
 
       <div className="flex gap-2 flex-wrap mb-4">
@@ -352,12 +360,18 @@ export default function AdminOrders() {
                 {isVisible('amount') && <td className="p-3 font-semibold">{formatUSD(o.amount)}</td>}
                 {isVisible('date') && <td className="p-3 text-ink/50">{formatDate(o.date)}</td>}
                 {isVisible('estimatedDelivery') && (
-                  <td className="p-3 text-ink/50">{o.deliveryStatus === 'Cancelled' ? '--' : estimatedDelivery(4, o.date)}</td>
+                  <td className="p-3 text-ink/50">{orderTypeOf(o) === 'offline' || o.deliveryStatus === 'Cancelled' ? '--' : estimatedDelivery(4, o.date)}</td>
                 )}
                 {isVisible('deliveredOn') && <td className="p-3 text-ink/50">{o.deliveredAt ? formatDate(o.deliveredAt) : '--'}</td>}
                 {isVisible('payment') && <td className="p-3"><StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${o.id}:payment`]} onChange={(status) => updatePaymentStatus(o.id, status)} /></td>}
                 {isVisible('delivery') && <td className="p-3"><DeliverySelect order={o} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} /></td>}
-                <td className="p-3"><button onClick={() => setViewing(o)} aria-label={`View order ${o.id}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" aria-hidden="true" /></button></td>
+                <td className="p-3">
+                  <RowActionsMenu
+                    id={`order-${o.id}`}
+                    label={`Actions for ${o.id}`}
+                    items={[{ label: 'View Details', icon: Eye, onClick: () => setViewing(o) }]}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>

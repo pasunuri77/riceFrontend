@@ -6,6 +6,8 @@ import { Plus, Pencil, Trash2, Tag } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import Modal from '../../components/ui/Modal'
+
+import RowActionsMenu from '../../components/ui/RowActionsMenu'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
@@ -129,12 +131,16 @@ export default function AdminCoupons() {
                 <td className="p-3">{(c.type || '').toUpperCase() === 'PERCENT' ? `${c.value}% OFF` : `$${c.value} OFF`}</td>
                 <td className="p-3 text-ink/60">${c.minOrder ?? 0}</td>
                 <td className="p-3 text-ink/60">{c.expiresAt ? formatDate(c.expiresAt) : 'No expiry'}</td>
-                <td className="p-3"><span className={`badge ${c.active ? 'bg-leaf-100 text-leaf-700' : 'bg-black/10 text-ink/50'}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
+
                 <td className="p-3">
-                  <div className="flex gap-1.5">
-                    <button onClick={() => openEdit(c)} aria-label={`Edit ${c.code}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Pencil className="w-4 h-4" aria-hidden="true" /></button>
-                    <button onClick={() => setConfirmDelete(c)} aria-label={`Delete ${c.code}`} className="p-1.5 rounded-lg hover:bg-red-100 text-red-500"><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
-                  </div>
+                  <RowActionsMenu
+                    id={`coupon-${c.id}`}
+                    label={`Actions for ${c.code}`}
+                    items={[
+                      { label: 'Edit', icon: Pencil, onClick: () => openEdit(c) },
+                      { label: 'Delete', icon: Trash2, danger: true, onClick: () => setConfirmDelete(c) },
+                    ]}
+                  />
                 </td>
               </tr>
             ))}

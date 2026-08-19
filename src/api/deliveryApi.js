@@ -3,14 +3,23 @@ import { http, uploadFile, getToken } from './client'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
 /** Maps to Spring Boot: DeliveryController + AdminDeliveryController */
+const normalizeServiceability = (res) => ({
+  ...res,
+  serviceable: res?.serviceable ?? !!res?.deliverable,
+  deliverable: res?.deliverable ?? !!res?.serviceable,
+})
+
 const deliveryApi = {
+  getStoreLocation: () => http.get('/api/delivery/store'),
+  getDeliveryAreas: () => http.get('/api/delivery/areas'),
+
   // productId is optional - when given, checks that specific product's delivery
   // coverage (ProductDeliveryCoverage) instead of just the general serviceable-
   // pincodes list.
   check: (pincode, productId) => {
     const qs = new URLSearchParams({ pincode })
     if (productId) qs.set('productId', productId)
-    return http.get(`/api/delivery/check?${qs.toString()}`)
+    return http.get(`/api/delivery/check?${qs.toString()}`).then(normalizeServiceability)
   },
 
   admin: {

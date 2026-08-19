@@ -46,6 +46,19 @@ const authApi = {
 
   uploadAdminPhoto: (file) => uploadFile('/api/admin/profile/photo', file),
   removeAdminPhoto: () => http.delete('/api/admin/profile/photo'),
+
+  // Consumes the invite/password-reset-token link an invited admin/employee
+  // (or admin-created customer) receives by email - distinct from the
+  // OTP-based forgot-password flow (otpApi.resetPassword). Same response
+  // shape as login/register ({ token, user }) so the caller can be signed
+  // straight in and routed to their own dashboard, rather than bounced back
+  // to a manual login after already having just proven their identity via
+  // the emailed link.
+  setPassword: async ({ token, password }) => {
+    const { token: authToken, user } = await http.post('/api/auth/set-password', { token, password })
+    setToken(authToken)
+    return user
+  },
 }
 
 export default authApi

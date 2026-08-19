@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, CreditCard, Smartphone, Landmark, Truck, Loader2, XCircle, RotateCcw, AlertTriangle, ShieldCheck, MapPin, Check } from 'lucide-react'
@@ -10,7 +10,6 @@ import DeliveryTimeline from '../../components/ui/DeliveryTimeline'
 import CouponInput from '../../components/cart/CouponInput'
 import { formatUSD, estimatedDelivery } from '../../utils/format'
 import { bagWeightLb } from '../../utils/stock'
-import { findGreaterAustinAreaForZip } from '../../data/deliveryAreas'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
 import useShopNowPath from '../../hooks/useShopNowPath'
@@ -50,6 +49,8 @@ export default function Checkout() {
   const [stage, setStage] = useState('form') // 'form' | 'processing' | 'failed' | 'placed'
   const [orderId, setOrderId] = useState('')
   const [stockWarning, setStockWarning] = useState('')
+  const [selectedDeliveryArea, setSelectedDeliveryArea] = useState(null) // null | 'checking' | 'error' | serviceability
+  const deliveryCheckRef = useRef(0)
 
   useEffect(() => {
     if (!selected && addresses.length > 0) {
@@ -58,10 +59,27 @@ export default function Checkout() {
   }, [addresses])
 
   const selectedAddress = addresses.find((a) => a.id === selected)
-  // Informational only - which Greater Austin area (named zone or sub-city)
-  // this ZIP falls into, if any. Actual deliverability is still decided by
-  // the real backend check further down in placeOrder(), not by this lookup.
-  const selectedDeliveryArea = selectedAddress ? findGreaterAustinAreaForZip(selectedAddress.pincode) : null
+
+  useEffect(() => {
+    const currentRequest = deliveryCheckRef.current + 1
+    deliveryCheckRef.current = currentRequest
+
+    if (!selectedAddress?.pincode || !/^\d{5}(?:-\d{4})?$/.test(selectedAddress.pincode)) {
+      setSelectedDeliveryArea(null)
+      return undefined
+    }
+
+    setSelectedDeliveryArea('checking')
+    deliveryApi.check(selectedAddress.pincode)
+      .then((res) => {
+        if (deliveryCheckRef.current === currentRequest) setSelectedDeliveryArea(res)
+      })
+      .catch(() => {
+        if (deliveryCheckRef.current === currentRequest) setSelectedDeliveryArea('error')
+      })
+
+    return undefined
+  }, [selectedAddress?.pincode])
 
   // Checkout places a real order tied to the logged-in account - an unauthenticated
   // visitor must never reach this page, since without a real session there's no
@@ -137,11 +155,12 @@ export default function Checkout() {
     // Profile, which never validated it), or coverage may have changed since
     // it was saved.
     if (addr?.pincode) {
-      // Cheap, definitive first pass: our own known Greater Austin ZIP list
-      // (kept in lockstep with the backend's seeded serviceable_pincodes) - if
-      // it's not on this list at all, there's no need to even call the API to
-      // know the order shouldn't go through.
-      if (!findGreaterAustinAreaForZip(addr.pincode)) {
+      if (selectedDeliveryArea === 'checking') {
+        showToast('Please wait while we confirm delivery availability for this address.', 'error')
+        return
+      }
+
+      if (selectedDeliveryArea && selectedDeliveryArea !== 'error' && !selectedDeliveryArea.deliverable) {
         showToast(`Sorry, we don't currently deliver to ${addr.pincode}. Please choose a different address.`, 'error')
         return
       }
@@ -304,13 +323,25 @@ export default function Checkout() {
                   <p className="text-xs text-ink/50 truncate">
                     {[selectedAddress.flat, selectedAddress.area, selectedAddress.city].filter(Boolean).join(', ')}
                   </p>
-                  {selectedDeliveryArea ? (
+                  {selectedDeliveryArea === 'checking' ? (
+                    <p className="text-xs text-ink/40 font-semibold mt-1.5 flex items-center gap-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Checking delivery availability...
+                    </p>
+                  ) : selectedDeliveryArea === 'error' ? (
+                    <p className="text-xs text-amber-600 font-semibold mt-1.5 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" /> Delivery availability could not be checked right now
+                    </p>
+                  ) : selectedDeliveryArea?.deliverable ? (
                     <p className="text-xs text-leaf-600 font-semibold mt-1.5 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Delivery Area: {selectedDeliveryArea.areaName} - Available
                     </p>
+                  ) : selectedDeliveryArea ? (
+                    <p className="text-xs text-red-500 font-semibold mt-1.5 flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" aria-hidden="true" /> Sorry, we don't currently deliver to this ZIP code
+                    </p>
                   ) : (
                     <p className="text-xs text-amber-600 font-semibold mt-1.5 flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" /> Outside our known Greater Austin delivery areas - availability confirmed at checkout
+                      <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" /> Delivery availability will be confirmed at checkout
                     </p>
                   )}
                 </div>

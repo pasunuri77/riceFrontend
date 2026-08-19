@@ -15,7 +15,7 @@ import { US_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
 const schema = z
   .object({
     fullName: z.string().min(1, 'Full name is required'),
-    mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit US phone number'),
+    mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit mobile number'),
     email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
@@ -112,7 +112,7 @@ export default function Register() {
                 type="tel"
                 inputMode="numeric"
                 maxLength={10}
-                placeholder="(512) 555-0123"
+                placeholder="10-digit mobile number"
                 className="input-field"
                 aria-invalid={!!errors.mobile}
               />

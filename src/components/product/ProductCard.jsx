@@ -2,7 +2,6 @@ import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShoppingCart } from 'lucide-react'
-import RatingStars from './RatingStars'
 import StockBadge, { OfferBadge } from './StockBadge'
 import { formatUSD } from '../../utils/format'
 import ProductImage from './ProductImage'
@@ -39,12 +38,8 @@ function ProductCard({ product, index = 0 }) {
             {product.name}
           </h3>
         </Link>
-        <div className="mt-1.5"><RatingStars rating={product.rating} reviews={product.reviews} /></div>
         <div className="mt-2 flex items-center gap-2">
           <span className="font-bold text-ink">{formatUSD(product.pricePerKg)}<span className="text-xs text-ink/40 font-normal">/lb</span></span>
-          {product.mrp > product.pricePerKg && (
-            <span className="text-xs text-ink/35 line-through">{formatUSD(product.mrp)}</span>
-          )}
         </div>
         <div className="mt-1.5"><StockBadge stock={product.stock} /></div>
 

@@ -22,6 +22,7 @@ const Terms = lazy(() => import('./pages/Public/Terms'))
 const Login = lazy(() => import('./pages/Public/Login'))
 const Register = lazy(() => import('./pages/Public/Register'))
 const ForgotPassword = lazy(() => import('./pages/Public/ForgotPassword'))
+const SetPassword = lazy(() => import('./pages/Public/SetPassword'))
 const VerifyOtp = lazy(() => import('./pages/Public/VerifyOtp'))
 const Products = lazy(() => import('./pages/Public/Products'))
 const ProductDetails = lazy(() => import('./pages/Public/ProductDetails'))
@@ -31,6 +32,7 @@ const Checkout = lazy(() => import('./pages/User/Checkout'))
 const UserDashboard = lazy(() => import('./pages/User/Dashboard'))
 const Orders = lazy(() => import('./pages/User/Orders'))
 const OrderDetail = lazy(() => import('./pages/User/OrderDetail'))
+const Payments = lazy(() => import('./pages/User/Payments'))
 const Addresses = lazy(() => import('./pages/User/Addresses'))
 const Profile = lazy(() => import('./pages/User/Profile'))
 
@@ -94,6 +96,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/set-password" element={<SetPassword />} />
             <Route path="/verify-otp" element={<VerifyOtp />} />
             <Route path="/products" element={<Products />} />
             <Route path="/products/:id" element={<ProductDetails />} />
@@ -105,6 +108,7 @@ export default function App() {
             <Route index element={<UserDashboard />} />
             <Route path="orders" element={<Orders />} />
             <Route path="orders/:id" element={<OrderDetail />} />
+            <Route path="payments" element={<Payments />} />
             <Route path="addresses" element={<Addresses />} />
             <Route path="cart" element={<Cart />} />
             <Route path="profile" element={<Profile />} />

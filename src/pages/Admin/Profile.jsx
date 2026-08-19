@@ -15,7 +15,7 @@ import { US_MOBILE_REGEX, sanitizeMobileInput, stripCountryCode } from '../../ut
 const profileSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit US phone number'),
+  mobile: z.string().regex(US_MOBILE_REGEX, 'Enter a valid 10-digit mobile number'),
 })
 
 export default function AdminProfile() {

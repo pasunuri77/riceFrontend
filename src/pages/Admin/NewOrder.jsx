@@ -81,6 +81,10 @@ export default function AdminNewOrder() {
       showToast('Name and email are required', 'error')
       return
     }
+    if (newCustomer.mobile.length !== 10) {
+      showToast('Enter a valid 10-digit mobile number', 'error')
+      return
+    }
     setCreatingCustomer(true)
     try {
       const created = await customerApi.create(newCustomer)
@@ -244,7 +248,15 @@ export default function AdminNewOrder() {
                     <p className="text-[11px] font-bold text-ink/50 uppercase tracking-wider">New Customer</p>
                     <input value={newCustomer.fullName} onChange={(e) => setNewCustomer((c) => ({ ...c, fullName: e.target.value }))} placeholder="Full name" className="input-field" />
                     <input value={newCustomer.email} onChange={(e) => setNewCustomer((c) => ({ ...c, email: e.target.value }))} type="email" placeholder="Email" className="input-field" />
-                    <input value={newCustomer.mobile} onChange={(e) => setNewCustomer((c) => ({ ...c, mobile: e.target.value }))} placeholder="Mobile (optional)" className="input-field" />
+                    <input
+                      value={newCustomer.mobile}
+                      onChange={(e) => setNewCustomer((c) => ({ ...c, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="Mobile number"
+                      className="input-field"
+                    />
                     <div className="flex gap-2 pt-1">
                       <button onClick={() => setShowNewCustomer(false)} className="btn-ghost border border-black/10 text-xs px-3 py-1.5">Cancel</button>
                       <button onClick={createNewCustomer} disabled={creatingCustomer} className="btn-primary text-xs px-3 py-1.5 disabled:opacity-60">

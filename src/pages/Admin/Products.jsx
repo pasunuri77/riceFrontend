@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import Modal from '../../components/ui/Modal'
+import RowActionsMenu from '../../components/ui/RowActionsMenu'
 import StatusPill from '../../components/ui/StatusPill'
 import Pagination from '../../components/ui/Pagination'
 import SearchInput from '../../components/ui/SearchInput'
@@ -203,7 +204,6 @@ export default function AdminProducts() {
   const onSubmitProduct = (data) => {
     const payload = {
       ...data,
-      mrp: data.pricePerKg * 1.12,
       image: data.image || '',
       // brand is the one exception left outside the form: it's not a display
       // label, it's the real join key useHomeProducts.js filters the entire
@@ -305,10 +305,14 @@ export default function AdminProducts() {
                 </td>
                 <td className="p-3"><StatusPill status={p.status} /></td>
                 <td className="p-3">
-                  <div className="flex gap-1.5">
-                    <button onClick={() => openEdit(p)} aria-label={`Edit ${p.name}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Pencil className="w-4 h-4" aria-hidden="true" /></button>
-                    <button onClick={() => setConfirmDelete(p)} aria-label={`Delete ${p.name}`} className="p-1.5 rounded-lg hover:bg-red-100 text-red-500"><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
-                  </div>
+                  <RowActionsMenu
+                    id={`product-${p.id}`}
+                    label={`Actions for ${p.name}`}
+                    items={[
+                      { label: 'Edit', icon: Pencil, onClick: () => openEdit(p) },
+                      { label: 'Delete', icon: Trash2, danger: true, onClick: () => setConfirmDelete(p) },
+                    ]}
+                  />
                 </td>
               </tr>
             ))}

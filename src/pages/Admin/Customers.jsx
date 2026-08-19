@@ -4,6 +4,8 @@ import { Eye, Ban, CheckCircle2, Package, Shield, Trash2, UserPlus, Mail } from 
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import Modal from '../../components/ui/Modal'
+import Drawer from '../../components/ui/Drawer'
+import RowActionsMenu from '../../components/ui/RowActionsMenu'
 import StatusPill from '../../components/ui/StatusPill'
 import Pagination from '../../components/ui/Pagination'
 import SearchInput from '../../components/ui/SearchInput'
@@ -35,9 +37,12 @@ const ROLE_STYLES = {
   admin: { badge: 'bg-primary-100 text-primary-700', avatar: 'bg-primary-500' },
 }
 const ROLE_LABEL = { user: 'Customer', employee: 'Employee', admin: 'Admin' }
-// No Super Admin tier here - riceApp only distinguishes Admin (full access)
-// from Employee (granular permissions), so only these two are invitable as staff.
-const INVITE_ROLES = ['user', 'employee', 'admin']
+// Customers are never invited from here - they're created inline while
+// booking an order on their behalf (Admin > New Order), so there's no need to
+// duplicate that flow. This modal is staff-only: Employee or Admin. No Super
+// Admin tier either - riceApp only distinguishes Admin (full access) from
+// Employee (granular permissions).
+const INVITE_ROLES = ['employee', 'admin']
 
 const COLUMNS = [
   { key: 'name', label: 'User', sortField: 'name' },
@@ -49,7 +54,7 @@ const COLUMNS = [
 
 function RolePicker({ value, onChange, options }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 gap-2">
       {options.map((r) => {
         const selected = value === r
         return (
@@ -87,7 +92,7 @@ export default function AdminCustomers() {
   const [visibleCols, setVisibleCols] = useState({})
 
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [inviteForm, setInviteForm] = useState({ fullName: '', mobile: '', email: '', role: 'user' })
+  const [inviteForm, setInviteForm] = useState({ fullName: '', mobile: '', email: '', role: 'employee' })
   const [inviting, setInviting] = useState(false)
 
   const [permUser, setPermUser] = useState(null)
@@ -222,17 +227,13 @@ export default function AdminCustomers() {
 
   const sendInvite = async () => {
     if (!inviteForm.fullName.trim() || !inviteForm.email.trim()) { showToast('Name and email are required', 'error'); return }
+    if (inviteForm.mobile.length !== 10) { showToast('Enter a valid 10-digit mobile number', 'error'); return }
     setInviting(true)
     try {
-      if (inviteForm.role === 'user') {
-        const created = await customerApi.create(inviteForm)
-        setCustomers((prev) => [...prev, { ...created, role: 'user' }])
-      } else {
-        await staffApi.invite(inviteForm)
-      }
+      await staffApi.invite(inviteForm)
       showToast(`Invitation sent to ${inviteForm.email}`, 'success')
       setInviteOpen(false)
-      setInviteForm({ fullName: '', mobile: '', email: '', role: 'user' })
+      setInviteForm({ fullName: '', mobile: '', email: '', role: 'employee' })
       load()
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to send invite', 'error')
@@ -278,7 +279,9 @@ export default function AdminCustomers() {
       <PageHeader
         title="Customer & Staff Management"
         subtitle={`${list.length} of ${allUsers.length} users`}
-        action={<button onClick={() => { setInviteForm({ fullName: '', mobile: '', email: '', role: 'user' }); setInviteOpen(true) }} className="btn-primary text-sm"><UserPlus className="w-4 h-4" /> Invite User</button>}
+        action={isAdmin && (
+          <button onClick={() => { setInviteForm({ fullName: '', mobile: '', email: '', role: 'employee' }); setInviteOpen(true) }} className="btn-primary text-sm"><UserPlus className="w-4 h-4" /> Invite Staff</button>
+        )}
       />
 
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -333,32 +336,24 @@ export default function AdminCustomers() {
                   {isVisible('status') && <td className="p-3"><StatusPill status={c.status || 'Active'} /></td>}
                   {isVisible('joined') && <td className="p-3 text-ink/50">{c.joined ? formatDate(c.joined) : '--'}</td>}
                   <td className="p-3">
-                    <div className="flex gap-1.5">
-                      <button onClick={() => setViewing(c)} aria-label={`View ${c.name}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600"><Eye className="w-4 h-4" aria-hidden="true" /></button>
-                      {isAdmin && c.role === 'employee' && (
-                        <button onClick={() => openPermissions(c)} title="Manage permissions" className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100">
-                          <Shield className="w-3.5 h-3.5" /> Perms
-                        </button>
-                      )}
-                      {(c.role === 'user' || isAdmin) && (
-                        <button
-                          onClick={() => toggleActive(c)}
-                          aria-label={c.status === 'Active' ? `Deactivate ${c.name}` : `Reactivate ${c.name}`}
-                          className={`p-1.5 rounded-lg ${c.status === 'Active' ? 'hover:bg-red-100 text-red-500' : 'hover:bg-leaf-100 text-leaf-600'}`}
-                        >
-                          {c.status === 'Active' ? <Ban className="w-4 h-4" aria-hidden="true" /> : <CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => removeUser(c)}
-                        disabled={disabledDelete}
-                        title={disabledDelete ? deleteTooltip(c) : 'Remove account'}
-                        aria-label={`Remove ${c.name}`}
-                        className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                      >
-                        <Trash2 className="w-4 h-4" aria-hidden="true" />
-                      </button>
-                    </div>
+                    <RowActionsMenu
+                      id={`user-${c.id}`}
+                      label={`Actions for ${c.name}`}
+                      items={[
+                        { label: 'View', icon: Eye, onClick: () => setViewing(c) },
+                        ...(isAdmin && c.role === 'employee'
+                          ? [{ label: 'Permissions', icon: Shield, onClick: () => openPermissions(c) }]
+                          : []),
+                        {
+                          label: 'Delete',
+                          icon: Trash2,
+                          danger: true,
+                          disabled: disabledDelete,
+                          disabledReason: disabledDelete ? deleteTooltip(c) : undefined,
+                          onClick: () => removeUser(c),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               )
@@ -370,22 +365,28 @@ export default function AdminCustomers() {
       </TableShell>
       <Pagination page={page} totalPages={totalPages} onChange={setPage} />
 
-      {/* Invite / Add user modal */}
-      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title={isAdmin ? 'Invite New User' : 'Add New Customer'}>
+      {/* Invite staff modal - admin-only; customers are added via New Order instead */}
+      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite Staff">
         <div className="space-y-3">
           <div className="flex items-start gap-2.5 bg-primary-50 border border-primary-100 rounded-xl px-4 py-3">
             <Mail className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
             <p className="text-xs text-ink/60">An invitation email will be sent with a secure link to set up their password. The link expires in 24 hours.</p>
           </div>
           <input value={inviteForm.fullName} onChange={(e) => setInviteForm((f) => ({ ...f, fullName: e.target.value }))} placeholder="Full name" className="input-field" />
-          <input value={inviteForm.mobile} onChange={(e) => setInviteForm((f) => ({ ...f, mobile: e.target.value }))} placeholder="Mobile (optional)" className="input-field" />
+          <input
+            value={inviteForm.mobile}
+            onChange={(e) => setInviteForm((f) => ({ ...f, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            placeholder="Mobile number"
+            className="input-field"
+          />
           <input value={inviteForm.email} onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))} type="email" placeholder="Email" className="input-field" />
-          {isAdmin && (
-            <div>
-              <p className="label-field">Role</p>
-              <RolePicker value={inviteForm.role} onChange={(role) => setInviteForm((f) => ({ ...f, role }))} options={INVITE_ROLES} />
-            </div>
-          )}
+          <div>
+            <p className="label-field">Role</p>
+            <RolePicker value={inviteForm.role} onChange={(role) => setInviteForm((f) => ({ ...f, role }))} options={INVITE_ROLES} />
+          </div>
           <button onClick={sendInvite} disabled={inviting} className="btn-primary w-full disabled:opacity-60">
             {inviting ? 'Sending...' : 'Send Invite'}
           </button>
@@ -418,10 +419,10 @@ export default function AdminCustomers() {
         </button>
       </Modal>
 
-      {/* View modal */}
-      <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing?.role === 'user' ? 'Customer Details' : 'Staff Details'} maxWidth="max-w-lg">
+      {/* View details - slide-in from the right, matching Orders' detail panel */}
+      <Drawer open={!!viewing} onClose={() => setViewing(null)} title={viewing?.role === 'user' ? 'Customer Details' : 'Staff Details'} width="max-w-lg">
         {viewing && viewing.role === 'user' && (
-          <div className="space-y-5">
+          <div className="p-5 space-y-5">
             <div className="flex items-center gap-3">
               <div className="w-14 h-14 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xl font-bold shrink-0">{viewing.name[0]}</div>
               <div className="min-w-0 flex-1">
@@ -469,7 +470,7 @@ export default function AdminCustomers() {
           </div>
         )}
         {viewing && viewing.role !== 'user' && (
-          <div className="space-y-4">
+          <div className="p-5 space-y-4">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-full ${ROLE_STYLES[viewing.role].avatar} text-white flex items-center justify-center text-lg font-bold shrink-0`}>{viewing.name?.[0]}</div>
               <div className="min-w-0">
@@ -491,7 +492,7 @@ export default function AdminCustomers() {
             </div>
           </div>
         )}
-      </Modal>
+      </Drawer>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Wallet, CreditCard, Banknote, RotateCcw, Clock3, Eye } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
@@ -8,6 +8,7 @@ import TableShell from '../../components/ui/TableShell'
 import Pagination from '../../components/ui/Pagination'
 import DashboardCard from '../../components/dashboard/DashboardCard'
 import ExportMenu from '../../components/ui/ExportMenu'
+import RowActionsMenu from '../../components/ui/RowActionsMenu'
 import { formatUSD, formatDate } from '../../utils/format'
 import { exportToCsv, exportToExcel } from '../../utils/exportTable'
 import orderApi from '../../api/orderApi'
@@ -48,6 +49,7 @@ function MethodCell({ method }) {
 const PAGE_SIZE = 8
 
 export default function AdminPayments() {
+  const navigate = useNavigate()
   const [ordersData, setOrdersData] = useState([])
   const [mobileById, setMobileById] = useState({})
   const [loading, setLoading] = useState(true)
@@ -167,7 +169,13 @@ export default function AdminPayments() {
                   <td className="p-3"><MethodCell method={p.method} /></td>
                   <td className="p-3"><span className={`badge ${p.status === 'Paid' ? 'bg-leaf-100 text-leaf-700' : 'bg-orange-100 text-orange-700'}`}>{p.status}</span></td>
                   <td className="p-3 text-ink/50">{formatDate(p.date)}</td>
-                  <td className="p-3"><Link to={`/admin/orders?view=${p.orderId}`} aria-label={`View order ${p.orderId}`} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-600 inline-flex"><Eye className="w-4 h-4" /></Link></td>
+                  <td className="p-3">
+                    <RowActionsMenu
+                      id={`payment-${p.id}`}
+                      label={`Actions for ${p.id}`}
+                      items={[{ label: 'View Order', icon: Eye, onClick: () => navigate(`/admin/orders?view=${p.orderId}`) }]}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useLocalStorage from '../hooks/useLocalStorage'
 import useIdleLogout from '../hooks/useIdleLogout'
@@ -21,10 +21,24 @@ export function AuthProvider({ children }) {
     if (user && !getToken()) setUser(null)
   }, [])
 
-  // client.js drops the token and fires this when a request 401/403s while a
-  // token was attached (e.g. the account behind it was deleted server-side).
+  // client.js drops the token and fires this when a request 401s while a
+  // token was attached (e.g. the account behind it was deleted server-side,
+  // or the token simply expired). Several authenticated requests can be
+  // in-flight at once (e.g. an admin dashboard page loading orders/customers/
+  // products/permissions together) - if the token goes bad, all of them 401
+  // back-to-back, and without a guard each one would independently show its
+  // own toast and re-navigate, stacking up duplicate "session expired"
+  // notifications instead of one. `handledRef` makes only the first one count
+  // per invalidation episode; it resets once a real user is signed in again.
+  const handledInvalidRef = useRef(false)
+  useEffect(() => {
+    if (user) handledInvalidRef.current = false
+  }, [user])
+
   useEffect(() => {
     const onAuthInvalid = () => {
+      if (handledInvalidRef.current) return
+      handledInvalidRef.current = true
       setUser(null)
       showToast('Your session has expired. Please log in again.', 'error')
       navigate('/login')
@@ -58,6 +72,7 @@ export function AuthProvider({ children }) {
 
   const login = (credentials) => authApi.login(credentials).then((u) => { setUser(u); return u })
   const register = (data) => authApi.register(data).then((u) => { setUser(u); return u })
+  const setPassword = (data) => authApi.setPassword(data).then((u) => { setUser(u); return u })
   const updateProfile = (data) => authApi.updateProfile(data).then((u) => { setUser(u); return u })
   const updateAdminProfile = (data) => authApi.updateAdminProfile(data).then((u) => { setUser(u); return u })
   const uploadPhoto = (file) => authApi.uploadPhoto(file).then((u) => { setUser(u); return u })
@@ -73,7 +88,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, register, updateProfile, updateAdminProfile, uploadPhoto, removePhoto, uploadAdminPhoto, removeAdminPhoto, logout, addresses, addAddress, updateAddress, deleteAddress, setDefaultAddress }}
+      value={{ user, login, register, setPassword, updateProfile, updateAdminProfile, uploadPhoto, removePhoto, uploadAdminPhoto, removeAdminPhoto, logout, addresses, addAddress, updateAddress, deleteAddress, setDefaultAddress }}
     >
       {children}
     </AuthContext.Provider>
