@@ -23,8 +23,8 @@ const orderApi = {
   // which the caller then wrongly reports as "order not found".
   getById: (id) => http.get(`/api/orders/${id}`),
 
-  create: ({ address, paymentMethod, items, couponCode, notes }) =>
-    http.post('/api/orders', { address, paymentMethod, items, couponCode, notes }),
+  create: ({ address, deliveryZipCode, paymentMethod, items, couponCode, notes }) =>
+    http.post('/api/orders', { address, deliveryZipCode, paymentMethod, items, couponCode, notes }),
 
 
   cancel: (id) => http.patch(`/api/orders/${id}/cancel`),

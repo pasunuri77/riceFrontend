@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Package, Users, ClipboardList, BarChart3, User, Tag, Truck, Wallet } from 'lucide-react'
+import { LayoutDashboard, Package, Users, ClipboardList, BarChart3, User, Tag, Truck, Wallet, RotateCcw } from 'lucide-react'
 import DashboardShell from './DashboardShell'
 import { useAuth } from '../../context/AuthContext'
 import staffApi from '../../api/staffApi'
@@ -16,6 +16,7 @@ const ALL_NAV = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true, always: true },
   { to: '/admin/products', icon: Package, label: 'Products', perm: 'canManageProducts' },
   { to: '/admin/orders', icon: ClipboardList, label: 'Orders', perm: 'canManageOrders' },
+  { to: '/admin/returns', icon: RotateCcw, label: 'Returns', perm: 'canManageOrders' },
   // Also covers the merged staff (Employee/Admin) list on this same page -
   // there's no separate permission for managing staff, since an employee is
   // never allowed to touch other admins/employees regardless of grants.

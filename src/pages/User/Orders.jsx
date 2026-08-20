@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, XCircle, Eye, MapPin, CreditCard } from 'lucide-react'
+import { Package, XCircle, Eye, MapPin, CreditCard, RotateCcw } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import StatusPill from '../../components/ui/StatusPill'
@@ -13,11 +13,18 @@ import { useToast } from '../../context/ToastContext'
 import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
+import returnApi from '../../api/returnApi'
+import { normalizeReturnRequests, orderIdsMatch, paymentMethodLabel, returnStatusLabel, saveReturnOrderSnapshot } from '../../data/returnRequests'
 
 const FILTERS = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered']
 
 const itemNames = (o) => (o.items?.length ? o.items.map((i) => i.name).join(', ') : o.riceName)
 const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${bagWeightLb(i.weight)}lb Bag x${i.qty}`).join(', ') : o.quantity)
+const returnResultPath = (request) => {
+  if (['APPROVED', 'RECEIVED', 'REFUNDED'].includes(request.status)) return `/dashboard/returns/${request.id}/approved`
+  if (request.status === 'REJECTED') return `/dashboard/returns/${request.id}/rejected`
+  return `/dashboard/returns/${request.id}/success`
+}
 
 export default function Orders() {
   const [ordersData, setOrdersData] = useState([])
@@ -25,11 +32,16 @@ export default function Orders() {
   const [cancellingId, setCancellingId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [viewing, setViewing] = useState(null)
+  const [returnRequests, setReturnRequests] = useState([])
   const { showToast } = useToast()
   const { notify } = useNotifications()
 
   useEffect(() => {
     orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])).finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    returnApi.listMine().then((data) => setReturnRequests(normalizeReturnRequests(data))).catch(() => setReturnRequests([]))
   }, [])
 
   const orders = filter === 'All' ? ordersData : ordersData.filter((o) => o.deliveryStatus === filter)
@@ -79,7 +91,9 @@ export default function Orders() {
         <EmptyState icon={Package} title="No orders found" subtitle="You have no orders in this category yet." actionLabel="Start Shopping" actionTo="/products" />
       ) : (
         <div className="space-y-4">
-          {orders.map((o) => (
+          {orders.map((o) => {
+            const returnRequest = returnRequests.find((request) => orderIdsMatch(o.id, request.orderId))
+            return (
             <div key={o.id} className="card p-4 sm:p-5 flex flex-col sm:flex-row gap-4">
               {o.productId ? (
                 <Link to={`/products/${o.productId}`} className="shrink-0">
@@ -112,13 +126,28 @@ export default function Orders() {
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <StatusPill status={o.deliveryStatus} />
+                  {returnRequest && <StatusPill status={returnStatusLabel(returnRequest.status)} />}
                   <span className="text-xs text-ink/40">{o.paymentStatus === 'Paid' ? 'Paid' : 'Payment pending'}</span>
                 </div>
+                {returnRequest && (
+                  <div className="mt-3 rounded-xl bg-primary-50/70 border border-primary-100 px-3 py-2 text-xs text-ink/60">
+                    Return {returnRequest.returnNumber}: <span className="font-semibold text-ink/75">{returnRequest.items.map((item) => `${item.label} x${item.quantity}`).join(', ')}</span>
+                  </div>
+                )}
               </div>
               <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 sm:text-right sm:min-w-[140px]">
                 <p className="font-bold text-lg">{formatUSD(o.amount)}</p>
                 <div className="flex sm:flex-col gap-2 w-full">
                   <button onClick={() => setViewing(o)} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Eye className="w-3.5 h-3.5" /> View Details</button>
+                  {o.deliveryStatus === 'Delivered' && (
+                    <Link
+                      to={returnRequest ? returnResultPath(returnRequest) : `/dashboard/orders/${o.id}/return`}
+                      onClick={() => !returnRequest && saveReturnOrderSnapshot(o)}
+                      className="btn text-xs px-3 py-1.5 bg-leaf-50 text-leaf-700 w-full justify-center"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> {returnRequest ? 'Return Status' : 'Request Return'}
+                    </Link>
+                  )}
                   {['Pending', 'Processing'].includes(o.deliveryStatus) && (
                     <button onClick={() => handleCancel(o.id)} disabled={cancellingId === o.id} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
                       <XCircle className="w-3.5 h-3.5" /> {cancellingId === o.id ? 'Cancelling...' : 'Cancel'}
@@ -127,7 +156,7 @@ export default function Orders() {
                 </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 
@@ -137,6 +166,29 @@ export default function Orders() {
       <Drawer open={!!viewing} onClose={() => setViewing(null)} title="Order Details" width="max-w-lg">
         {viewing && (
           <div className="p-5 space-y-5 text-sm">
+            {(() => {
+              const returnRequest = returnRequests.find((request) => orderIdsMatch(viewing.id, request.orderId))
+              return returnRequest ? (
+                <div className="rounded-xl border border-primary-100 bg-primary-50/70 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-ink/40">Return Request</p>
+                      <p className="font-bold mt-0.5">{returnRequest.returnNumber}</p>
+                    </div>
+                    <StatusPill status={returnStatusLabel(returnRequest.status)} />
+                  </div>
+                  <div className="mt-3 text-xs text-ink/60 space-y-1">
+                    <p>{returnRequest.items.map((item) => `${item.label} x${item.quantity}`).join(', ')}</p>
+                    <p>Estimated refund: <span className="font-bold text-primary-700">{formatUSD(returnRequest.refundAmount)}</span> to {paymentMethodLabel(returnRequest)}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Link to={returnResultPath(returnRequest)} className="btn text-xs px-3 py-1.5 bg-white text-primary-700 border border-primary-100">Current Status</Link>
+                    <Link to={`/dashboard/returns/${returnRequest.id}/approved`} className="btn text-xs px-3 py-1.5 bg-leaf-50 text-leaf-700">Approved View</Link>
+                    <Link to={`/dashboard/returns/${returnRequest.id}/rejected`} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-600">Rejected View</Link>
+                  </div>
+                </div>
+              ) : null
+            })()}
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="font-extrabold text-lg font-display">{viewing.id}</h4>
@@ -201,6 +253,11 @@ export default function Orders() {
               <button onClick={() => handleCancel(viewing.id)} disabled={cancellingId === viewing.id} className="btn w-full bg-red-50 text-red-500 disabled:opacity-60">
                 <XCircle className="w-4 h-4" /> {cancellingId === viewing.id ? 'Cancelling...' : 'Cancel Order'}
               </button>
+            )}
+            {viewing.deliveryStatus === 'Delivered' && !returnRequests.some((request) => orderIdsMatch(viewing.id, request.orderId)) && (
+              <Link to={`/dashboard/orders/${viewing.id}/return`} onClick={() => saveReturnOrderSnapshot(viewing)} className="btn w-full bg-leaf-50 text-leaf-700">
+                <RotateCcw className="w-4 h-4" /> Request Return
+              </Link>
             )}
           </div>
         )}

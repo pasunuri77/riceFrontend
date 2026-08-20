@@ -10,10 +10,14 @@ export function storeMapsUrl(store) {
   return address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : ''
 }
 
+// The homepage badge only shows the cities that make up the general Greater
+// Austin coverage area, not the individually-named zones (Downtown/North/
+// South/East/West Austin) - those are their own dedicated delivery zones,
+// shown separately elsewhere, not part of the "Greater Austin" region label.
 export function deliveryAreaNames(areas = []) {
-  return areas.map((area) => area.name).filter(Boolean)
+  return areas.filter((area) => !area.namedZone).map((area) => area.name).filter(Boolean)
 }
 
-export function serviceRegionName(areas = []) {
-  return areas.find((area) => !area.isNamedZone)?.name || areas[0]?.name || ''
+export function serviceRegionName() {
+  return 'Greater Austin'
 }

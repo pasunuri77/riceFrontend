@@ -195,6 +195,7 @@ export default function Checkout() {
     setStage('processing')
     orderApi.create({
       address: addressLine,
+      deliveryZipCode: addr?.pincode,
       paymentMethod: payment,
       items,
       couponCode: coupon?.code,
