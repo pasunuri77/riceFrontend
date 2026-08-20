@@ -58,12 +58,12 @@ export default function Payments() {
         <TableShell minWidth="640px">
           <thead>
             <tr className="text-left text-ink/40 text-xs uppercase border-b border-black/5">
-              <th scope="col" className="p-3.5">Payment ID</th>
-              <th scope="col" className="p-3.5">Order ID</th>
-              <th scope="col" className="p-3.5">Amount</th>
-              <th scope="col" className="p-3.5">Method</th>
-              <th scope="col" className="p-3.5">Status</th>
-              <th scope="col" className="p-3.5">Date</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Payment ID</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Order ID</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Amount</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Method</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Status</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Date</th>
               <th scope="col" className="p-3.5"></th>
             </tr>
           </thead>
@@ -72,12 +72,12 @@ export default function Payments() {
               Array.from({ length: 4 }).map((_, i) => <RowSkeleton key={i} cols={7} />)
             ) : payments.map((p) => (
               <tr key={p.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
-                <td className="p-3 font-semibold">{p.id}</td>
-                <td className="p-3 text-primary-700 font-semibold">{p.orderId}</td>
-                <td className="p-3 font-semibold">{formatUSD(p.amount)}</td>
-                <td className="p-3 text-ink/60">{METHOD_LABELS[p.method] || p.method || '--'}</td>
-                <td className="p-3"><span className={`badge ${p.status === 'Paid' ? 'bg-leaf-100 text-leaf-700' : 'bg-orange-100 text-orange-700'}`}>{p.status}</span></td>
-                <td className="p-3 text-ink/50">{formatDate(p.date)}</td>
+                <td className="p-3 font-semibold whitespace-nowrap">{p.id}</td>
+                <td className="p-3 text-primary-700 font-semibold whitespace-nowrap">{p.orderId}</td>
+                <td className="p-3 font-semibold whitespace-nowrap">{formatUSD(p.amount)}</td>
+                <td className="p-3 text-ink/60 whitespace-nowrap">{METHOD_LABELS[p.method] || p.method || '--'}</td>
+                <td className="p-3 whitespace-nowrap"><span className={`badge ${p.status === 'Paid' ? 'bg-leaf-100 text-leaf-700' : 'bg-orange-100 text-orange-700'}`}>{p.status}</span></td>
+                <td className="p-3 text-ink/50 whitespace-nowrap">{formatDate(p.date)}</td>
                 <td className="p-3">
                   <RowActionsMenu
                     id={`my-payment-${p.id}`}

@@ -27,19 +27,32 @@ const orderApi = {
     http.post('/api/orders', { address, deliveryZipCode, paymentMethod, items, couponCode, notes }),
 
 
-  cancel: (id) => http.patch(`/api/orders/${id}/cancel`),
+  // Reason is required (see CancelOrderModal) - the backend records who
+  // cancelled and stamps the order with their role/name so the UI can show
+  // "Cancelled by Admin/Employee" instead of leaving it ambiguous.
+  cancel: (id, reason) => http.patch(`/api/orders/${id}/cancel`, { reason }),
 
   updatePaymentStatus: (id, status) =>
     http.patch(`/api/admin/orders/${id}/payment-status`, { status }),
 
-  updateDeliveryStatus: (id, status) =>
-    http.patch(`/api/admin/orders/${id}/delivery-status`, { status }),
+  // `reason` is only sent when cancelling (status === 'Cancelled') - every
+  // other delivery-status transition doesn't need one, so callers simply omit
+  // it there.
+  updateDeliveryStatus: (id, status, reason) =>
+    http.patch(`/api/admin/orders/${id}/delivery-status`, reason !== undefined ? { status, reason } : { status }),
 
   // Admin-only "Confirm Order" action - transitions a Pending order to Processing.
   // Kept as its own endpoint (rather than reusing updateDeliveryStatus) so the
   // backend can enforce the Pending -> Processing transition specifically and
   // reject confirming an order that isn't currently Pending.
   confirmOrder: (id) => http.patch(`/api/admin/orders/${id}/confirm`),
+
+  // Processes a refund for a cancelled, prepaid (non-COD) order - the full
+  // amount paid, since nothing shipped. Not yet implemented on the backend
+  // (see backend prompt); this is wired ahead of time so it starts working
+  // the moment that endpoint exists, with no further frontend changes.
+  refundCancelledOrder: (id, { refundReference, refundNote }) =>
+    http.post(`/api/admin/orders/${id}/refund`, { refundReference, refundNote }),
 
   // Admin creating/booking an order on behalf of an existing or newly-added
   // customer. customerId identifies who the order belongs to; everything else

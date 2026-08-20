@@ -4,25 +4,43 @@ import { CheckCircle2, ClipboardCheck, Package, RotateCcw, XCircle } from 'lucid
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import EmptyState from '../../components/ui/EmptyState'
 import StatusPill from '../../components/ui/StatusPill'
+import ReturnStatusModal from '../../components/ui/ReturnStatusModal'
 import { TextSkeleton } from '../../components/ui/Skeleton'
 import { formatDate, formatUSD } from '../../utils/format'
 import returnApi from '../../api/returnApi'
 import { normalizeReturnRequest, paymentMethodLabel, returnStatusLabel, RETURN_STATUSES } from '../../data/returnRequests'
 
+// Keyed by the request's actual live status, not the route's `result` param -
+// a customer can revisit this page long after the initial submit/approve
+// notification, so what's shown (title, badge, refund date) needs to reflect
+// where the request stands *now*, e.g. a request that was approved and later
+// refunded must say "Refund completed", not still "Return request approved!".
 const STATUS_COPY = {
-  success: {
+  [RETURN_STATUSES.REQUESTED]: {
     icon: ClipboardCheck,
     title: 'Return request submitted!',
     tone: 'text-primary-600 bg-primary-50',
     steps: ['We will review your request within 1-2 business days.', 'If approved, you will receive return instructions by email.', 'Once we receive the return, your refund will be issued in 3-5 business days.'],
   },
-  approved: {
+  [RETURN_STATUSES.APPROVED]: {
     icon: CheckCircle2,
     title: 'Return request approved!',
     tone: 'text-leaf-600 bg-leaf-50',
     steps: ['Check your email for return instructions and prepaid return label.', 'Ship the item back within 7 days.', 'Once we receive the return, your refund will be issued in 3-5 business days.'],
   },
-  rejected: {
+  [RETURN_STATUSES.RECEIVED]: {
+    icon: Package,
+    title: 'Return item received',
+    tone: 'text-blue-600 bg-blue-50',
+    steps: ['We have received and inspected your returned item.', 'Your refund is now being processed.', 'You will be notified once the refund is complete.'],
+  },
+  [RETURN_STATUSES.REFUNDED]: {
+    icon: CheckCircle2,
+    title: 'Refund completed!',
+    tone: 'text-leaf-600 bg-leaf-50',
+    steps: ['Your refund has been processed to your original payment method.', 'It may take a few business days to reflect, depending on your bank/provider.', 'Contact support if you have not received it after that.'],
+  },
+  [RETURN_STATUSES.REJECTED]: {
     icon: XCircle,
     title: 'Return request rejected',
     tone: 'text-red-600 bg-red-50',
@@ -31,10 +49,11 @@ const STATUS_COPY = {
 }
 
 export default function ReturnResult() {
-  const { requestId, result = 'success' } = useParams()
+  const { requestId } = useParams()
   const [request, setRequest] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [statusOpen, setStatusOpen] = useState(false)
 
   useEffect(() => {
     let ignore = false
@@ -47,9 +66,10 @@ export default function ReturnResult() {
     return () => { ignore = true }
   }, [requestId])
 
-  const variant = STATUS_COPY[result] || STATUS_COPY.success
+  const displayStatus = request?.status || RETURN_STATUSES.REQUESTED
+  const variant = STATUS_COPY[displayStatus] || STATUS_COPY[RETURN_STATUSES.REQUESTED]
   const Icon = variant.icon
-  const displayStatus = result === 'approved' ? RETURN_STATUSES.APPROVED : result === 'rejected' ? RETURN_STATUSES.REJECTED : request?.status
+  const isRefunded = displayStatus === RETURN_STATUSES.REFUNDED
 
   if (loading) {
     return (
@@ -90,17 +110,17 @@ export default function ReturnResult() {
           </div>
 
           <div className="grid sm:grid-cols-3 gap-3 my-6">
-            <div className="rounded-xl bg-primary-50 p-3">
-              <p className="text-[11px] uppercase font-bold text-ink/40">Estimated Refund</p>
-              <p className="font-extrabold text-xl text-primary-700 mt-1">{formatUSD(request.refundAmount)}</p>
+            <div className={`rounded-xl p-3 ${isRefunded ? 'bg-leaf-50' : 'bg-primary-50'}`}>
+              <p className="text-[11px] uppercase font-bold text-ink/40">{isRefunded ? 'Refunded Amount' : 'Estimated Refund'}</p>
+              <p className={`font-extrabold text-xl mt-1 ${isRefunded ? 'text-leaf-700' : 'text-primary-700'}`}>{formatUSD(request.refundAmount)}</p>
             </div>
             <div className="rounded-xl bg-white border border-black/5 p-3">
-              <p className="text-[11px] uppercase font-bold text-ink/40">{result === 'approved' ? 'Refund To' : 'Refund Method'}</p>
+              <p className="text-[11px] uppercase font-bold text-ink/40">{isRefunded ? 'Refunded To' : 'Refund Method'}</p>
               <p className="font-bold mt-1">{paymentMethodLabel(request)}</p>
             </div>
             <div className="rounded-xl bg-white border border-black/5 p-3">
-              <p className="text-[11px] uppercase font-bold text-ink/40">Requested On</p>
-              <p className="font-bold mt-1">{request.requestedOn ? formatDate(request.requestedOn) : '--'}</p>
+              <p className="text-[11px] uppercase font-bold text-ink/40">{isRefunded ? 'Refunded On' : 'Requested On'}</p>
+              <p className="font-bold mt-1">{isRefunded ? (request.refundedAt ? formatDate(request.refundedAt) : '--') : (request.requestedOn ? formatDate(request.requestedOn) : '--')}</p>
             </div>
           </div>
 
@@ -123,10 +143,21 @@ export default function ReturnResult() {
             </div>
           )}
 
-          {request.returnInstructions && result === 'approved' && (
+          {request.returnInstructions && !isRefunded && displayStatus !== RETURN_STATUSES.REJECTED && (
             <div className="mt-5 rounded-xl bg-leaf-50 text-leaf-700 p-4 text-sm">
               <p className="font-bold">Return instructions</p>
               <p className="mt-1">{request.returnInstructions}</p>
+            </div>
+          )}
+
+          {isRefunded && (
+            <div className="mt-5 rounded-xl bg-leaf-50 text-leaf-700 p-4 text-sm">
+              <p className="font-bold">Refund confirmation</p>
+              <p className="mt-1">
+                {formatUSD(request.refundAmount)} was refunded to your {paymentMethodLabel(request)} on {request.refundedAt ? formatDate(request.refundedAt) : 'the date shown above'}.
+              </p>
+              {request.refundReference && <p className="mt-1 text-leaf-600">Reference: {request.refundReference}</p>}
+              {request.refundNote && <p className="mt-1 text-leaf-600">{request.refundNote}</p>}
             </div>
           )}
 
@@ -144,10 +175,12 @@ export default function ReturnResult() {
 
           <div className="flex flex-col sm:flex-row gap-2 mt-6">
             <Link to="/dashboard/orders" className="btn-primary">Back to My Orders</Link>
-            <Link to="/dashboard/orders" className="btn-outline">View Return Status</Link>
+            <button type="button" onClick={() => setStatusOpen(true)} className="btn-outline">View Return Status</button>
           </div>
         </section>
       </div>
+
+      <ReturnStatusModal open={statusOpen} onClose={() => setStatusOpen(false)} request={request} />
     </div>
   )
 }

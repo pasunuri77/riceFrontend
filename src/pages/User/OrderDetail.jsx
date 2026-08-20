@@ -1,20 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Package, XCircle, MapPin, CreditCard, CalendarClock } from 'lucide-react'
+import { Package, XCircle, MapPin, CreditCard, CalendarClock, Download, RotateCcw } from 'lucide-react'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusPill from '../../components/ui/StatusPill'
+import CancellationInfo from '../../components/ui/CancellationInfo'
+import RefundInfo from '../../components/ui/RefundInfo'
+import CancelOrderModal from '../../components/ui/CancelOrderModal'
+import ReturnRequestModal from '../../components/ui/ReturnRequestModal'
+import ReturnStatusModal from '../../components/ui/ReturnStatusModal'
 import EmptyState from '../../components/ui/EmptyState'
 import OrderTimeline from '../../components/ui/OrderTimeline'
 import { TextSkeleton } from '../../components/ui/Skeleton'
 import { formatUSD, formatDate, estimatedDelivery } from '../../utils/format'
 import { bagWeightLb } from '../../utils/stock'
 import { safeImageUrl } from '../../utils/sanitize'
+import { openInvoice } from '../../utils/invoice'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
+import returnApi from '../../api/returnApi'
+import { normalizeReturnRequests, orderIdsMatch, returnStatusLabel } from '../../data/returnRequests'
 
 const itemNames = (o) => (o.items?.length ? o.items.map((i) => i.name).join(', ') : o.riceName)
 
@@ -27,6 +35,18 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [returnOpen, setReturnOpen] = useState(false)
+  const [returnStatusOpen, setReturnStatusOpen] = useState(false)
+  const [returnRequest, setReturnRequest] = useState(null)
+
+  const refreshReturnRequest = () => {
+    returnApi.listMine()
+      .then((data) => normalizeReturnRequests(data))
+      .then((requests) => setReturnRequest(requests.find((request) => orderIdsMatch(id, request.orderId)) || null))
+      .catch(() => setReturnRequest(null))
+  }
+  useEffect(refreshReturnRequest, [id])
 
   useEffect(() => {
     setLoading(true)
@@ -37,7 +57,12 @@ export default function OrderDetail() {
         // today (unlike cancel(), which does), so a signed-in customer could otherwise
         // fetch any other customer's order by guessing an id. Treat a mismatch as
         // "not found" here rather than rendering someone else's address/items/total.
-        if (data?.customerId && String(data.customerId) !== String(user?.id)) {
+        // Offline orders get the same treatment - they're staff-booked walk-in
+        // sales for record-keeping, not something the customer should be able
+        // to view or act on (cancel/return) from their own dashboard, even if
+        // they know/guess the id.
+        const isOffline = (data?.orderType || 'online') === 'offline'
+        if ((data?.customerId && String(data.customerId) !== String(user?.id)) || isOffline) {
           setNotFound(true)
           setOrder(null)
         } else {
@@ -48,13 +73,14 @@ export default function OrderDetail() {
       .finally(() => setLoading(false))
   }, [id, user?.id])
 
-  const handleCancel = async () => {
+  const handleCancel = async (reason) => {
     setCancelling(true)
     try {
-      const updated = await orderApi.cancel(order.id)
+      const updated = await orderApi.cancel(order.id, reason)
       setOrder(updated)
       showToast('Order cancelled', 'success')
       notify('ORDER_CANCELLED', { orderId: order.id })
+      setCancelOpen(false)
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Order can no longer be cancelled', 'error')
     } finally {
@@ -135,6 +161,9 @@ export default function OrderDetail() {
                 <div className="flex justify-between"><span className="text-ink/50">Estimated Delivery</span><span className="font-semibold">{estimatedDelivery(4, order.date)}</span></div>
               )}
               <div className="flex justify-between items-center"><span className="text-ink/50">Status</span><StatusPill status={order.deliveryStatus} /></div>
+              {order.deliveryStatus === 'Cancelled' && (
+                <div className="space-y-2"><CancellationInfo order={order} /><RefundInfo order={order} /></div>
+              )}
             </div>
           </div>
 
@@ -157,6 +186,17 @@ export default function OrderDetail() {
               <StatusPill status={order.paymentStatus} />
             </div>
           </div>
+
+          {returnRequest && (
+            <div className="card p-5">
+              <h3 className="font-bold mb-3 flex items-center gap-2"><RotateCcw className="w-4 h-4 text-primary-600" aria-hidden="true" /> Return / Refund</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center"><span className="text-ink/50">Return Status</span><StatusPill status={returnStatusLabel(returnRequest.status)} /></div>
+                <div className="flex justify-between"><span className="text-ink/50">{returnRequest.status === 'REFUNDED' ? 'Refunded' : 'Requested Refund'}</span><span className="font-semibold">{formatUSD(returnRequest.refundAmount)}</span></div>
+              </div>
+              <button onClick={() => setReturnStatusOpen(true)} className="btn text-xs px-3 py-1.5 bg-leaf-50 text-leaf-700 mt-3">View Return Details</button>
+            </div>
+          )}
         </div>
 
         {/* Price Breakdown - real per-order snapshot fields (subtotal/tax/
@@ -181,15 +221,44 @@ export default function OrderDetail() {
             <span className="font-extrabold text-xl text-primary-700">{formatUSD(order.amount)}</span>
           </div>
           <div className="flex flex-col gap-2 mt-5">
+            <button onClick={() => openInvoice(order, user)} className="btn text-xs px-3 py-2 bg-black/5 text-ink/70 w-full justify-center">
+              <Download className="w-3.5 h-3.5" aria-hidden="true" /> Download Invoice
+            </button>
+            {order.deliveryStatus === 'Delivered' && !returnRequest && (
+              <button onClick={() => setReturnOpen(true)} className="btn text-xs px-3 py-2 bg-leaf-50 text-leaf-700 w-full justify-center">
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Request Return
+              </button>
+            )}
             {['Pending', 'Processing'].includes(order.deliveryStatus) && (
-              <button onClick={handleCancel} disabled={cancelling} className="btn text-xs px-3 py-2 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
-                <XCircle className="w-3.5 h-3.5" aria-hidden="true" /> {cancelling ? 'Cancelling...' : 'Cancel Order'}
+              <button onClick={() => setCancelOpen(true)} className="btn text-xs px-3 py-2 bg-red-50 text-red-500 w-full justify-center">
+                <XCircle className="w-3.5 h-3.5" aria-hidden="true" /> Cancel Order
               </button>
             )}
           </div>
           <Link to="/dashboard/orders" className="text-xs font-semibold text-primary-600 mt-4 inline-block">← Back to My Orders</Link>
         </div>
       </div>
+
+      <CancelOrderModal
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        order={order}
+        onConfirm={handleCancel}
+        submitting={cancelling}
+      />
+
+      <ReturnRequestModal
+        open={returnOpen}
+        onClose={() => setReturnOpen(false)}
+        order={order}
+        onSubmitted={() => { refreshReturnRequest(); setReturnOpen(false) }}
+      />
+
+      <ReturnStatusModal
+        open={returnStatusOpen}
+        onClose={() => setReturnStatusOpen(false)}
+        request={returnRequest}
+      />
     </div>
   )
 }

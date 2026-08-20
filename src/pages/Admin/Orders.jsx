@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Eye, Plus, Printer, Download, Package, User as UserIcon, MapPin, CreditCard } from 'lucide-react'
+import { Eye, Plus, Printer, Download, Package, User as UserIcon, MapPin, CreditCard, XCircle } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import { STATUS_STYLES } from '../../components/ui/StatusPill'
+import CancellationInfo from '../../components/ui/CancellationInfo'
+import CancelOrderModal from '../../components/ui/CancelOrderModal'
+import ProcessRefundModal from '../../components/ui/ProcessRefundModal'
 import Drawer from '../../components/ui/Drawer'
 import RowActionsMenu from '../../components/ui/RowActionsMenu'
 import SearchInput from '../../components/ui/SearchInput'
@@ -20,6 +23,13 @@ import orderApi from '../../api/orderApi'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${bagWeightLb(i.weight)}lb Bag x${i.qty})`).join(', ') : o.riceName)
+// The backend's own `quantity` string is built as `${weightKg}kg x${qty}` -
+// stuck on the legacy kg scale, since bag sizes are stored/labeled in lb
+// everywhere else in the app (see bagWeightLb's LEGACY_WEIGHT_TO_LB map).
+// Deriving this from `items` directly, the same way the Rice column does,
+// keeps the Qty column consistent with the rest of the lb-based UI instead
+// of leaking the raw kg value through.
+const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${bagWeightLb(i.weight)}lb x${i.qty}`).join(', ') : o.quantity)
 
 // Not persisted as its own column everywhere yet - orders created before the
 // Online/Offline distinction existed (or synced from an endpoint that hasn't
@@ -37,8 +47,17 @@ const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Can
 // through. Everything else (Processing/Delivered/Cancelled) still applies -
 // "Delivered" reads fine as "handed over/completed" for a walk-in sale too.
 const deliveryStatusOptionsFor = (order) => (orderTypeOf(order) === 'offline' ? DELIVERY_STATUSES.filter((s) => s !== 'Shipped') : DELIVERY_STATUSES)
-const TYPE_TABS = ['All Orders', 'Online Orders', 'Offline Orders']
+const TYPE_TABS = ['All Orders', 'Online Orders', 'Offline Orders', 'Cancelled Orders']
 const typeForTab = { 'Online Orders': 'online', 'Offline Orders': 'offline' }
+
+// A cancelled order that was actually paid for up front (anything but COD -
+// COD never charges anything, so there's nothing to give back) still owes
+// the customer their money back. This is purely informational today (no
+// backend field/endpoint exists yet to record a refund against an order
+// itself, as opposed to a product return), computed from the order's real
+// paymentMethod/paymentStatus rather than any hardcoded assumption.
+const isCodOrder = (o) => (o.paymentMethod || '').toLowerCase() === 'cod'
+const needsCancelledOrderRefund = (o) => o.deliveryStatus === 'Cancelled' && !isCodOrder(o) && o.paymentStatus === 'Paid'
 const PAGE_SIZE = 10
 
 const COLUMNS = [
@@ -86,9 +105,19 @@ function StatusSelect({ value, options, onChange, disabled = false }) {
 // inside the dropdown itself: Pending shows only "Confirm" (-> Processing) and
 // "Cancel" (-> Cancelled) as next steps. Once confirmed, this renders the
 // normal full-status StatusSelect for the rest of the order lifecycle.
-function DeliverySelect({ order, updating, onStatusChange, onConfirm }) {
+// Cancelling never goes straight through `onStatusChange` - it always routes
+// through `onCancelRequest` first, which opens the reason modal; the actual
+// status-change API call only fires once a reason has been entered there.
+function DeliverySelect({ order, updating, onStatusChange, onConfirm, onCancelRequest }) {
   if (order.deliveryStatus !== 'Pending') {
-    return <StatusSelect value={order.deliveryStatus} options={deliveryStatusOptionsFor(order)} disabled={updating[`${order.id}:delivery`]} onChange={(status) => onStatusChange(order.id, status)} />
+    return (
+      <StatusSelect
+        value={order.deliveryStatus}
+        options={deliveryStatusOptionsFor(order)}
+        disabled={updating[`${order.id}:delivery`]}
+        onChange={(status) => (status === 'Cancelled' ? onCancelRequest(order) : onStatusChange(order.id, status))}
+      />
+    )
   }
   const busy = updating[`${order.id}:delivery`] || updating[`${order.id}:confirm`]
   return (
@@ -97,7 +126,7 @@ function DeliverySelect({ order, updating, onStatusChange, onConfirm }) {
       onChange={(e) => {
         const action = e.target.value
         if (action === 'Confirm') onConfirm(order.id)
-        else if (action === 'Cancel') onStatusChange(order.id, 'Cancelled')
+        else if (action === 'Cancel') onCancelRequest(order)
       }}
       onClick={(e) => e.stopPropagation()}
       disabled={busy}
@@ -163,6 +192,10 @@ export default function AdminOrders() {
   const [page, setPage] = useState(1)
   const [viewing, setViewing] = useState(null)
   const [updating, setUpdating] = useState({})
+  const [cancelTarget, setCancelTarget] = useState(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [refundTarget, setRefundTarget] = useState(null)
+  const [refunding, setRefunding] = useState(false)
   const [loading, setLoading] = useState(true)
   const [visibleCols, setVisibleCols] = useState({})
   const [searchParams, setSearchParams] = useSearchParams()
@@ -186,12 +219,14 @@ export default function AdminOrders() {
     'All Orders': ordersData.length,
     'Online Orders': ordersData.filter((o) => orderTypeOf(o) === 'online').length,
     'Offline Orders': ordersData.filter((o) => orderTypeOf(o) === 'offline').length,
+    'Cancelled Orders': ordersData.filter((o) => o.deliveryStatus === 'Cancelled').length,
   }), [ordersData])
 
   const filtered = useMemo(() => {
     const typeFilter = typeForTab[tab]
     let list = ordersData.filter((o) => `${o.id} ${o.customerName} ${o.riceName}`.toLowerCase().includes(search.toLowerCase()))
-    if (typeFilter) list = list.filter((o) => orderTypeOf(o) === typeFilter)
+    if (tab === 'Cancelled Orders') list = list.filter((o) => o.deliveryStatus === 'Cancelled')
+    else if (typeFilter) list = list.filter((o) => orderTypeOf(o) === typeFilter)
     if (paymentFilter) list = list.filter((o) => o.paymentStatus === paymentFilter)
     if (deliveryFilter) list = list.filter((o) => o.deliveryStatus === deliveryFilter)
     if (dateFrom) list = list.filter((o) => new Date(o.date) >= new Date(dateFrom))
@@ -255,6 +290,36 @@ export default function AdminOrders() {
     }
   }
 
+  const handleCancel = async (reason) => {
+    const id = cancelTarget.id
+    setCancelling(true)
+    try {
+      const updatedOrder = await orderApi.updateDeliveryStatus(id, 'Cancelled', reason)
+      replaceOrder(updatedOrder)
+      showToast('Order cancelled', 'success')
+      setCancelTarget(null)
+    } catch (err) {
+      showToast(err.message || 'Unable to cancel order', 'error')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  const handleRefund = async ({ refundReference, refundNote }) => {
+    const id = refundTarget.id
+    setRefunding(true)
+    try {
+      const updatedOrder = await orderApi.refundCancelledOrder(id, { refundReference, refundNote })
+      replaceOrder(updatedOrder)
+      showToast('Refund processed', 'success')
+      setRefundTarget(null)
+    } catch (err) {
+      showToast(err.message || 'Unable to process refund', 'error')
+    } finally {
+      setRefunding(false)
+    }
+  }
+
   const confirmOrder = async (id) => {
     const key = `${id}:confirm`
     setUpdating((prev) => ({ ...prev, [key]: true }))
@@ -274,7 +339,7 @@ export default function AdminOrders() {
     { label: 'Type', value: (o) => (orderTypeOf(o) === 'online' ? 'Online' : 'Offline') },
     { label: 'Customer', value: (o) => o.customerName },
     { label: 'Rice', value: (o) => itemsSummary(o) },
-    { label: 'Qty', value: (o) => o.quantity },
+    { label: 'Qty', value: (o) => itemQtys(o) },
     { label: 'Amount', value: (o) => o.amount },
     { label: 'Date', value: (o) => o.date },
     { label: 'Payment', value: (o) => o.paymentStatus },
@@ -327,17 +392,17 @@ export default function AdminOrders() {
       <TableShell minWidth="1100px">
           <thead>
             <tr className="text-left text-ink/40 text-xs uppercase border-b border-black/5">
-              <th scope="col" className="p-3.5">Order ID</th>
-              {isVisible('type') && <th scope="col" className="p-3.5">Type</th>}
-              {isVisible('customer') && <th scope="col" className="p-3.5">Customer</th>}
-              {isVisible('rice') && <th scope="col" className="p-3.5">Rice</th>}
-              {isVisible('qty') && <th scope="col" className="p-3.5">Qty</th>}
-              {isVisible('amount') && <SortableHeader label="Amount" sortKey="amount" sort={sort} onSort={toggleSort} />}
-              {isVisible('date') && <SortableHeader label="Ordered On" sortKey="date" sort={sort} onSort={toggleSort} />}
-              {isVisible('estimatedDelivery') && <th scope="col" className="p-3.5">Estimated Delivery</th>}
-              {isVisible('deliveredOn') && <th scope="col" className="p-3.5">Delivered On</th>}
-              {isVisible('payment') && <th scope="col" className="p-3.5">Payment</th>}
-              {isVisible('delivery') && <th scope="col" className="p-3.5">Delivery</th>}
+              <th scope="col" className="p-3.5 whitespace-nowrap">Order ID</th>
+              {isVisible('type') && <th scope="col" className="p-3.5 whitespace-nowrap">Type</th>}
+              {isVisible('customer') && <th scope="col" className="p-3.5 whitespace-nowrap">Customer</th>}
+              {isVisible('rice') && <th scope="col" className="p-3.5 whitespace-nowrap">Rice</th>}
+              {isVisible('qty') && <th scope="col" className="p-3.5 whitespace-nowrap">Qty</th>}
+              {isVisible('amount') && <SortableHeader label="Amount" sortKey="amount" sort={sort} onSort={toggleSort} className="whitespace-nowrap" />}
+              {isVisible('date') && <SortableHeader label={tab === 'Offline Orders' ? 'Completed On' : 'Ordered On'} sortKey="date" sort={sort} onSort={toggleSort} className="whitespace-nowrap" />}
+              {isVisible('estimatedDelivery') && <th scope="col" className="p-3.5 whitespace-nowrap">Estimated Delivery</th>}
+              {isVisible('deliveredOn') && <th scope="col" className="p-3.5 whitespace-nowrap">Delivered On</th>}
+              {isVisible('payment') && <th scope="col" className="p-3.5 whitespace-nowrap">Payment</th>}
+              {isVisible('delivery') && <th scope="col" className="p-3.5 whitespace-nowrap">Delivery</th>}
               <th scope="col" className="p-3.5"></th>
             </tr>
           </thead>
@@ -348,23 +413,72 @@ export default function AdminOrders() {
               <tr><td colSpan={colCount} className="p-8 text-center text-sm text-ink/40">No orders found.</td></tr>
             ) : pageItems.map((o) => (
               <tr key={o.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
-                <td className="p-3 font-semibold">{o.id}</td>
-                {isVisible('type') && <td className="p-3"><TypeBadge order={o} /></td>}
+                <td className="p-3 font-semibold whitespace-nowrap">{o.id}</td>
+                {isVisible('type') && <td className="p-3 whitespace-nowrap"><TypeBadge order={o} /></td>}
                 {isVisible('customer') && (
-                  <td className="p-3">
+                  <td className="p-3 whitespace-nowrap">
                     <Link to={`/admin/customers?id=${o.customerId}`} className="font-semibold text-primary-700 hover:underline">{o.customerName}</Link>
                   </td>
                 )}
-                {isVisible('rice') && <td className="p-3 max-w-[220px] break-words">{itemsSummary(o)}</td>}
-                {isVisible('qty') && <td className="p-3 text-ink/60">{o.quantity}</td>}
-                {isVisible('amount') && <td className="p-3 font-semibold">{formatUSD(o.amount)}</td>}
-                {isVisible('date') && <td className="p-3 text-ink/50">{formatDate(o.date)}</td>}
-                {isVisible('estimatedDelivery') && (
-                  <td className="p-3 text-ink/50">{orderTypeOf(o) === 'offline' || o.deliveryStatus === 'Cancelled' ? '--' : estimatedDelivery(4, o.date)}</td>
+                {isVisible('rice') && (
+                  <td className="p-3 max-w-[220px]">
+                    <div className="space-y-1.5">
+                      {/* Same product ordered in multiple bag sizes (e.g. 2lb + 10lb)
+                          is still one line item's worth of items[] entries - dedupe by
+                          name here so "one more normal rice" doesn't repeat once per
+                          bag size. Qty (below) stays one line per entry since that's
+                          where the per-size detail actually needs to show. */}
+                      {[...new Set((o.items?.length ? o.items : [{ name: o.riceName }]).map((i) => i.name))].map((name) => (
+                        <p key={name} className="font-semibold truncate">{name}</p>
+                      ))}
+                    </div>
+                  </td>
                 )}
-                {isVisible('deliveredOn') && <td className="p-3 text-ink/50">{o.deliveredAt ? formatDate(o.deliveredAt) : '--'}</td>}
-                {isVisible('payment') && <td className="p-3"><StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${o.id}:payment`]} onChange={(status) => updatePaymentStatus(o.id, status)} /></td>}
-                {isVisible('delivery') && <td className="p-3"><DeliverySelect order={o} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} /></td>}
+                {isVisible('qty') && (
+                  <td className="p-3 text-ink/60">
+                    <div className="space-y-1.5">
+                      {(o.items?.length ? o.items : [{ weight: null, qty: null }]).map((i, idx) => (
+                        <p key={idx} className="whitespace-nowrap">{i.weight ? `${bagWeightLb(i.weight)}lb x${i.qty}` : o.quantity}</p>
+                      ))}
+                    </div>
+                  </td>
+                )}
+                {isVisible('amount') && <td className="p-3 font-semibold whitespace-nowrap">{formatUSD(o.amount)}</td>}
+                {isVisible('date') && <td className="p-3 text-ink/50 whitespace-nowrap">{formatDate(o.date)}</td>}
+                {isVisible('estimatedDelivery') && (
+                  <td className="p-3 text-ink/50 whitespace-nowrap">{orderTypeOf(o) === 'offline' || o.deliveryStatus === 'Cancelled' ? '--' : estimatedDelivery(4, o.date)}</td>
+                )}
+                {isVisible('deliveredOn') && <td className="p-3 text-ink/50 whitespace-nowrap">{o.deliveredAt ? formatDate(o.deliveredAt) : '--'}</td>}
+                {isVisible('payment') && (
+                  <td className="p-3">
+                    {/* Offline (in-store/walk-in) sales are paid in person at the
+                        moment of the sale - there's no "pending" state to track
+                        and nothing an admin should be changing after the fact, so
+                        this is a plain badge, not the editable dropdown online
+                        orders get. */}
+                    {orderTypeOf(o) === 'offline' ? <span className="badge bg-leaf-100 text-leaf-700">Paid</span> : (
+                      <StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${o.id}:payment`]} onChange={(status) => updatePaymentStatus(o.id, status)} />
+                    )}
+                    {needsCancelledOrderRefund(o) && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="badge bg-red-100 text-red-600 text-[10px] w-fit">Refund Due</span>
+                        <button onClick={() => setRefundTarget(o)} className="text-[10px] font-semibold text-primary-600 hover:underline whitespace-nowrap">Process Refund</button>
+                      </div>
+                    )}
+                    {o.deliveryStatus === 'Cancelled' && isCodOrder(o) && (
+                      <span className="badge bg-black/5 text-ink/50 text-[10px] mt-1 block w-fit">COD - No Refund</span>
+                    )}
+                  </td>
+                )}
+                {isVisible('delivery') && (
+                  <td className="p-3">
+                    {/* No shipping/delivery concept applies to a walk-in sale -
+                        the item leaves with the customer at checkout. */}
+                    {orderTypeOf(o) === 'offline' ? <span className="text-ink/40">--</span> : (
+                      <DeliverySelect order={o} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} onCancelRequest={setCancelTarget} />
+                    )}
+                  </td>
+                )}
                 <td className="p-3">
                   <RowActionsMenu
                     id={`order-${o.id}`}
@@ -392,7 +506,9 @@ export default function AdminOrders() {
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="font-extrabold text-lg font-display">{viewing.id}</h4>
-                <StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} />
+                {orderTypeOf(viewing) === 'offline' ? <span className="badge bg-leaf-100 text-leaf-700">Paid</span> : (
+                  <StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} />
+                )}
               </div>
               <p className="text-ink/50 text-xs mt-1">{formatDate(viewing.date)}{viewing.deliveryStatus === 'Delivered' && viewing.deliveredAt ? ` • Delivered ${formatDate(viewing.deliveredAt)}` : ''}</p>
             </div>
@@ -442,17 +558,69 @@ export default function AdminOrders() {
               <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" /> Payment</h5>
               <div className="card p-3.5 space-y-1.5">
                 <div className="flex justify-between"><span className="text-ink/50">Method</span><span className="font-semibold">{paymentMethodLabel(viewing)}</span></div>
-                <div className="flex justify-between items-center"><span className="text-ink/50">Status</span><StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} /></div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink/50">Status</span>
+                  {orderTypeOf(viewing) === 'offline' ? <span className="badge bg-leaf-100 text-leaf-700">Paid</span> : (
+                    <StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} />
+                  )}
+                </div>
+                {needsCancelledOrderRefund(viewing) && (
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-ink/50">Refund</span>
+                    <div className="flex items-center gap-2">
+                      <span className="badge bg-red-100 text-red-600">Refund Due</span>
+                      <button onClick={() => setRefundTarget(viewing)} className="btn text-xs px-2.5 py-1 bg-primary-50 text-primary-700">Process Refund</button>
+                    </div>
+                  </div>
+                )}
+                {viewing.deliveryStatus === 'Cancelled' && isCodOrder(viewing) && (
+                  <div className="flex justify-between items-center pt-1"><span className="text-ink/50">Refund</span><span className="badge bg-black/5 text-ink/50">COD - No Refund</span></div>
+                )}
               </div>
             </div>
 
-            <div>
-              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2">Delivery Status</h5>
-              <DeliverySelect order={viewing} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} />
-            </div>
+            {orderTypeOf(viewing) === 'offline' ? (
+              // No shipping progression applies to a walk-in sale - the only
+              // action still worth surfacing is cancelling/voiding the sale.
+              <div>
+                <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2">Status</h5>
+                {viewing.deliveryStatus === 'Cancelled' ? (
+                  <CancellationInfo order={viewing} />
+                ) : (
+                  <button onClick={() => setCancelTarget(viewing)} className="btn text-xs px-3 py-2 bg-red-50 text-red-500">
+                    <XCircle className="w-3.5 h-3.5" /> Cancel Order
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div>
+                <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2">Delivery Status</h5>
+                <DeliverySelect order={viewing} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} onCancelRequest={setCancelTarget} />
+                {viewing.deliveryStatus === 'Cancelled' && (
+                  <div className="mt-3"><CancellationInfo order={viewing} /></div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Drawer>
+
+      <CancelOrderModal
+        open={!!cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        order={cancelTarget}
+        onConfirm={handleCancel}
+        submitting={cancelling}
+        title="Cancel Order (Admin)"
+      />
+
+      <ProcessRefundModal
+        open={!!refundTarget}
+        onClose={() => setRefundTarget(null)}
+        order={refundTarget}
+        onConfirm={handleRefund}
+        submitting={refunding}
+      />
     </div>
   )
 }

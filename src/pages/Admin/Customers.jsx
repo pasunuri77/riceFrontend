@@ -306,11 +306,11 @@ export default function AdminCustomers() {
           <thead>
             <tr className="text-left text-ink/40 text-xs uppercase border-b border-black/5">
               {isVisible('name') && <SortableHeader label="User" sortKey="name" sort={sort} onSort={toggleSort} />}
-              {isVisible('mobile') && <th scope="col" className="p-3.5">Mobile</th>}
-              {isVisible('role') && <th scope="col" className="p-3.5">Role</th>}
-              {isVisible('status') && <th scope="col" className="p-3.5">Status</th>}
-              {isVisible('joined') && <SortableHeader label="Joined" sortKey="joined" sort={sort} onSort={toggleSort} />}
-              <th scope="col" className="p-3.5">Actions</th>
+              {isVisible('mobile') && <th scope="col" className="p-3.5 whitespace-nowrap">Mobile</th>}
+              {isVisible('role') && <th scope="col" className="p-3.5 whitespace-nowrap">Role</th>}
+              {isVisible('status') && <th scope="col" className="p-3.5 whitespace-nowrap">Status</th>}
+              {isVisible('joined') && <SortableHeader label="Joined" sortKey="joined" sort={sort} onSort={toggleSort} className="whitespace-nowrap" />}
+              <th scope="col" className="p-3.5 whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -331,10 +331,10 @@ export default function AdminCustomers() {
                       </div>
                     </td>
                   )}
-                  {isVisible('mobile') && <td className="p-3 text-ink/60">{c.mobile || '--'}</td>}
-                  {isVisible('role') && <td className="p-3"><span className={`badge ${ROLE_STYLES[c.role].badge}`}>{ROLE_LABEL[c.role]}</span></td>}
-                  {isVisible('status') && <td className="p-3"><StatusPill status={c.status || 'Active'} /></td>}
-                  {isVisible('joined') && <td className="p-3 text-ink/50">{c.joined ? formatDate(c.joined) : '--'}</td>}
+                  {isVisible('mobile') && <td className="p-3 text-ink/60 whitespace-nowrap">{c.mobile || '--'}</td>}
+                  {isVisible('role') && <td className="p-3 whitespace-nowrap"><span className={`badge ${ROLE_STYLES[c.role].badge}`}>{ROLE_LABEL[c.role]}</span></td>}
+                  {isVisible('status') && <td className="p-3 whitespace-nowrap"><StatusPill status={c.status || 'Active'} /></td>}
+                  {isVisible('joined') && <td className="p-3 text-ink/50 whitespace-nowrap">{c.joined ? formatDate(c.joined) : '--'}</td>}
                   <td className="p-3">
                     <RowActionsMenu
                       id={`user-${c.id}`}

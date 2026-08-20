@@ -116,21 +116,21 @@ export default function AdminCoupons() {
         <TableShell minWidth="640px">
           <thead>
             <tr className="text-left text-ink/40 text-xs uppercase border-b border-black/5">
-              <th scope="col" className="p-3.5">Code</th>
-              <th scope="col" className="p-3.5">Discount</th>
-              <th scope="col" className="p-3.5">Min Order</th>
-              <th scope="col" className="p-3.5">Expires</th>
-              <th scope="col" className="p-3.5">Status</th>
-              <th scope="col" className="p-3.5">Actions</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Code</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Discount</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Min Order</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Expires</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Status</th>
+              <th scope="col" className="p-3.5 whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody>
             {coupons.map((c) => (
               <tr key={c.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
-                <td className="p-3 font-mono font-bold text-primary-700">{c.code}</td>
-                <td className="p-3">{(c.type || '').toUpperCase() === 'PERCENT' ? `${c.value}% OFF` : `$${c.value} OFF`}</td>
-                <td className="p-3 text-ink/60">${c.minOrder ?? 0}</td>
-                <td className="p-3 text-ink/60">{c.expiresAt ? formatDate(c.expiresAt) : 'No expiry'}</td>
+                <td className="p-3 font-mono font-bold text-primary-700 whitespace-nowrap">{c.code}</td>
+                <td className="p-3 whitespace-nowrap">{(c.type || '').toUpperCase() === 'PERCENT' ? `${c.value}% OFF` : `$${c.value} OFF`}</td>
+                <td className="p-3 text-ink/60 whitespace-nowrap">${c.minOrder ?? 0}</td>
+                <td className="p-3 text-ink/60 whitespace-nowrap">{c.expiresAt ? formatDate(c.expiresAt) : 'No expiry'}</td>
 
                 <td className="p-3">
                   <RowActionsMenu

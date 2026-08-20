@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, Clock, CheckCircle2, MapPin, ArrowRight } from 'lucide-react'
+import { Package, Clock, CheckCircle2, MapPin, ArrowRight, ShoppingBag } from 'lucide-react'
 import DashboardCard from '../../components/dashboard/DashboardCard'
 import StatusPill from '../../components/ui/StatusPill'
 import PageHeader from '../../components/ui/PageHeader'
@@ -8,14 +8,24 @@ import { TextSkeleton } from '../../components/ui/Skeleton'
 import { useAuth } from '../../context/AuthContext'
 import { formatUSD, formatDate } from '../../utils/format'
 import orderApi from '../../api/orderApi'
+import useShopNowPath from '../../hooks/useShopNowPath'
 
 export default function Dashboard() {
   const { user, addresses } = useAuth()
+  const shopNowPath = useShopNowPath()
   const [ordersData, setOrdersData] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])).finally(() => setLoading(false))
+    // Offline (in-store/walk-in) orders are booked by staff on a customer's
+    // behalf for record-keeping - they shouldn't show up in the customer's
+    // own dashboard (the customer never placed it online, and the online
+    // return flow isn't meant to apply to a walk-in sale). Admin's Orders
+    // page is the only place these should be visible.
+    orderApi.listMine()
+      .then((data) => setOrdersData(data.filter((o) => (o.orderType || 'online') !== 'offline')))
+      .catch(() => setOrdersData([]))
+      .finally(() => setLoading(false))
   }, [])
 
   const myOrders = ordersData.slice(0, 6)
@@ -24,7 +34,11 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title={`Welcome back, ${user?.name?.split(' ')[0] || 'there'} 👋`} subtitle="Here's what's happening with your account" />
+      <PageHeader
+        title={`Welcome back, ${user?.name?.split(' ')[0] || 'there'} 👋`}
+        subtitle="Here's what's happening with your account"
+        action={<Link to={shopNowPath} className="btn-primary"><ShoppingBag className="w-4 h-4" /> Shop Now</Link>}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <DashboardCard icon={Package} label="Total Orders" value={myOrders.length} tint="primary" index={0} loading={loading} />

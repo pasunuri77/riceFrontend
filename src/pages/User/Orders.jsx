@@ -1,59 +1,105 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, XCircle, Eye, MapPin, CreditCard, RotateCcw } from 'lucide-react'
+import { Package, XCircle, Eye, MapPin, CreditCard, RotateCcw, Download } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import StatusPill from '../../components/ui/StatusPill'
+import CancellationInfo from '../../components/ui/CancellationInfo'
+import RefundInfo from '../../components/ui/RefundInfo'
+import CancelOrderModal from '../../components/ui/CancelOrderModal'
+import ReturnRequestModal from '../../components/ui/ReturnRequestModal'
+import ReturnStatusModal from '../../components/ui/ReturnStatusModal'
 import EmptyState from '../../components/ui/EmptyState'
 import Drawer from '../../components/ui/Drawer'
+import Pagination from '../../components/ui/Pagination'
 import { TextSkeleton } from '../../components/ui/Skeleton'
 import { formatUSD, formatDate, estimatedDelivery } from '../../utils/format'
 import { bagWeightLb } from '../../utils/stock'
+import { openInvoice } from '../../utils/invoice'
+import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { useNotifications } from '../../context/NotificationContext'
 import { ApiError } from '../../api/client'
 import orderApi from '../../api/orderApi'
 import returnApi from '../../api/returnApi'
-import { normalizeReturnRequests, orderIdsMatch, paymentMethodLabel, returnStatusLabel, saveReturnOrderSnapshot } from '../../data/returnRequests'
+import { normalizeReturnRequests, orderIdsMatch, paymentMethodLabel, returnStatusLabel, displayOrderIdToDbId } from '../../data/returnRequests'
 
-const FILTERS = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered']
+// Single dropdown replaces the old row of tabs - "Cancelled" is now a
+// selectable status too (it wasn't before), and "Returns"/"Refunds" filter
+// against the customer's return-request data rather than deliveryStatus.
+const FILTER_OPTIONS = ['All Orders', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Returns', 'Refunds']
+const PAGE_SIZE = 20
 
 const itemNames = (o) => (o.items?.length ? o.items.map((i) => i.name).join(', ') : o.riceName)
 const itemQtys = (o) => (o.items?.length ? o.items.map((i) => `${bagWeightLb(i.weight)}lb Bag x${i.qty}`).join(', ') : o.quantity)
-const returnResultPath = (request) => {
-  if (['APPROVED', 'RECEIVED', 'REFUNDED'].includes(request.status)) return `/dashboard/returns/${request.id}/approved`
-  if (request.status === 'REJECTED') return `/dashboard/returns/${request.id}/rejected`
-  return `/dashboard/returns/${request.id}/success`
-}
 
 export default function Orders() {
+  const { user } = useAuth()
   const [ordersData, setOrdersData] = useState([])
-  const [filter, setFilter] = useState('All')
+  const [filter, setFilter] = useState('All Orders')
+  const [page, setPage] = useState(1)
   const [cancellingId, setCancellingId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [viewing, setViewing] = useState(null)
   const [returnRequests, setReturnRequests] = useState([])
+  const [cancelTarget, setCancelTarget] = useState(null)
+  const [returnTarget, setReturnTarget] = useState(null)
+  const [statusTarget, setStatusTarget] = useState(null)
   const { showToast } = useToast()
   const { notify } = useNotifications()
 
   useEffect(() => {
-    orderApi.listMine().then(setOrdersData).catch(() => setOrdersData([])).finally(() => setLoading(false))
+    // Offline (in-store/walk-in) orders are booked by staff for record-keeping
+    // only - they shouldn't show up here (the customer never placed it online,
+    // and the online return flow isn't meant to apply to a walk-in sale).
+    // Admin's Orders page is the only place these should be visible.
+    orderApi.listMine()
+      .then((data) => setOrdersData(data.filter((o) => (o.orderType || 'online') !== 'offline')))
+      .catch(() => setOrdersData([]))
+      .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => {
+  const refreshReturnRequests = () => {
     returnApi.listMine().then((data) => setReturnRequests(normalizeReturnRequests(data))).catch(() => setReturnRequests([]))
-  }, [])
+  }
+  useEffect(refreshReturnRequests, [])
 
-  const orders = filter === 'All' ? ordersData : ordersData.filter((o) => o.deliveryStatus === filter)
+  const findReturnRequest = (orderId) => returnRequests.find((request) => orderIdsMatch(orderId, request.orderId))
 
-  const handleCancel = async (orderId) => {
+  // Newest first, regardless of whatever order the API happens to return -
+  // orders id numbering (RBZ-<year>-<n>) increments monotonically with the
+  // underlying DB id, so sorting by that trailing number is a reliable
+  // chronological order even when several orders share the same calendar day.
+  const sortedOrders = useMemo(
+    () => [...ordersData].sort((a, b) => displayOrderIdToDbId(b.id) - displayOrderIdToDbId(a.id)),
+    [ordersData]
+  )
+
+  const filteredOrders = useMemo(() => {
+    if (filter === 'All Orders') return sortedOrders
+    if (filter === 'Returns') return sortedOrders.filter((o) => !!findReturnRequest(o.id))
+    if (filter === 'Refunds') return sortedOrders.filter((o) => findReturnRequest(o.id)?.status === 'REFUNDED')
+    return sortedOrders.filter((o) => o.deliveryStatus === filter)
+  }, [sortedOrders, filter, returnRequests])
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE))
+  const pageOrders = filteredOrders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const handleFilterChange = (value) => {
+    setFilter(value)
+    setPage(1)
+  }
+
+  const handleCancel = async (reason) => {
+    const orderId = cancelTarget.id
     setCancellingId(orderId)
     try {
-      const updatedOrder = await orderApi.cancel(orderId)
+      const updatedOrder = await orderApi.cancel(orderId, reason)
       setOrdersData((current) => current.map((order) => order.id === orderId ? updatedOrder : order))
       setViewing((v) => (v?.id === orderId ? updatedOrder : v))
       showToast('Order cancelled', 'success')
       notify('ORDER_CANCELLED', { orderId })
+      setCancelTarget(null)
     } catch (error) {
       showToast(error instanceof ApiError ? error.message : 'Order can no longer be cancelled', 'error')
     } finally {
@@ -61,17 +107,25 @@ export default function Orders() {
     }
   }
 
+  const handleReturnSubmitted = () => {
+    refreshReturnRequests()
+    setReturnTarget(null)
+  }
+
   return (
     <div>
       <Breadcrumb items={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'My Orders' }]} />
       <PageHeader title="My Orders" subtitle="Track and manage all your orders" />
 
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-        {FILTERS.map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${filter === f ? 'bg-primary-500 text-white' : 'bg-white border border-black/10 text-ink/60'}`}>
-            {f}
-          </button>
-        ))}
+      <div className="mb-6">
+        <select
+          value={filter}
+          onChange={(e) => handleFilterChange(e.target.value)}
+          aria-label="Filter orders by status"
+          className="input-field !w-auto text-sm font-semibold"
+        >
+          {FILTER_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+        </select>
       </div>
 
       {loading ? (
@@ -87,77 +141,89 @@ export default function Orders() {
             </div>
           ))}
         </div>
-      ) : orders.length === 0 ? (
+      ) : filteredOrders.length === 0 ? (
         <EmptyState icon={Package} title="No orders found" subtitle="You have no orders in this category yet." actionLabel="Start Shopping" actionTo="/products" />
       ) : (
-        <div className="space-y-4">
-          {orders.map((o) => {
-            const returnRequest = returnRequests.find((request) => orderIdsMatch(o.id, request.orderId))
-            return (
-            <div key={o.id} className="card p-4 sm:p-5 flex flex-col sm:flex-row gap-4">
-              {o.productId ? (
-                <Link to={`/products/${o.productId}`} className="shrink-0">
-                  <img src={o.image} alt="" className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover" />
-                </Link>
-              ) : (
-                <img src={o.image} alt="" className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 justify-between">
-                  <p className="font-bold text-sm">{itemNames(o)}</p>
-                  <span className="text-xs text-primary-600 font-semibold">{o.id}</span>
-                </div>
-                <p className="text-xs text-ink/50 mt-1">{o.address}</p>
-                <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-ink/50">
-                  <span>Qty: {itemQtys(o)}</span>
-                  <span>•</span>
-                  <span>Ordered: {formatDate(o.date)}</span>
-                  {o.deliveryStatus === 'Delivered' && o.deliveredAt ? (
-                    <>
-                      <span>•</span>
-                      <span>Delivered On: <span className="font-semibold text-ink/70">{formatDate(o.deliveredAt)}</span></span>
-                    </>
-                  ) : o.deliveryStatus !== 'Cancelled' && (
-                    <>
-                      <span>•</span>
-                      <span>Estimated Delivery: <span className="font-semibold text-ink/70">{estimatedDelivery(4, o.date)}</span></span>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <StatusPill status={o.deliveryStatus} />
-                  {returnRequest && <StatusPill status={returnStatusLabel(returnRequest.status)} />}
-                  <span className="text-xs text-ink/40">{o.paymentStatus === 'Paid' ? 'Paid' : 'Payment pending'}</span>
-                </div>
-                {returnRequest && (
-                  <div className="mt-3 rounded-xl bg-primary-50/70 border border-primary-100 px-3 py-2 text-xs text-ink/60">
-                    Return {returnRequest.returnNumber}: <span className="font-semibold text-ink/75">{returnRequest.items.map((item) => `${item.label} x${item.quantity}`).join(', ')}</span>
-                  </div>
+        <>
+          <div className="space-y-4">
+            {pageOrders.map((o) => {
+              const returnRequest = findReturnRequest(o.id)
+              return (
+              <div key={o.id} className="card p-4 sm:p-5 flex flex-col sm:flex-row gap-4">
+                {o.productId ? (
+                  <Link to={`/products/${o.productId}`} className="shrink-0">
+                    <img src={o.image} alt="" className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover" />
+                  </Link>
+                ) : (
+                  <img src={o.image} alt="" className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover shrink-0" />
                 )}
-              </div>
-              <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 sm:text-right sm:min-w-[140px]">
-                <p className="font-bold text-lg">{formatUSD(o.amount)}</p>
-                <div className="flex sm:flex-col gap-2 w-full">
-                  <button onClick={() => setViewing(o)} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Eye className="w-3.5 h-3.5" /> View Details</button>
-                  {o.deliveryStatus === 'Delivered' && (
-                    <Link
-                      to={returnRequest ? returnResultPath(returnRequest) : `/dashboard/orders/${o.id}/return`}
-                      onClick={() => !returnRequest && saveReturnOrderSnapshot(o)}
-                      className="btn text-xs px-3 py-1.5 bg-leaf-50 text-leaf-700 w-full justify-center"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" /> {returnRequest ? 'Return Status' : 'Request Return'}
-                    </Link>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 justify-between">
+                    <p className="font-bold text-sm">{itemNames(o)}</p>
+                    <span className="text-xs text-primary-600 font-semibold">{o.id}</span>
+                  </div>
+                  <p className="text-xs text-ink/50 mt-1">{o.address}</p>
+                  <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-ink/50">
+                    <span>Qty: {itemQtys(o)}</span>
+                    <span>•</span>
+                    <span>Ordered: {formatDate(o.date)}</span>
+                    {o.deliveryStatus === 'Delivered' && o.deliveredAt ? (
+                      <>
+                        <span>•</span>
+                        <span>Delivered On: <span className="font-semibold text-ink/70">{formatDate(o.deliveredAt)}</span></span>
+                      </>
+                    ) : o.deliveryStatus !== 'Cancelled' && (
+                      <>
+                        <span>•</span>
+                        <span>Estimated Delivery: <span className="font-semibold text-ink/70">{estimatedDelivery(4, o.date)}</span></span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <StatusPill status={o.deliveryStatus} />
+                    {returnRequest && <StatusPill status={returnStatusLabel(returnRequest.status)} />}
+                    <span className="text-xs text-ink/40">{o.paymentStatus === 'Paid' ? 'Paid' : 'Payment pending'}</span>
+                  </div>
+                  {o.deliveryStatus === 'Cancelled' && (
+                    <div className="mt-2 space-y-2"><CancellationInfo order={o} /><RefundInfo order={o} /></div>
                   )}
-                  {['Pending', 'Processing'].includes(o.deliveryStatus) && (
-                    <button onClick={() => handleCancel(o.id)} disabled={cancellingId === o.id} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center disabled:opacity-60">
-                      <XCircle className="w-3.5 h-3.5" /> {cancellingId === o.id ? 'Cancelling...' : 'Cancel'}
-                    </button>
+                  {returnRequest && (
+                    <div className="mt-3 rounded-xl bg-primary-50/70 border border-primary-100 px-3 py-2 text-xs text-ink/60">
+                      Return {returnRequest.returnNumber}: <span className="font-semibold text-ink/75">{returnRequest.items.map((item) => `${item.label} x${item.quantity}`).join(', ')}</span>
+                      {returnRequest.status === 'REFUNDED' && (
+                        <span className="block mt-0.5 font-semibold text-leaf-700">Refunded: {formatUSD(returnRequest.refundAmount)}</span>
+                      )}
+                    </div>
                   )}
                 </div>
+                <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 sm:text-right sm:min-w-[140px]">
+                  <p className="font-bold text-lg">{formatUSD(o.amount)}</p>
+                  <div className="flex sm:flex-col gap-2 w-full">
+                    <button onClick={() => setViewing(o)} className="btn text-xs px-3 py-1.5 bg-primary-50 text-primary-700 w-full justify-center"><Eye className="w-3.5 h-3.5" /> View Details</button>
+                    <button onClick={() => openInvoice(o, user)} className="btn text-xs px-3 py-1.5 bg-black/5 text-ink/70 w-full justify-center"><Download className="w-3.5 h-3.5" /> Invoice</button>
+                    {o.deliveryStatus === 'Delivered' && (
+                      returnRequest ? (
+                        <button onClick={() => setStatusTarget(returnRequest)} className="btn text-xs px-3 py-1.5 bg-leaf-50 text-leaf-700 w-full justify-center">
+                          <RotateCcw className="w-3.5 h-3.5" /> Return Status
+                        </button>
+                      ) : (
+                        <button onClick={() => setReturnTarget(o)} className="btn text-xs px-3 py-1.5 bg-leaf-50 text-leaf-700 w-full justify-center">
+                          <RotateCcw className="w-3.5 h-3.5" /> Request Return
+                        </button>
+                      )
+                    )}
+                    {['Pending', 'Processing'].includes(o.deliveryStatus) && (
+                      <button onClick={() => setCancelTarget(o)} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-500 w-full justify-center">
+                        <XCircle className="w-3.5 h-3.5" /> Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          )})}
-        </div>
+            )})}
+          </div>
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+        </>
       )}
 
       {/* Order details - slide-in from the right, using the order already in
@@ -167,7 +233,7 @@ export default function Orders() {
         {viewing && (
           <div className="p-5 space-y-5 text-sm">
             {(() => {
-              const returnRequest = returnRequests.find((request) => orderIdsMatch(viewing.id, request.orderId))
+              const returnRequest = findReturnRequest(viewing.id)
               return returnRequest ? (
                 <div className="rounded-xl border border-primary-100 bg-primary-50/70 p-3">
                   <div className="flex items-center justify-between gap-3">
@@ -179,12 +245,10 @@ export default function Orders() {
                   </div>
                   <div className="mt-3 text-xs text-ink/60 space-y-1">
                     <p>{returnRequest.items.map((item) => `${item.label} x${item.quantity}`).join(', ')}</p>
-                    <p>Estimated refund: <span className="font-bold text-primary-700">{formatUSD(returnRequest.refundAmount)}</span> to {paymentMethodLabel(returnRequest)}</p>
+                    <p>{returnRequest.status === 'REFUNDED' ? 'Refunded' : 'Estimated refund'}: <span className="font-bold text-primary-700">{formatUSD(returnRequest.refundAmount)}</span> to {paymentMethodLabel(returnRequest)}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    <Link to={returnResultPath(returnRequest)} className="btn text-xs px-3 py-1.5 bg-white text-primary-700 border border-primary-100">Current Status</Link>
-                    <Link to={`/dashboard/returns/${returnRequest.id}/approved`} className="btn text-xs px-3 py-1.5 bg-leaf-50 text-leaf-700">Approved View</Link>
-                    <Link to={`/dashboard/returns/${returnRequest.id}/rejected`} className="btn text-xs px-3 py-1.5 bg-red-50 text-red-600">Rejected View</Link>
+                    <button onClick={() => setStatusTarget(returnRequest)} className="btn text-xs px-3 py-1.5 bg-white text-primary-700 border border-primary-100">View Return Status</button>
                   </div>
                 </div>
               ) : null
@@ -200,6 +264,9 @@ export default function Orders() {
                   ? ` • Delivered ${formatDate(viewing.deliveredAt)}`
                   : viewing.deliveryStatus !== 'Cancelled' ? ` • Estimated Delivery ${estimatedDelivery(4, viewing.date)}` : ''}
               </p>
+              {viewing.deliveryStatus === 'Cancelled' && (
+                <div className="mt-2 space-y-2"><CancellationInfo order={viewing} /><RefundInfo order={viewing} /></div>
+              )}
             </div>
 
             <div>
@@ -249,19 +316,44 @@ export default function Orders() {
               </div>
             </div>
 
+            <button onClick={() => openInvoice(viewing, user)} className="btn w-full bg-black/5 text-ink/70">
+              <Download className="w-4 h-4" /> Download Invoice
+            </button>
+
             {['Pending', 'Processing'].includes(viewing.deliveryStatus) && (
-              <button onClick={() => handleCancel(viewing.id)} disabled={cancellingId === viewing.id} className="btn w-full bg-red-50 text-red-500 disabled:opacity-60">
-                <XCircle className="w-4 h-4" /> {cancellingId === viewing.id ? 'Cancelling...' : 'Cancel Order'}
+              <button onClick={() => setCancelTarget(viewing)} className="btn w-full bg-red-50 text-red-500">
+                <XCircle className="w-4 h-4" /> Cancel Order
               </button>
             )}
-            {viewing.deliveryStatus === 'Delivered' && !returnRequests.some((request) => orderIdsMatch(viewing.id, request.orderId)) && (
-              <Link to={`/dashboard/orders/${viewing.id}/return`} onClick={() => saveReturnOrderSnapshot(viewing)} className="btn w-full bg-leaf-50 text-leaf-700">
+            {viewing.deliveryStatus === 'Delivered' && !findReturnRequest(viewing.id) && (
+              <button onClick={() => setReturnTarget(viewing)} className="btn w-full bg-leaf-50 text-leaf-700">
                 <RotateCcw className="w-4 h-4" /> Request Return
-              </Link>
+              </button>
             )}
           </div>
         )}
       </Drawer>
+
+      <CancelOrderModal
+        open={!!cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        order={cancelTarget}
+        onConfirm={handleCancel}
+        submitting={cancellingId === cancelTarget?.id}
+      />
+
+      <ReturnRequestModal
+        open={!!returnTarget}
+        onClose={() => setReturnTarget(null)}
+        order={returnTarget}
+        onSubmitted={handleReturnSubmitted}
+      />
+
+      <ReturnStatusModal
+        open={!!statusTarget}
+        onClose={() => setStatusTarget(null)}
+        request={statusTarget}
+      />
     </div>
   )
 }

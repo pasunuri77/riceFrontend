@@ -13,6 +13,18 @@ export function formatDate(dateStr) {
   })
 }
 
+// Date + time, for audit-trail style displays (return status timeline) where
+// knowing just the day isn't enough to tell events on the same day apart.
+export function formatDateTime(dateStr) {
+  return new Date(dateStr).toLocaleString('en-US', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 // `fromDate` defaults to now (checkout preview, before an order exists) but should
 // be passed an order's real placed-on date when estimating delivery for an order
 // that already exists - otherwise every order looks like it ships N days from

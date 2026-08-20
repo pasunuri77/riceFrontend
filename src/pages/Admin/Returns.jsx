@@ -108,13 +108,13 @@ export default function AdminReturns() {
       <TableShell minWidth="960px">
         <thead>
           <tr className="text-left text-ink/40 text-xs uppercase border-b border-black/5">
-            <th className="p-3.5">Return Request</th>
-            <th className="p-3.5">Order ID</th>
-            <th className="p-3.5">Customer</th>
-            <th className="p-3.5">Items</th>
-            <th className="p-3.5">Refund Amount</th>
-            <th className="p-3.5">Status</th>
-            <th className="p-3.5">Requested On</th>
+            <th className="p-3.5 whitespace-nowrap">Return Request</th>
+            <th className="p-3.5 whitespace-nowrap">Order ID</th>
+            <th className="p-3.5 whitespace-nowrap">Customer</th>
+            <th className="p-3.5 whitespace-nowrap">Items</th>
+            <th className="p-3.5 whitespace-nowrap">Refund Amount</th>
+            <th className="p-3.5 whitespace-nowrap">Status</th>
+            <th className="p-3.5 whitespace-nowrap">Requested On</th>
             <th className="p-3.5"></th>
           </tr>
         </thead>
@@ -125,13 +125,13 @@ export default function AdminReturns() {
             <tr><td colSpan={8} className="p-8"><EmptyState icon={PackageCheck} title="No return requests" subtitle="Submitted return requests will appear here." /></td></tr>
           ) : filtered.map((request) => (
             <tr key={request.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
-              <td className="p-3 font-semibold">{request.returnNumber}</td>
-              <td className="p-3 text-primary-700 font-semibold">{request.orderDisplayId}</td>
-              <td className="p-3">{request.customerName}</td>
+              <td className="p-3 font-semibold whitespace-nowrap">{request.returnNumber}</td>
+              <td className="p-3 text-primary-700 font-semibold whitespace-nowrap">{request.orderDisplayId}</td>
+              <td className="p-3 whitespace-nowrap">{request.customerName}</td>
               <td className="p-3 max-w-[240px] break-words">{itemSummary(request)}</td>
-              <td className="p-3 font-semibold">{formatUSD(request.refundAmount)}</td>
-              <td className="p-3"><StatusPill status={returnStatusLabel(request.status)} /></td>
-              <td className="p-3 text-ink/50">{request.requestedOn ? formatDate(request.requestedOn) : '--'}</td>
+              <td className="p-3 font-semibold whitespace-nowrap">{formatUSD(request.refundAmount)}</td>
+              <td className="p-3 whitespace-nowrap"><StatusPill status={returnStatusLabel(request.status)} /></td>
+              <td className="p-3 text-ink/50 whitespace-nowrap">{request.requestedOn ? formatDate(request.requestedOn) : '--'}</td>
               <td className="p-3 text-right">
                 <button onClick={() => { setViewing(request); setMode('details') }} className="btn bg-primary-50 text-primary-700 px-3 py-1.5 text-xs"><Eye className="w-3.5 h-3.5" /> View</button>
               </td>

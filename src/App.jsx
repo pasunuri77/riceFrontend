@@ -32,7 +32,6 @@ const Checkout = lazy(() => import('./pages/User/Checkout'))
 const UserDashboard = lazy(() => import('./pages/User/Dashboard'))
 const Orders = lazy(() => import('./pages/User/Orders'))
 const OrderDetail = lazy(() => import('./pages/User/OrderDetail'))
-const ReturnRequest = lazy(() => import('./pages/User/ReturnRequest'))
 const ReturnResult = lazy(() => import('./pages/User/ReturnResult'))
 const Payments = lazy(() => import('./pages/User/Payments'))
 const Addresses = lazy(() => import('./pages/User/Addresses'))
@@ -111,7 +110,6 @@ export default function App() {
             <Route index element={<UserDashboard />} />
             <Route path="orders" element={<Orders />} />
             <Route path="orders/:id" element={<OrderDetail />} />
-            <Route path="orders/:orderId/return" element={<ReturnRequest />} />
             <Route path="returns/:requestId/:result" element={<ReturnResult />} />
             <Route path="payments" element={<Payments />} />
             <Route path="addresses" element={<Addresses />} />

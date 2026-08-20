@@ -181,7 +181,11 @@ export default function AdminNewOrder() {
         paymentMethod: payment,
         items: cartItems,
         notes,
-        markAsPaid,
+        // Offline sales are paid in person at the desk when the order is
+        // placed - there's no "pending" state for a walk-in sale, so this is
+        // always true rather than left up to the checkbox below (which only
+        // shows for online orders).
+        markAsPaid: orderType === 'offline' ? true : markAsPaid,
         couponCode: coupon?.code,
       })
       showToast(`Order ${order.id} created for ${customer.name}`, 'success')
@@ -373,10 +377,14 @@ export default function AdminNewOrder() {
                     </label>
                   ))}
                 </div>
-                <label className="flex items-center gap-2 text-sm font-semibold mt-3 cursor-pointer">
-                  <input type="checkbox" checked={markAsPaid} onChange={(e) => setMarkAsPaid(e.target.checked)} className="accent-primary-500 w-4 h-4" />
-                  Mark as already paid (cash/card collected at desk)
-                </label>
+                {orderType === 'offline' ? (
+                  <p className="text-xs text-ink/50 mt-3">Offline orders are always recorded as paid, since payment is collected at the desk when the sale is made.</p>
+                ) : (
+                  <label className="flex items-center gap-2 text-sm font-semibold mt-3 cursor-pointer">
+                    <input type="checkbox" checked={markAsPaid} onChange={(e) => setMarkAsPaid(e.target.checked)} className="accent-primary-500 w-4 h-4" />
+                    Mark as already paid (cash/card collected at desk)
+                  </label>
+                )}
 
                 <FormField label="Order Notes (Optional)">
                   <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="E.g. Called in order, deliver after 5pm..." className="input-field mt-3" />
