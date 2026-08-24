@@ -47,12 +47,15 @@ const orderApi = {
   // reject confirming an order that isn't currently Pending.
   confirmOrder: (id) => http.patch(`/api/admin/orders/${id}/confirm`),
 
-  // Processes a refund for a cancelled, prepaid (non-COD) order - the full
-  // amount paid, since nothing shipped. Not yet implemented on the backend
-  // (see backend prompt); this is wired ahead of time so it starts working
-  // the moment that endpoint exists, with no further frontend changes.
-  refundCancelledOrder: (id, { refundReference, refundNote }) =>
-    http.post(`/api/admin/orders/${id}/refund`, { refundReference, refundNote }),
+  // Processes a refund for a cancelled, prepaid (non-COD) order - product
+  // amount only (tax/delivery excluded), same policy as a product return.
+  // No refundReference here - there's no real payment gateway integrated yet
+  // to generate one from, so nothing meaningful to send. Not yet implemented
+  // on the backend (see backend prompt); this is wired ahead of time so it
+  // starts working the moment that endpoint exists, with no further frontend
+  // changes.
+  refundCancelledOrder: (id, { refundNote }) =>
+    http.post(`/api/admin/orders/${id}/refund`, { refundNote }),
 
   // Admin creating/booking an order on behalf of an existing or newly-added
   // customer. customerId identifies who the order belongs to; everything else

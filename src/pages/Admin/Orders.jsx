@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Eye, Plus, Printer, Download, Package, User as UserIcon, MapPin, CreditCard, XCircle } from 'lucide-react'
+import { Eye, Plus, Printer, Download, Package, User as UserIcon, MapPin, CreditCard, XCircle, Camera } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
-import { STATUS_STYLES } from '../../components/ui/StatusPill'
+import StatusPill, { STATUS_STYLES } from '../../components/ui/StatusPill'
 import CancellationInfo from '../../components/ui/CancellationInfo'
 import CancelOrderModal from '../../components/ui/CancelOrderModal'
 import ProcessRefundModal from '../../components/ui/ProcessRefundModal'
@@ -17,9 +17,13 @@ import ExportMenu from '../../components/ui/ExportMenu'
 import Pagination from '../../components/ui/Pagination'
 import { formatUSD, formatDate, estimatedDelivery } from '../../utils/format'
 import { bagWeightLb } from '../../utils/stock'
+import { refundableAmount } from '../../utils/refund'
 import { exportToCsv, exportToExcel } from '../../utils/exportTable'
 import { useToast } from '../../context/ToastContext'
 import orderApi from '../../api/orderApi'
+import deliveryRunApi from '../../api/deliveryRunApi'
+import returnApi from '../../api/returnApi'
+import { normalizeReturnRequests, orderIdsMatch, returnStatusLabel } from '../../data/returnRequests'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${bagWeightLb(i.weight)}lb Bag x${i.qty})`).join(', ') : o.riceName)
@@ -42,6 +46,9 @@ const paymentMethodLabel = (o) => PAYMENT_METHOD_LABELS[o.paymentMethod] || o.pa
 
 const PAYMENT_STATUSES = ['Pending', 'Paid']
 const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+// The top filter bar's "All Delivery Statuses" dropdown excludes Cancelled -
+// that's its own dedicated tab now, not a status to filter the main list by.
+const DELIVERY_FILTER_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered']
 // An offline (in-store/walk-in) order never ships anywhere - "Shipped" has no
 // meaning for it, so it's dropped from the options an offline order can move
 // through. Everything else (Processing/Delivered/Cancelled) still applies -
@@ -49,6 +56,7 @@ const DELIVERY_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Can
 const deliveryStatusOptionsFor = (order) => (orderTypeOf(order) === 'offline' ? DELIVERY_STATUSES.filter((s) => s !== 'Shipped') : DELIVERY_STATUSES)
 const TYPE_TABS = ['All Orders', 'Online Orders', 'Offline Orders', 'Cancelled Orders']
 const typeForTab = { 'Online Orders': 'online', 'Offline Orders': 'offline' }
+const todayStr = () => new Date().toISOString().slice(0, 10)
 
 // A cancelled order that was actually paid for up front (anything but COD -
 // COD never charges anything, so there's nothing to give back) still owes
@@ -139,6 +147,20 @@ function DeliverySelect({ order, updating, onStatusChange, onConfirm, onCancelRe
   )
 }
 
+// Cancelled and Delivered are terminal - there's no "un-cancel" and no
+// business reason to walk a delivered order backwards through the
+// dropdown, so neither gets the editable select at all, just a plain pill.
+// A delivered order that was later returned shows the live return status
+// instead of a static "Delivered", since that's the more useful fact once
+// a return exists.
+function DeliveryCell({ order, returnRequest, updating, onStatusChange, onConfirm, onCancelRequest }) {
+  if (order.deliveryStatus === 'Cancelled') return <StatusPill status="Cancelled" />
+  if (order.deliveryStatus === 'Delivered') {
+    return returnRequest ? <StatusPill status={returnStatusLabel(returnRequest.status)} /> : <StatusPill status="Delivered" />
+  }
+  return <DeliverySelect order={order} updating={updating} onStatusChange={onStatusChange} onConfirm={onConfirm} onCancelRequest={onCancelRequest} />
+}
+
 // Opens a clean, invoice-only print view in a new tab and triggers the browser
 // print dialog - "Download Invoice" points at the same view since the browser's
 // own "Save as PDF" print destination covers that without a new PDF dependency.
@@ -184,13 +206,17 @@ export default function AdminOrders() {
   const [ordersData, setOrdersData] = useState([])
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('All Orders')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  // Defaults to today's orders on load - "All Orders" is the one tab that
+  // clears this back out to show everything (see the tab button below).
+  const [dateFrom, setDateFrom] = useState(todayStr())
+  const [dateTo, setDateTo] = useState(todayStr())
+  const [returnRequests, setReturnRequests] = useState([])
   const [paymentFilter, setPaymentFilter] = useState('')
   const [deliveryFilter, setDeliveryFilter] = useState('')
   const [sort, setSort] = useState({ key: null, dir: 'asc' })
   const [page, setPage] = useState(1)
   const [viewing, setViewing] = useState(null)
+  const [deliveryProof, setDeliveryProof] = useState(null)
   const [updating, setUpdating] = useState({})
   const [cancelTarget, setCancelTarget] = useState(null)
   const [cancelling, setCancelling] = useState(false)
@@ -203,6 +229,23 @@ export default function AdminOrders() {
   useEffect(() => {
     orderApi.listAll().then(setOrdersData).catch(() => setOrdersData([])).finally(() => setLoading(false))
   }, [])
+
+  // Only needed to know whether a Delivered order has since been returned,
+  // so the Delivery column can show the live return status instead of a
+  // stale "Delivered".
+  useEffect(() => {
+    returnApi.listAll().then((data) => setReturnRequests(normalizeReturnRequests(data))).catch(() => setReturnRequests([]))
+  }, [])
+  const findReturnRequest = (orderId) => returnRequests.find((request) => orderIdsMatch(orderId, request.orderId))
+
+  // Fetched on demand per opened order rather than joined into the main list -
+  // most orders never have a delivery proof, so there's no point fetching this
+  // for all 30+ rows just to show it for the one being viewed.
+  useEffect(() => {
+    setDeliveryProof(null)
+    if (!viewing || viewing.deliveryStatus !== 'Delivered') return
+    deliveryRunApi.getOrderProof(viewing.id).then(setDeliveryProof).catch(() => setDeliveryProof(null))
+  }, [viewing?.id, viewing?.deliveryStatus])
 
   // Lets a notification (or any other link) deep-link straight into a specific
   // order's detail panel, e.g. /admin/orders?view=<id>, the same pattern already
@@ -227,8 +270,20 @@ export default function AdminOrders() {
     let list = ordersData.filter((o) => `${o.id} ${o.customerName} ${o.riceName}`.toLowerCase().includes(search.toLowerCase()))
     if (tab === 'Cancelled Orders') list = list.filter((o) => o.deliveryStatus === 'Cancelled')
     else if (typeFilter) list = list.filter((o) => orderTypeOf(o) === typeFilter)
-    if (paymentFilter) list = list.filter((o) => o.paymentStatus === paymentFilter)
-    if (deliveryFilter) list = list.filter((o) => o.deliveryStatus === deliveryFilter)
+    // A cancelled order's raw paymentStatus (Paid/Pending) is beside the
+    // point once it's cancelled - the Payment column already shows the
+    // dedicated refund/no-refund state for it instead, not a Pending/Paid
+    // toggle. Filtering by payment status is a generic Pending/Paid pipeline
+    // concern, so cancelled orders (like offline orders in the delivery
+    // filter above) sit outside it entirely.
+    if (paymentFilter) list = list.filter((o) => o.paymentStatus === paymentFilter && o.deliveryStatus !== 'Cancelled')
+    // Offline orders never really have a "Pending"/"Processing"/"Shipped"
+    // delivery in the traditional sense (there's nothing to ship) - they
+    // shouldn't leak into a delivery-status filter, only into the dedicated
+    // Offline Orders tab or All Orders. Cancelled is excluded from this
+    // dropdown's options entirely (it's its own tab), so this only ever
+    // filters the four in-progress statuses.
+    if (deliveryFilter) list = list.filter((o) => o.deliveryStatus === deliveryFilter && orderTypeOf(o) !== 'offline')
     if (dateFrom) list = list.filter((o) => new Date(o.date) >= new Date(dateFrom))
     if (dateTo) list = list.filter((o) => new Date(o.date) <= new Date(`${dateTo}T23:59:59`))
     if (sort.key) {
@@ -305,11 +360,11 @@ export default function AdminOrders() {
     }
   }
 
-  const handleRefund = async ({ refundReference, refundNote }) => {
+  const handleRefund = async ({ refundNote }) => {
     const id = refundTarget.id
     setRefunding(true)
     try {
-      const updatedOrder = await orderApi.refundCancelledOrder(id, { refundReference, refundNote })
+      const updatedOrder = await orderApi.refundCancelledOrder(id, { refundNote })
       replaceOrder(updatedOrder)
       showToast('Refund processed', 'success')
       setRefundTarget(null)
@@ -348,6 +403,20 @@ export default function AdminOrders() {
 
   const colCount = 1 + COLUMNS.filter((c) => isVisible(c.key)).length + 1
 
+  // Native <input type="date"> can end up reporting a malformed value (a
+  // year with more than 4 digits) if someone types quickly into the year
+  // segment - the browser doesn't always block it. A valid value is always
+  // exactly YYYY-MM-DD, so anything else (including empty, which is a valid
+  // "cleared" state) is rejected here rather than stored.
+  const makeDateHandler = (setter) => (e) => {
+    const value = e.target.value
+    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return
+    setter(value)
+    setPage(1)
+  }
+  const handleDateFromChange = makeDateHandler(setDateFrom)
+  const handleDateToChange = makeDateHandler(setDateTo)
+
   return (
     <div>
       <Breadcrumb items={[{ label: 'Admin' }, { label: 'Orders' }]} />
@@ -359,7 +428,18 @@ export default function AdminOrders() {
 
       <div className="flex gap-2 flex-wrap mb-4">
         {TYPE_TABS.map((t) => (
-          <button key={t} onClick={() => { setTab(t); setPage(1) }} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === t ? 'bg-primary-500 text-white' : 'bg-white border border-black/10 text-ink/60'}`}>
+          <button
+            key={t}
+            onClick={() => {
+              setTab(t)
+              setPage(1)
+              // "All Orders" is the one tab that means "everything, no date
+              // restriction" - every other tab keeps whatever date range is
+              // currently set (today's, by default).
+              if (t === 'All Orders') { setDateFrom(''); setDateTo('') }
+            }}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === t ? 'bg-primary-500 text-white' : 'bg-white border border-black/10 text-ink/60'}`}
+          >
             {t} <span className={tab === t ? 'text-white/80' : 'text-ink/40'}>{counts[t]}</span>
           </button>
         ))}
@@ -368,9 +448,9 @@ export default function AdminOrders() {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search by Order ID, Customer name or Phone..." className="max-w-sm" />
         <div className="flex items-center gap-1.5">
-          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="input-field !w-auto text-sm" aria-label="From date" />
+          <input type="date" value={dateFrom} onChange={handleDateFromChange} max="9999-12-31" className="input-field !w-auto text-sm" aria-label="From date" />
           <span className="text-ink/30 text-sm">-</span>
-          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="input-field !w-auto text-sm" aria-label="To date" />
+          <input type="date" value={dateTo} onChange={handleDateToChange} max="9999-12-31" className="input-field !w-auto text-sm" aria-label="To date" />
         </div>
         <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="input-field !w-auto text-sm">
           <option value="">All Payments</option>
@@ -378,7 +458,7 @@ export default function AdminOrders() {
         </select>
         <select value={deliveryFilter} onChange={(e) => { setDeliveryFilter(e.target.value); setPage(1) }} className="input-field !w-auto text-sm">
           <option value="">All Delivery Statuses</option>
-          {DELIVERY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {DELIVERY_FILTER_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <div className="ml-auto flex items-center gap-2">
           <ColumnVisibilityMenu columns={COLUMNS} visible={visibleCols} onToggle={toggleCol} />
@@ -451,31 +531,43 @@ export default function AdminOrders() {
                 {isVisible('deliveredOn') && <td className="p-3 text-ink/50 whitespace-nowrap">{o.deliveredAt ? formatDate(o.deliveredAt) : '--'}</td>}
                 {isVisible('payment') && (
                   <td className="p-3">
-                    {/* Offline (in-store/walk-in) sales are paid in person at the
-                        moment of the sale - there's no "pending" state to track
-                        and nothing an admin should be changing after the fact, so
-                        this is a plain badge, not the editable dropdown online
-                        orders get. */}
-                    {orderTypeOf(o) === 'offline' ? <span className="badge bg-leaf-100 text-leaf-700">Paid</span> : (
+                    {/* Offline sales are paid in person at the moment of sale -
+                        plain badge, nothing to edit. Cancelled orders get the
+                        refund action/status instead of a payment dropdown.
+                        Once an online order is actually Paid, that's final too
+                        (same terminal-state reasoning as delivery below) - the
+                        dropdown only appears while it's still Pending. */}
+                    {orderTypeOf(o) === 'offline' ? (
+                      <StatusPill status="Paid" />
+                    ) : o.deliveryStatus === 'Cancelled' ? (
+                      needsCancelledOrderRefund(o) ? (
+                        <button
+                          onClick={() => setRefundTarget(o)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors whitespace-nowrap"
+                        >
+                          Refund {formatUSD(refundableAmount(o))}
+                        </button>
+                      ) : isCodOrder(o) ? (
+                        <span className="text-[11px] text-ink/40 italic whitespace-nowrap">No Refund (COD)</span>
+                      ) : (
+                        <span className="text-[11px] text-ink/40 whitespace-nowrap">{o.paymentStatus}</span>
+                      )
+                    ) : o.paymentStatus === 'Paid' ? (
+                      <StatusPill status="Paid" />
+                    ) : (
                       <StatusSelect value={o.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${o.id}:payment`]} onChange={(status) => updatePaymentStatus(o.id, status)} />
-                    )}
-                    {needsCancelledOrderRefund(o) && (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="badge bg-red-100 text-red-600 text-[10px] w-fit">Refund Due</span>
-                        <button onClick={() => setRefundTarget(o)} className="text-[10px] font-semibold text-primary-600 hover:underline whitespace-nowrap">Process Refund</button>
-                      </div>
-                    )}
-                    {o.deliveryStatus === 'Cancelled' && isCodOrder(o) && (
-                      <span className="badge bg-black/5 text-ink/50 text-[10px] mt-1 block w-fit">COD - No Refund</span>
                     )}
                   </td>
                 )}
                 {isVisible('delivery') && (
                   <td className="p-3">
                     {/* No shipping/delivery concept applies to a walk-in sale -
-                        the item leaves with the customer at checkout. */}
-                    {orderTypeOf(o) === 'offline' ? <span className="text-ink/40">--</span> : (
-                      <DeliverySelect order={o} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} onCancelRequest={setCancelTarget} />
+                        the item leaves with the customer at checkout, unless it
+                        was later cancelled/voided. */}
+                    {orderTypeOf(o) === 'offline' ? (
+                      o.deliveryStatus === 'Cancelled' ? <StatusPill status="Cancelled" /> : <span className="text-ink/40">--</span>
+                    ) : (
+                      <DeliveryCell order={o} returnRequest={findReturnRequest(o.id)} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} onCancelRequest={setCancelTarget} />
                     )}
                   </td>
                 )}
@@ -506,7 +598,9 @@ export default function AdminOrders() {
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="font-extrabold text-lg font-display">{viewing.id}</h4>
-                {orderTypeOf(viewing) === 'offline' ? <span className="badge bg-leaf-100 text-leaf-700">Paid</span> : (
+                {orderTypeOf(viewing) === 'offline' || viewing.deliveryStatus === 'Cancelled' || viewing.paymentStatus === 'Paid' ? (
+                  <StatusPill status={viewing.paymentStatus === 'Pending' ? 'Pending' : 'Paid'} />
+                ) : (
                   <StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} />
                 )}
               </div>
@@ -560,21 +654,29 @@ export default function AdminOrders() {
                 <div className="flex justify-between"><span className="text-ink/50">Method</span><span className="font-semibold">{paymentMethodLabel(viewing)}</span></div>
                 <div className="flex justify-between items-center">
                   <span className="text-ink/50">Status</span>
-                  {orderTypeOf(viewing) === 'offline' ? <span className="badge bg-leaf-100 text-leaf-700">Paid</span> : (
+                  {orderTypeOf(viewing) === 'offline' ? (
+                    <StatusPill status="Paid" />
+                  ) : viewing.deliveryStatus === 'Cancelled' ? (
+                    needsCancelledOrderRefund(viewing) ? (
+                      <button
+                        onClick={() => setRefundTarget(viewing)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors"
+                      >
+                        Refund {formatUSD(refundableAmount(viewing))}
+                      </button>
+                    ) : isCodOrder(viewing) ? (
+                      <span className="text-xs text-ink/40 italic">No Refund (COD)</span>
+                    ) : (
+                      <span className="text-xs text-ink/40">{viewing.paymentStatus}</span>
+                    )
+                  ) : viewing.paymentStatus === 'Paid' ? (
+                    <StatusPill status="Paid" />
+                  ) : (
                     <StatusSelect value={viewing.paymentStatus} options={PAYMENT_STATUSES} disabled={updating[`${viewing.id}:payment`]} onChange={(status) => updatePaymentStatus(viewing.id, status)} />
                   )}
                 </div>
                 {needsCancelledOrderRefund(viewing) && (
-                  <div className="flex justify-between items-center pt-1">
-                    <span className="text-ink/50">Refund</span>
-                    <div className="flex items-center gap-2">
-                      <span className="badge bg-red-100 text-red-600">Refund Due</span>
-                      <button onClick={() => setRefundTarget(viewing)} className="btn text-xs px-2.5 py-1 bg-primary-50 text-primary-700">Process Refund</button>
-                    </div>
-                  </div>
-                )}
-                {viewing.deliveryStatus === 'Cancelled' && isCodOrder(viewing) && (
-                  <div className="flex justify-between items-center pt-1"><span className="text-ink/50">Refund</span><span className="badge bg-black/5 text-ink/50">COD - No Refund</span></div>
+                  <p className="text-[11px] text-ink/40 pt-0.5">Delivery charges and tax are excluded, per policy.</p>
                 )}
               </div>
             </div>
@@ -595,10 +697,24 @@ export default function AdminOrders() {
             ) : (
               <div>
                 <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2">Delivery Status</h5>
-                <DeliverySelect order={viewing} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} onCancelRequest={setCancelTarget} />
+                <DeliveryCell order={viewing} returnRequest={findReturnRequest(viewing.id)} updating={updating} onStatusChange={updateDeliveryStatus} onConfirm={confirmOrder} onCancelRequest={setCancelTarget} />
                 {viewing.deliveryStatus === 'Cancelled' && (
                   <div className="mt-3"><CancellationInfo order={viewing} /></div>
                 )}
+              </div>
+            )}
+
+            {viewing.deliveryStatus === 'Delivered' && deliveryProof && (
+              <div>
+                <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><Camera className="w-3.5 h-3.5" /> Delivery Proof</h5>
+                <div className="card p-3.5 space-y-3">
+                  <img src={deliveryProof.imageUrl} alt="Delivery proof" className="w-full max-h-72 object-cover rounded-xl" />
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-ink/50">Delivered By</span><span className="font-semibold">{deliveryProof.deliveryPartnerName || `Partner #${deliveryProof.deliveryPartnerId}`}</span></div>
+                    <div className="flex justify-between"><span className="text-ink/50">Delivered At</span><span className="font-semibold">{deliveryProof.deliveredAt ? new Date(deliveryProof.deliveredAt).toLocaleString() : '--'}</span></div>
+                    {deliveryProof.notes && <div className="flex justify-between gap-3"><span className="text-ink/50 shrink-0">Notes</span><span className="font-semibold text-right">{deliveryProof.notes}</span></div>}
+                  </div>
+                </div>
               </div>
             )}
           </div>

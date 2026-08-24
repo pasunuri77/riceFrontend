@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext'
 import { ApiError } from '../../api/client'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
+import { homePathForRole } from '../../utils/roleHome'
 
 const schema = z
   .object({
@@ -44,7 +45,7 @@ export default function SetPassword() {
       // making them turn around and log in manually with the password they
       // just set.
       setTimeout(() => {
-        navigate(user.role === 'admin' || user.role === 'employee' ? '/admin' : '/dashboard', { replace: true })
+        navigate(homePathForRole(user.role), { replace: true })
       }, 1500)
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Failed to set password. The link may have expired.', 'error')

@@ -6,6 +6,7 @@ import ZipDeliveryCheck from '../../components/home/ZipDeliveryCheck'
 import useDeliveryConfig from '../../hooks/useDeliveryConfig'
 import { deliveryAreaNames, serviceRegionName, storeAddressLine, storeMapsUrl } from '../../utils/delivery'
 import { useAuth } from '../../context/AuthContext'
+import { homePathForRole } from '../../utils/roleHome'
 
 export default function Home() {
   const shopNowPath = useShopNowPath()
@@ -16,11 +17,11 @@ export default function Home() {
   const addressLine = storeAddressLine(store)
   const mapsUrl = storeMapsUrl(store)
 
-  // Admins/employees land in their dashboard, not the storefront - the public
-  // Home page has nothing for them to do, and this also covers navigating back
-  // to "/" (e.g. the logo) while already signed in on the admin side.
-  if (user?.role === 'admin' || user?.role === 'employee') {
-    return <Navigate to="/admin" replace />
+  // Admins/employees land in their dashboard, delivery partners in theirs -
+  // the public Home page has nothing for either to do, and this also covers
+  // navigating back to "/" (e.g. the logo) while already signed in.
+  if (user?.role === 'admin' || user?.role === 'employee' || user?.role === 'delivery_partner') {
+    return <Navigate to={homePathForRole(user.role)} replace />
   }
 
   return (

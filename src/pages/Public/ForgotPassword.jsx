@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { Mail } from 'lucide-react'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
-import otpApi from '../../api/otp/otpApi'
+import otpApi from '../../api/otpApi'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
 

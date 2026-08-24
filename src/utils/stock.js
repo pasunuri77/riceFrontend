@@ -63,3 +63,20 @@ const LEGACY_WEIGHT_TO_LB = { 1: 2, 5: 10, 10: 20 }
 export function bagWeightLb(weight) {
   return LEGACY_WEIGHT_TO_LB[weight] ?? weight
 }
+
+// The return-request endpoints (GET .../returnable-items, return request
+// items) label each line item server-side as e.g. "1kg Bag" - the raw
+// kg-era number with the raw "kg" unit, neither of which matches the lb-only
+// labeling used everywhere else in the app (2lb/10lb/20lb). No numeric
+// weight is exposed on those DTOs to re-derive the label from independently,
+// so this corrects the string itself: same LEGACY_WEIGHT_TO_LB mapping,
+// applied to whatever "Nkg" prefix the backend sent. Already-correct "Nlb"
+// labels pass through unchanged.
+export function fixBagLabel(label) {
+  if (!label) return label
+  const match = label.match(/^(\d+)\s*kg\b/i)
+  if (!match) return label
+  const kg = Number(match[1])
+  const lb = LEGACY_WEIGHT_TO_LB[kg] ?? kg
+  return label.replace(/^\d+\s*kg\b/i, `${lb}lb`)
+}

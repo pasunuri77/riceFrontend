@@ -113,13 +113,13 @@ export const http = {
 // JSON - the browser must set its own Content-Type (with the multipart
 // boundary), so we can't reuse the same fixed 'application/json' header or
 // JSON.stringify the body. Mirrors request()'s auth/error handling otherwise.
-export async function uploadFile(path, file) {
+// Takes a pre-built FormData so callers needing extra fields alongside the
+// file (e.g. delivery-proof notes/coordinates) aren't limited to a single
+// bare file upload the way `uploadFile` below is.
+export async function uploadFormData(path, formData) {
   const headers = {}
   const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
-
-  const formData = new FormData()
-  formData.append('file', file)
 
   let res
   try {
@@ -143,4 +143,10 @@ export async function uploadFile(path, file) {
   }
 
   return data
+}
+
+export function uploadFile(path, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return uploadFormData(path, formData)
 }

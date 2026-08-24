@@ -10,6 +10,7 @@ import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
+import { homePathForRole } from '../../utils/roleHome'
 
 const schema = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
@@ -33,7 +34,7 @@ export default function Login() {
   // straight to their own dashboard rather than showing it again. Placed after
   // every hook call above so this early return never changes the hook order.
   if (user) {
-    return <Navigate to={user.role === 'admin' || user.role === 'employee' ? '/admin' : '/dashboard'} replace />
+    return <Navigate to={homePathForRole(user.role)} replace />
   }
 
   const onSubmit = async (data) => {
@@ -42,14 +43,15 @@ export default function Login() {
       showToast('Welcome back!', 'success')
       // Only honor an intended destination that matches the account's own role area -
       // e.g. a user bounced from an admin page should still land on /dashboard, not /admin.
-      const isStaff = user.role === 'admin' || user.role === 'employee'
+      const homePath = homePathForRole(user.role)
       const from = location.state?.from
       const fromPath = from ? `${from.pathname ?? ''}${from.search ?? ''}` : ''
-      const isAdminPath = fromPath.startsWith('/admin')
-      const isUserPath = fromPath.startsWith('/dashboard') || fromPath.startsWith('/checkout')
-      if (isStaff && isAdminPath) navigate(fromPath)
-      else if (!isStaff && isUserPath) navigate(fromPath)
-      else navigate(isStaff ? '/admin' : '/dashboard')
+      // '/checkout' is a customer-only path that isn't under '/dashboard' but
+      // should still be honored as a valid bounce-back destination for a
+      // regular user, same as before this was generalized to homePathForRole.
+      const isValidBounceBack = fromPath.startsWith(homePath) || (homePath === '/dashboard' && fromPath.startsWith('/checkout'))
+      if (fromPath && isValidBounceBack) navigate(fromPath)
+      else navigate(homePath)
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Login failed', 'error')
     }

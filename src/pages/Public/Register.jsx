@@ -6,11 +6,12 @@ import { z } from 'zod'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../context/AuthContext'
 import { ApiError } from '../../api/client'
-import otpApi from '../../api/otp/otpApi'
+import otpApi from '../../api/otpApi'
 import FormField from '../../components/ui/FormField'
 import SubmitButton from '../../components/ui/SubmitButton'
 import AddressAutocomplete from '../../components/forms/AddressAutocomplete'
 import { US_MOBILE_REGEX, sanitizeMobileInput } from '../../utils/phone'
+import { homePathForRole } from '../../utils/roleHome'
 
 const schema = z
   .object({
@@ -63,7 +64,7 @@ export default function Register() {
   // relevant to someone already logged in. Placed after every hook call
   // above so this early return never changes the hook order.
   if (user) {
-    return <Navigate to={user.role === 'admin' || user.role === 'employee' ? '/admin' : '/dashboard'} replace />
+    return <Navigate to={homePathForRole(user.role)} replace />
   }
 
   // Same digits-only, length-capped pattern as the mobile field - ZIP stays a

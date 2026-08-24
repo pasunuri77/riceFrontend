@@ -10,6 +10,7 @@ import BackToTop from './components/ui/BackToTop'
 import PublicLayout from './components/layout/PublicLayout'
 import UserLayout from './components/layout/UserLayout'
 import AdminLayout from './components/layout/AdminLayout'
+import DeliveryPartnerLayout from './components/layout/DeliveryPartnerLayout'
 
 // Every page below is its own chunk, loaded only when its route is visited -
 // keeps the initial bundle to just the shell + whichever page loads first.
@@ -47,7 +48,10 @@ const AdminPayments = lazy(() => import('./pages/Admin/Payments'))
 const AdminCoupons = lazy(() => import('./pages/Admin/Coupons'))
 const AdminReports = lazy(() => import('./pages/Admin/Reports'))
 const AdminDeliveryTax = lazy(() => import('./pages/Admin/DeliveryTax'))
+const AdminDeliveryRuns = lazy(() => import('./pages/Admin/DeliveryRuns'))
 const AdminProfile = lazy(() => import('./pages/Admin/Profile'))
+
+const DeliveryPartnerDeliveries = lazy(() => import('./pages/DeliveryPartner/Deliveries'))
 
 const NotFound = lazy(() => import('./pages/System/NotFound'))
 const Forbidden = lazy(() => import('./pages/System/Forbidden'))
@@ -128,7 +132,12 @@ export default function App() {
             <Route path="coupons" element={<AdminCoupons />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="delivery-tax" element={<AdminDeliveryTax />} />
+            <Route path="delivery-runs" element={<AdminDeliveryRuns />} />
             <Route path="profile" element={<AdminProfile />} />
+          </Route>
+
+          <Route path="/delivery" element={<DeliveryPartnerLayout />}>
+            <Route index element={<DeliveryPartnerDeliveries />} />
           </Route>
 
           <Route path="/403" element={<Forbidden />} />

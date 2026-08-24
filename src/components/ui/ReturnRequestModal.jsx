@@ -5,6 +5,7 @@ import FormField from './FormField'
 import { TextSkeleton } from './Skeleton'
 import { formatUSD, formatDate } from '../../utils/format'
 import { paymentMethodLabel } from '../../data/returnRequests'
+import { fixBagLabel } from '../../utils/stock'
 import { useToast } from '../../context/ToastContext'
 import { ApiError } from '../../api/client'
 import returnApi from '../../api/returnApi'
@@ -186,7 +187,7 @@ export default function ReturnRequestModal({ open, onClose, order, onSubmitted }
                         <div className="min-w-0">
                           <p className="font-semibold truncate">{item.productName}</p>
                           <p className="text-xs text-ink/40">
-                            {item.variantName ? `${item.variantName} • ` : ''}{formatUSD(item.unitPrice)} each • {item.returnableQuantity} eligible
+                            {item.variantName ? `${fixBagLabel(item.variantName)} • ` : ''}{formatUSD(item.unitPrice)} each • {item.returnableQuantity} eligible
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -286,7 +287,7 @@ export default function ReturnRequestModal({ open, onClose, order, onSubmitted }
                     <div key={item.orderItemId} className="p-3.5 flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-semibold truncate">{item.productName}</p>
-                        <p className="text-xs text-ink/40">{item.variantName ? `${item.variantName} • ` : ''}Qty: {item.qty}</p>
+                        <p className="text-xs text-ink/40">{item.variantName ? `${fixBagLabel(item.variantName)} • ` : ''}Qty: {item.qty}</p>
                       </div>
                       <p className="font-bold shrink-0">{formatUSD(item.unitPrice * item.qty)}</p>
                     </div>

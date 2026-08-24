@@ -16,6 +16,7 @@ const ALL_NAV = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true, always: true },
   { to: '/admin/products', icon: Package, label: 'Products', perm: 'canManageProducts' },
   { to: '/admin/orders', icon: ClipboardList, label: 'Orders', perm: 'canManageOrders' },
+  { to: '/admin/delivery-runs', icon: Truck, label: 'Delivery Runs', perm: 'canManageOrders' },
   { to: '/admin/returns', icon: RotateCcw, label: 'Returns', perm: 'canManageOrders' },
   // Also covers the merged staff (Employee/Admin) list on this same page -
   // there's no separate permission for managing staff, since an employee is

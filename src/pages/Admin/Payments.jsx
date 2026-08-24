@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Wallet, CreditCard, Banknote, RotateCcw, Clock3, Eye } from 'lucide-react'
+import { Wallet, CreditCard, Banknote, RotateCcw, Clock3, Eye, Package, User as UserIcon, MapPin } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import SearchInput from '../../components/ui/SearchInput'
@@ -9,11 +8,16 @@ import Pagination from '../../components/ui/Pagination'
 import DashboardCard from '../../components/dashboard/DashboardCard'
 import ExportMenu from '../../components/ui/ExportMenu'
 import RowActionsMenu from '../../components/ui/RowActionsMenu'
+import Drawer from '../../components/ui/Drawer'
+import StatusPill from '../../components/ui/StatusPill'
 import { formatUSD, formatDate } from '../../utils/format'
+import { bagWeightLb } from '../../utils/stock'
 import { exportToCsv, exportToExcel } from '../../utils/exportTable'
 import orderApi from '../../api/orderApi'
 import customerApi from '../../api/customerApi'
 import { RowSkeleton } from '../../components/ui/Skeleton'
+
+const itemsSummary = (o) => (o?.items?.length ? o.items.map((i) => i.name).join(', ') : o?.riceName)
 
 // There's no dedicated Payment entity on the backend yet - every payment row
 // here is derived 1:1 from an order's own paymentMethod/paymentStatus/amount
@@ -30,7 +34,10 @@ function paymentFromOrder(o, mobileById) {
     customerName: o.customerName,
     customerMobile: mobileById[o.customerId] || '--',
     amount: o.amount,
-    method: o.paymentMethod,
+    // The order's paymentMethod comes back as "CARD"/"COD" (uppercase) - the
+    // labels/method-filter below are all keyed lowercase, so normalize once
+    // here rather than at every lookup site.
+    method: (o.paymentMethod || '').toLowerCase(),
     status: o.paymentStatus,
     date: o.date,
   }
@@ -49,7 +56,6 @@ function MethodCell({ method }) {
 const PAGE_SIZE = 8
 
 export default function AdminPayments() {
-  const navigate = useNavigate()
   const [ordersData, setOrdersData] = useState([])
   const [mobileById, setMobileById] = useState({})
   const [loading, setLoading] = useState(true)
@@ -59,6 +65,12 @@ export default function AdminPayments() {
   const [methodFilter, setMethodFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [viewing, setViewing] = useState(null)
+
+  // The full order list is already loaded for this page (that's what payment
+  // rows are derived from) - viewing an order just looks it up locally
+  // instead of navigating to the Orders page and fetching it again there.
+  const viewOrder = (orderId) => setViewing(ordersData.find((o) => o.id === orderId) || null)
 
   useEffect(() => {
     Promise.all([
@@ -91,6 +103,20 @@ export default function AdminPayments() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  // Native <input type="date"> can end up reporting a malformed value (a
+  // year with more than 4 digits) if someone types quickly into the year
+  // segment - the browser doesn't always block it. A valid value is always
+  // exactly YYYY-MM-DD, so anything else (including empty, a valid
+  // "cleared" state) is rejected here rather than stored.
+  const makeDateHandler = (setter) => (e) => {
+    const value = e.target.value
+    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return
+    setter(value)
+    setPage(1)
+  }
+  const handleDateFromChange = makeDateHandler(setDateFrom)
+  const handleDateToChange = makeDateHandler(setDateTo)
+
   const exportColumns = [
     { label: 'Payment ID', value: (p) => p.id },
     { label: 'Order ID', value: (p) => p.orderId },
@@ -117,9 +143,9 @@ export default function AdminPayments() {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search by Order ID, Customer name, Payment ID..." className="max-w-sm" />
         <div className="flex items-center gap-1.5">
-          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="input-field !w-auto text-sm" aria-label="From date" />
+          <input type="date" value={dateFrom} onChange={handleDateFromChange} max="9999-12-31" className="input-field !w-auto text-sm" aria-label="From date" />
           <span className="text-ink/30 text-sm">-</span>
-          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="input-field !w-auto text-sm" aria-label="To date" />
+          <input type="date" value={dateTo} onChange={handleDateToChange} max="9999-12-31" className="input-field !w-auto text-sm" aria-label="To date" />
         </div>
         <select value={methodFilter} onChange={(e) => { setMethodFilter(e.target.value); setPage(1) }} className="input-field !w-auto text-sm">
           <option value="">All Payment Methods</option>
@@ -160,7 +186,7 @@ export default function AdminPayments() {
               ) : pageItems.map((p) => (
                 <tr key={p.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
                   <td className="p-3 font-semibold whitespace-nowrap">{p.id}</td>
-                  <td className="p-3 whitespace-nowrap"><Link to={`/admin/orders?view=${p.orderId}`} className="text-primary-700 font-semibold hover:underline">{p.orderId}</Link></td>
+                  <td className="p-3 whitespace-nowrap"><button onClick={() => viewOrder(p.orderId)} className="text-primary-700 font-semibold hover:underline">{p.orderId}</button></td>
                   <td className="p-3 whitespace-nowrap">
                     <p className="font-semibold">{p.customerName}</p>
                     <p className="text-xs text-ink/40">{p.customerMobile}</p>
@@ -173,7 +199,7 @@ export default function AdminPayments() {
                     <RowActionsMenu
                       id={`payment-${p.id}`}
                       label={`Actions for ${p.id}`}
-                      items={[{ label: 'View Order', icon: Eye, onClick: () => navigate(`/admin/orders?view=${p.orderId}`) }]}
+                      items={[{ label: 'View Order', icon: Eye, onClick: () => viewOrder(p.orderId) }]}
                     />
                   </td>
                 </tr>
@@ -182,6 +208,70 @@ export default function AdminPayments() {
           </TableShell>
           <Pagination page={page} totalPages={totalPages} onChange={setPage} />
       </div>
+
+      {/* Read-only view - Payments isn't the place to change an order's
+          payment/delivery status (that's Admin Orders' job), just to see it
+          without leaving this page. */}
+      <Drawer open={!!viewing} onClose={() => setViewing(null)} title="Order Details" width="max-w-lg">
+        {viewing && (
+          <div className="p-5 space-y-5 text-sm">
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-lg font-display">{viewing.id}</h4>
+                <StatusPill status={viewing.deliveryStatus} />
+              </div>
+              <p className="text-ink/50 text-xs mt-1">{formatDate(viewing.date)}{viewing.deliveryStatus === 'Delivered' && viewing.deliveredAt ? ` • Delivered ${formatDate(viewing.deliveredAt)}` : ''}</p>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><UserIcon className="w-3.5 h-3.5" /> Customer Information</h5>
+              <div className="card p-3.5 space-y-1.5">
+                <div className="flex justify-between"><span className="text-ink/50">Name</span><span className="font-semibold">{viewing.customerName}</span></div>
+                <div className="flex justify-between items-start gap-3"><span className="text-ink/50 shrink-0 flex items-center gap-1"><MapPin className="w-3 h-3" /> Address</span><span className="font-semibold text-right">{viewing.address || '--'}</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><Package className="w-3.5 h-3.5" /> Order Items</h5>
+              <div className="card divide-y divide-black/5">
+                {(viewing.items?.length ? viewing.items : [{ name: itemsSummary(viewing), weight: '', qty: viewing.quantity, pricePerKg: 0 }]).map((i, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{i.name}</p>
+                      <p className="text-xs text-ink/40">{i.weight ? `${bagWeightLb(i.weight)}lb Bag` : ''} {i.weight ? '•' : ''} Qty: {i.qty}</p>
+                    </div>
+                    <p className="font-bold shrink-0">{formatUSD((i.pricePerKg || 0) * (i.weight || 0) * (i.qty || 1))}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2">Order Summary</h5>
+              <div className="card p-3.5 space-y-2">
+                <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><span className="font-semibold">{formatUSD(viewing.subtotal)}</span></div>
+                {viewing.discountAmount > 0 && (
+                  <div className="flex justify-between text-leaf-600"><span>Discount {viewing.couponCode && `(${viewing.couponCode})`}</span><span className="font-semibold">-{formatUSD(viewing.discountAmount)}</span></div>
+                )}
+                <div className="flex justify-between"><span className="text-ink/50">Delivery</span><span className="font-semibold">{viewing.deliveryCharge > 0 ? formatUSD(viewing.deliveryCharge) : 'Free'}</span></div>
+                <div className="flex justify-between"><span className="text-ink/50">Tax</span><span className="font-semibold">{formatUSD(viewing.tax)}</span></div>
+                <div className="border-t border-black/10 pt-2 flex justify-between items-center">
+                  <span className="font-bold">Total Amount</span>
+                  <span className="font-extrabold text-lg text-primary-700">{formatUSD(viewing.amount)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" /> Payment</h5>
+              <div className="card p-3.5 space-y-1.5">
+                <div className="flex justify-between"><span className="text-ink/50">Method</span><span className="font-semibold">{METHOD_LABELS[(viewing.paymentMethod || '').toLowerCase()] || viewing.paymentMethod || '--'}</span></div>
+                <div className="flex justify-between items-center"><span className="text-ink/50">Status</span><StatusPill status={viewing.paymentStatus} /></div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   )
 }

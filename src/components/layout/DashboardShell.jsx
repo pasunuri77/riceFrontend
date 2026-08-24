@@ -110,7 +110,7 @@ export default function DashboardShell({ navItems, brandLabel, requireRole, prof
                 </div>
                 <div className="hidden sm:block leading-tight text-left">
                   <p className="text-sm font-semibold capitalize">{user.name}</p>
-                  <p className="text-[11px] text-ink/60">{user.role === 'admin' ? 'Administrator' : user.role === 'employee' ? 'Employee' : 'User'}</p>
+                  <p className="text-[11px] text-ink/60">{user.role === 'admin' ? 'Administrator' : user.role === 'employee' ? 'Employee' : user.role === 'delivery_partner' ? 'Delivery Partner' : 'User'}</p>
                 </div>
                 <ChevronDown className={`w-3.5 h-3.5 text-ink/40 hidden sm:block transition-transform ${profileMenu.isOpen ? 'rotate-180' : ''}`} />
               </button>

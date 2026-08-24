@@ -1,3 +1,5 @@
+import { fixBagLabel } from '../utils/stock'
+
 const STORAGE_KEY = 'rb_return_requests'
 const ORDER_SNAPSHOT_KEY = 'rb_return_order_snapshots'
 
@@ -244,7 +246,7 @@ export function normalizeReturnRequest(request) {
       id: String(item.id || item.orderItemId),
       orderItemId: item.orderItemId,
       name: item.productName || item.name,
-      label: item.variantName || item.label,
+      label: fixBagLabel(item.variantName || item.label),
       unitPrice: Number(item.unitPrice || 0),
       orderedQuantity: item.orderedQuantity,
       quantity: item.requestedQuantity ?? item.quantity ?? 0,

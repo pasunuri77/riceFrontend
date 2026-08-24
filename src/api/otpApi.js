@@ -1,4 +1,4 @@
-import { http } from '../client'
+import { http } from './client'
 
 /** Maps to Spring Boot: POST /api/auth/send-otp, /verify-otp, /forgot-password, /reset-password */
 const otpApi = {
