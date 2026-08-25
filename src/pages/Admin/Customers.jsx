@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Eye, Ban, CheckCircle2, Package, Shield, Trash2, UserPlus, Mail } from 'lucide-react'
+import { Eye, Ban, CheckCircle2, Package, Shield, Trash2, UserPlus, Mail, Phone, Truck } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import Modal from '../../components/ui/Modal'
@@ -23,20 +23,23 @@ import { ApiError } from '../../api/client'
 import customerApi from '../../api/customerApi'
 import orderApi from '../../api/orderApi'
 import staffApi from '../../api/staffApi'
+import deliveryRunApi from '../../api/deliveryRunApi'
 import { RowSkeleton } from '../../components/ui/Skeleton'
 
 const itemsSummary = (o) => (o.items?.length ? o.items.map((i) => `${i.name} (${bagWeightLb(i.weight)}lb Bag x${i.qty})`).join(', ') : o.riceName)
 
 const PAGE_SIZE = 8
 const MODAL_STAT_SCALE = ['text-lg', 'text-base', 'text-sm']
-const ROLE_TABS = ['All', 'Customers', 'Employees', 'Admins']
-const roleForTab = { Customers: 'user', Employees: 'employee', Admins: 'admin' }
+const ROLE_TABS = ['All', 'Customers', 'Drivers', 'Employees', 'Admins']
+const roleForTab = { Customers: 'user', Drivers: 'delivery_partner', Employees: 'employee', Admins: 'admin' }
+const CUSTOMER_SUB_TABS = ['All', 'Online', 'Offline']
 const ROLE_STYLES = {
   user: { badge: 'bg-leaf-100 text-leaf-700', avatar: 'bg-leaf-500' },
   employee: { badge: 'bg-blue-100 text-blue-700', avatar: 'bg-blue-500' },
   admin: { badge: 'bg-primary-100 text-primary-700', avatar: 'bg-primary-500' },
+  delivery_partner: { badge: 'bg-amber-100 text-amber-700', avatar: 'bg-amber-500' },
 }
-const ROLE_LABEL = { user: 'Customer', employee: 'Employee', admin: 'Admin' }
+const ROLE_LABEL = { user: 'Customer', employee: 'Employee', admin: 'Admin', delivery_partner: 'Driver' }
 // Customers are never invited from here - they're created inline while
 // booking an order on their behalf (Admin > New Order), so there's no need to
 // duplicate that flow. This modal is staff-only: Employee or Admin. No Super
@@ -81,11 +84,13 @@ export default function AdminCustomers() {
 
   const [customers, setCustomers] = useState([])
   const [staff, setStaff] = useState([])
+  const [drivers, setDrivers] = useState([])
   const [ordersData, setOrdersData] = useState([])
   const [loading, setLoading] = useState(true)
 
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('All')
+  const [customerSubTab, setCustomerSubTab] = useState('Online')
   const [sort, setSort] = useState({ key: 'joined', dir: 'desc' })
   const [page, setPage] = useState(1)
   const [viewing, setViewing] = useState(null)
@@ -108,6 +113,12 @@ export default function AdminCustomers() {
     // overwriting it, so an admin/employee record isn't mislabeled "Customer".
     customerApi.list().then((list) => setCustomers(list.map((c) => ({ ...c, role: c.role || 'user' })))).catch(() => setCustomers([])),
     staffApi.list().then(setStaff).catch(() => setStaff([])),
+    // Delivery partners come back as {id, name, email, phone, status} - normalized
+    // here to the same shape as customer/staff rows (mobile, role, joined) so they
+    // can share the one table/detail-drawer instead of a parallel code path.
+    deliveryRunApi.listDeliveryPartners()
+      .then((list) => setDrivers(list.map((d) => ({ id: String(d.id), name: d.name, email: d.email, mobile: d.phone, role: 'delivery_partner', status: d.status || 'Active', joined: null }))))
+      .catch(() => setDrivers([])),
     orderApi.listAll().then(setOrdersData).catch(() => setOrdersData([])),
   ]).finally(() => setLoading(false))
 
@@ -118,8 +129,17 @@ export default function AdminCustomers() {
   // source for role/status/permissions for admin & employee accounts).
   const allUsers = useMemo(() => {
     const staffIds = new Set(staff.map((s) => s.id))
-    return [...customers.filter((c) => !staffIds.has(c.id)), ...staff]
-  }, [customers, staff])
+    return [...customers.filter((c) => !staffIds.has(c.id)), ...staff, ...drivers]
+  }, [customers, staff, drivers])
+
+  // A customer counts as "Offline" if any of their orders were booked for
+  // them in-store (Admin > New Order, orderType 'offline'); otherwise
+  // "Online" - including customers with no orders yet, since a self-registered
+  // account defaults to the online storefront. No customer-source field exists
+  // on the account itself yet (see backend prompt) - this is an order-history
+  // proxy for it, not a perfect account-creation-channel flag.
+  const customerChannel = (customerId) =>
+    ordersData.some((o) => o.customerId === customerId && (o.orderType || 'online') === 'offline') ? 'Offline' : 'Online'
 
   useEffect(() => {
     const id = searchParams.get('id')
@@ -132,9 +152,19 @@ export default function AdminCustomers() {
   const counts = useMemo(() => ({
     All: allUsers.length,
     Customers: allUsers.filter((u) => u.role === 'user').length,
+    Drivers: allUsers.filter((u) => u.role === 'delivery_partner').length,
     Employees: allUsers.filter((u) => u.role === 'employee').length,
     Admins: allUsers.filter((u) => u.role === 'admin').length,
-  }), [allUsers, customers, staff])
+  }), [allUsers])
+
+  const customerSubCounts = useMemo(() => {
+    const customerRows = allUsers.filter((u) => u.role === 'user')
+    return {
+      All: customerRows.length,
+      Online: customerRows.filter((c) => customerChannel(c.id) === 'Online').length,
+      Offline: customerRows.filter((c) => customerChannel(c.id) === 'Offline').length,
+    }
+  }, [allUsers, ordersData])
 
   const list = useMemo(() => {
     const roleFilter = roleForTab[tab]
@@ -142,6 +172,9 @@ export default function AdminCustomers() {
       (!roleFilter || c.role === roleFilter) &&
       `${c.name} ${c.email} ${c.mobile}`.toLowerCase().includes(search.toLowerCase())
     )
+    if (tab === 'Customers' && customerSubTab !== 'All') {
+      next = next.filter((c) => customerChannel(c.id) === customerSubTab)
+    }
     if (sort.key) {
       const field = COLUMNS.find((c) => c.key === sort.key)?.sortField
       if (field) {
@@ -156,7 +189,7 @@ export default function AdminCustomers() {
       }
     }
     return next
-  }, [allUsers, tab, search, sort])
+  }, [allUsers, tab, customerSubTab, ordersData, search, sort])
 
   const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE))
   const pageItems = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -197,12 +230,16 @@ export default function AdminCustomers() {
   // - Admin can delete anyone else (customer, employee, or another admin).
   // - Employee can delete customers only - never an admin, and never another employee or themself.
   const canDelete = (target) => {
+    // Drivers are managed from Delivery Runs (invite/lifecycle already lives
+    // there) - this page shows them read-only, so no delete/block path here.
+    if (target.role === 'delivery_partner') return false
     if (!me || target.id === me.id) return false
     if (me.role === 'admin') return true
     if (me.role === 'employee') return target.role === 'user'
     return false
   }
   const deleteTooltip = (target) => {
+    if (target.role === 'delivery_partner') return 'Manage delivery partners from the Delivery Runs page'
     if (target.id === me?.id) return 'Cannot delete your own account'
     if (me?.role === 'employee' && target.role !== 'user') return 'Employees can only remove customer accounts'
     return null
@@ -287,10 +324,21 @@ export default function AdminCustomers() {
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div className="flex gap-2 flex-wrap">
           {ROLE_TABS.map((t) => (
-            <button key={t} onClick={() => { setTab(t); setPage(1) }} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === t ? 'bg-primary-500 text-white' : 'bg-white border border-black/10 text-ink/60'}`}>
+            <button key={t} onClick={() => { setTab(t); setCustomerSubTab('Online'); setPage(1) }} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === t ? 'bg-primary-500 text-white' : 'bg-white border border-black/10 text-ink/60'}`}>
               {t} ({counts[t]})
             </button>
           ))}
+          {tab === 'Customers' && (
+            <select
+              value={customerSubTab}
+              onChange={(e) => { setCustomerSubTab(e.target.value); setPage(1) }}
+              className="input-field !w-auto text-sm ml-1"
+            >
+              {CUSTOMER_SUB_TABS.map((t) => (
+                <option key={t} value={t}>{t} ({customerSubCounts[t]})</option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search name, email, mobile..." className="" inputClassName="!w-64" />
@@ -321,14 +369,14 @@ export default function AdminCustomers() {
                 <tr key={c.id} className="border-b border-black/5 last:border-0 hover:bg-primary-50/40">
                   {isVisible('name') && (
                     <td className="p-3">
-                      <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setViewing(c)} className="flex items-center gap-2 text-left">
                         <div className={`w-8 h-8 rounded-full ${ROLE_STYLES[c.role].avatar} text-white flex items-center justify-center text-xs font-bold shrink-0`}>{c.name?.[0]}</div>
                         <div className="min-w-0">
-                          <p className="font-semibold truncate">{c.name}</p>
+                          <p className="font-semibold truncate hover:underline">{c.name}</p>
                           <p className="text-xs text-ink/40 truncate">{c.email}</p>
                         </div>
                         {c.pendingSetup && <span className="badge bg-amber-100 text-amber-700 text-[10px] shrink-0">Pending Setup</span>}
-                      </div>
+                      </button>
                     </td>
                   )}
                   {isVisible('mobile') && <td className="p-3 text-ink/60 whitespace-nowrap">{c.mobile || '--'}</td>}
@@ -420,7 +468,12 @@ export default function AdminCustomers() {
       </Modal>
 
       {/* View details - slide-in from the right, matching Orders' detail panel */}
-      <Drawer open={!!viewing} onClose={() => setViewing(null)} title={viewing?.role === 'user' ? 'Customer Details' : 'Staff Details'} width="max-w-lg">
+      <Drawer
+        open={!!viewing}
+        onClose={() => setViewing(null)}
+        title={viewing?.role === 'user' ? 'Customer Details' : viewing?.role === 'delivery_partner' ? 'Delivery Partner Details' : 'Staff Details'}
+        width="max-w-lg"
+      >
         {viewing && viewing.role === 'user' && (
           <div className="p-5 space-y-5">
             <div className="flex items-center gap-3">
@@ -439,7 +492,11 @@ export default function AdminCustomers() {
             </div>
 
             <div className="flex justify-between text-sm border-t border-black/5 pt-3">
-              <span className="text-ink/50">Mobile</span><span className="font-semibold">{viewing.mobile}</span>
+              <span className="text-ink/50">Mobile</span><span className="font-semibold">{viewing.mobile || '--'}</span>
+            </div>
+            <div className="flex justify-between items-start gap-3 text-sm">
+              <span className="text-ink/50 shrink-0">Address</span>
+              <span className="font-semibold text-right">{customerOrders(viewing.id)[0]?.address || '--'}</span>
             </div>
 
             <div>
@@ -469,7 +526,26 @@ export default function AdminCustomers() {
             </button>
           </div>
         )}
-        {viewing && viewing.role !== 'user' && (
+        {viewing && viewing.role === 'delivery_partner' && (
+          <div className="p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-full ${ROLE_STYLES.delivery_partner.avatar} text-white flex items-center justify-center text-lg font-bold shrink-0`}>{viewing.name?.[0]}</div>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold">{viewing.name}</p>
+                <p className="text-sm text-ink/50 truncate">{viewing.email}</p>
+              </div>
+              <StatusPill status={viewing.status || 'Active'} />
+            </div>
+            <div className="flex justify-between text-sm border-t border-black/5 pt-3 items-center">
+              <span className="text-ink/50 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> Email</span><span className="font-semibold text-right">{viewing.email || '--'}</span>
+            </div>
+            <div className="flex justify-between text-sm items-center">
+              <span className="text-ink/50 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Phone</span><span className="font-semibold">{viewing.mobile || '--'}</span>
+            </div>
+            <p className="text-xs text-ink/40 pt-1">Managed from the Delivery Runs page - invite, assign, and track runs there.</p>
+          </div>
+        )}
+        {viewing && viewing.role !== 'user' && viewing.role !== 'delivery_partner' && (
           <div className="p-5 space-y-4">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-full ${ROLE_STYLES[viewing.role].avatar} text-white flex items-center justify-center text-lg font-bold shrink-0`}>{viewing.name?.[0]}</div>
