@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Eye, Plus, Printer, Download, Package, User as UserIcon, MapPin, CreditCard, XCircle, Camera } from 'lucide-react'
+import { Eye, Plus, Printer, Download, Package, User as UserIcon, MapPin, CreditCard, XCircle, Camera, ZoomIn } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Breadcrumb from '../../components/ui/Breadcrumb'
 import StatusPill, { STATUS_STYLES } from '../../components/ui/StatusPill'
@@ -8,6 +8,8 @@ import CancellationInfo from '../../components/ui/CancellationInfo'
 import CancelOrderModal from '../../components/ui/CancelOrderModal'
 import ProcessRefundModal from '../../components/ui/ProcessRefundModal'
 import Drawer from '../../components/ui/Drawer'
+import CustomerDetailsDrawer from '../../components/ui/CustomerDetailsDrawer'
+import ImageLightbox from '../../components/ui/ImageLightbox'
 import RowActionsMenu from '../../components/ui/RowActionsMenu'
 import SearchInput from '../../components/ui/SearchInput'
 import TableShell from '../../components/ui/TableShell'
@@ -217,6 +219,8 @@ export default function AdminOrders() {
   const [page, setPage] = useState(1)
   const [viewing, setViewing] = useState(null)
   const [deliveryProof, setDeliveryProof] = useState(null)
+  const [viewingCustomerId, setViewingCustomerId] = useState(null)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const [updating, setUpdating] = useState({})
   const [cancelTarget, setCancelTarget] = useState(null)
   const [cancelling, setCancelling] = useState(false)
@@ -497,7 +501,7 @@ export default function AdminOrders() {
                 {isVisible('type') && <td className="p-3 whitespace-nowrap"><TypeBadge order={o} /></td>}
                 {isVisible('customer') && (
                   <td className="p-3 whitespace-nowrap">
-                    <Link to={`/admin/customers?id=${o.customerId}`} className="font-semibold text-primary-700 hover:underline">{o.customerName}</Link>
+                    <button type="button" onClick={() => setViewingCustomerId(o.customerId)} className="font-semibold text-primary-700 hover:underline text-left">{o.customerName}</button>
                   </td>
                 )}
                 {isVisible('rice') && (
@@ -610,7 +614,7 @@ export default function AdminOrders() {
             <div>
               <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><UserIcon className="w-3.5 h-3.5" /> Customer Information</h5>
               <div className="card p-3.5 space-y-1.5">
-                <div className="flex justify-between"><span className="text-ink/50">Name</span><Link to={`/admin/customers?id=${viewing.customerId}`} className="font-semibold text-primary-700 hover:underline">{viewing.customerName}</Link></div>
+                <div className="flex justify-between"><span className="text-ink/50">Name</span><button type="button" onClick={() => setViewingCustomerId(viewing.customerId)} className="font-semibold text-primary-700 hover:underline">{viewing.customerName}</button></div>
                 <div className="flex justify-between items-start gap-3"><span className="text-ink/50 shrink-0 flex items-center gap-1"><MapPin className="w-3 h-3" /> Address</span><span className="font-semibold text-right">{viewing.address || '--'}</span></div>
               </div>
             </div>
@@ -708,7 +712,17 @@ export default function AdminOrders() {
               <div>
                 <h5 className="text-xs font-bold uppercase tracking-wide text-ink/50 mb-2 flex items-center gap-1.5"><Camera className="w-3.5 h-3.5" /> Delivery Proof</h5>
                 <div className="card p-3.5 space-y-3">
-                  <img src={deliveryProof.imageUrl} alt="Delivery proof" className="w-full max-h-72 object-cover rounded-xl" />
+                  <button
+                    type="button"
+                    onClick={() => setLightboxOpen(true)}
+                    className="relative w-full group rounded-xl overflow-hidden"
+                    aria-label="View full delivery proof photo"
+                  >
+                    <img src={deliveryProof.imageUrl} alt="Delivery proof" className="w-full max-h-72 object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                      <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </button>
                   <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between"><span className="text-ink/50">Delivered By</span><span className="font-semibold">{deliveryProof.deliveryPartnerName || `Partner #${deliveryProof.deliveryPartnerId}`}</span></div>
                     <div className="flex justify-between"><span className="text-ink/50">Delivered At</span><span className="font-semibold">{deliveryProof.deliveredAt ? new Date(deliveryProof.deliveredAt).toLocaleString() : '--'}</span></div>
@@ -736,6 +750,16 @@ export default function AdminOrders() {
         order={refundTarget}
         onConfirm={handleRefund}
         submitting={refunding}
+      />
+
+      <CustomerDetailsDrawer open={!!viewingCustomerId} onClose={() => setViewingCustomerId(null)} customerId={viewingCustomerId} />
+
+      <ImageLightbox
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        src={deliveryProof?.imageUrl}
+        alt="Delivery proof"
+        downloadName={`delivery-proof-${viewing?.id || 'order'}.jpg`}
       />
     </div>
   )

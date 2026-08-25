@@ -23,6 +23,12 @@ const deliveryPartnerApi = {
     if (longitude != null) formData.append('longitude', longitude)
     return uploadFormData(`/api/delivery-partner/orders/${orderId}/deliver`, formData)
   },
+
+  // Not live on the backend yet (see backend prompt) - lets a partner view the
+  // proof photo/notes they already uploaded for one of their own delivered
+  // orders, same DeliveryProofResponse shape the admin proof view already
+  // uses. Deliveries.jsx catches the 404 gracefully until this lands.
+  getOrderProof: (orderId) => http.get(`/api/delivery-partner/orders/${orderId}/proof`),
 }
 
 export default deliveryPartnerApi
